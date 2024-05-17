@@ -8,6 +8,10 @@
 *.so
 *.dylib
 .vscode
+.idea
+
+.env
+.secret
 
 # Test binary, built with `go test -c`
 *.test

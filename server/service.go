@@ -18,29 +18,31 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
-type ManagerConfig struct {
-	Server struct {
-		Port        int
-		HealthPort  int
-		MetricsPort int
-		Endpoints   struct {
-			Healthz      string
-			Readyz       string
-			Graphql      string
-			Subscription string
-		}
-		ShutdownTimeout time.Duration
-	}
+type GatewayConfig struct {
+	Service ServiceConfig
 	Handler *gateway.HandlerConfig
 }
 
-func InitManager(ctx context.Context, schema *runtime.Scheme, cfg *ManagerConfig) (controllerruntime.Manager, error) {
+type ServiceConfig struct {
+	Port        int
+	HealthPort  int
+	MetricsPort int
+	Endpoints   struct {
+		Healthz      string
+		Readyz       string
+		Graphql      string
+		Subscription string
+	}
+	ShutdownTimeout time.Duration
+}
+
+func NewGatewayManager(ctx context.Context, schema *runtime.Scheme, cfg *GatewayConfig) (controllerruntime.Manager, error) {
 	initDefaults(cfg)
 
 	mgr, err := manager.New(controllerruntime.GetConfigOrDie(), manager.Options{
-		HealthProbeBindAddress: fmt.Sprintf(":%d", cfg.Server.HealthPort),
+		HealthProbeBindAddress: fmt.Sprintf(":%d", cfg.Service.HealthPort),
 		Metrics: server.Options{
-			BindAddress: fmt.Sprintf(":%d", cfg.Server.MetricsPort),
+			BindAddress: fmt.Sprintf(":%d", cfg.Service.MetricsPort),
 		},
 		Scheme:         schema,
 		LeaderElection: false,
@@ -69,7 +71,7 @@ func InitManager(ctx context.Context, schema *runtime.Scheme, cfg *ManagerConfig
 		return nil, err
 	}
 
-	graphqlUrl := fmt.Sprintf("/%s", cfg.Server.Endpoints.Graphql)
+	graphqlUrl := fmt.Sprintf("/%s", cfg.Service.Endpoints.Graphql)
 	mux.Handle(
 		graphqlUrl,
 		otelhttp.NewHandler(
@@ -84,24 +86,24 @@ func InitManager(ctx context.Context, schema *runtime.Scheme, cfg *ManagerConfig
 			graphqlUrl,
 		),
 	)
-	subscriptionUrl := fmt.Sprintf("/%s", cfg.Server.Endpoints.Subscription)
+	subscriptionUrl := fmt.Sprintf("/%s", cfg.Service.Endpoints.Subscription)
 	mux.Handle(subscriptionUrl, otelhttp.NewHandler(transport.New(gqlSchema, cfg.Handler.UserClaim), subscriptionUrl))
 	err = mgr.Add(&manager.Server{
 		Server: &http.Server{
 			Handler: mux,
-			Addr:    fmt.Sprintf(":%d", cfg.Server.Port),
+			Addr:    fmt.Sprintf(":%d", cfg.Service.Port),
 		},
 		Name:            "gateway",
-		ShutdownTimeout: &cfg.Server.ShutdownTimeout,
+		ShutdownTimeout: &cfg.Service.ShutdownTimeout,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	if err := mgr.AddHealthzCheck(cfg.Server.Endpoints.Healthz, healthz.Ping); err != nil {
+	if err := mgr.AddHealthzCheck(cfg.Service.Endpoints.Healthz, healthz.Ping); err != nil {
 		return nil, err
 	}
-	if err := mgr.AddReadyzCheck(cfg.Server.Endpoints.Readyz, healthz.Ping); err != nil {
+	if err := mgr.AddReadyzCheck(cfg.Service.Endpoints.Readyz, healthz.Ping); err != nil {
 		return nil, err
 	}
 	return mgr, nil

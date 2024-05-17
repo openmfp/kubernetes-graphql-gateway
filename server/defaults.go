@@ -2,28 +2,28 @@ package server
 
 import "github.com/openmfp/crd-gql-gateway/gateway"
 
-func initDefaults(cfg *ManagerConfig) {
-	if cfg.Server.Port == 0 {
-		cfg.Server.Port = 8080
+func initDefaults(cfg *GatewayConfig) {
+	if cfg.Service.Port == 0 {
+		cfg.Service.Port = 8080
 	}
-	if cfg.Server.HealthPort == 0 {
-		cfg.Server.HealthPort = 8081
+	if cfg.Service.HealthPort == 0 {
+		cfg.Service.HealthPort = 8081
 	}
-	if cfg.Server.MetricsPort == 0 {
-		cfg.Server.MetricsPort = 8082
+	if cfg.Service.MetricsPort == 0 {
+		cfg.Service.MetricsPort = 8082
 	}
 
-	if cfg.Server.Endpoints.Graphql == "" {
-		cfg.Server.Endpoints.Graphql = "graphql"
+	if cfg.Service.Endpoints.Graphql == "" {
+		cfg.Service.Endpoints.Graphql = "graphql"
 	}
-	if cfg.Server.Endpoints.Healthz == "" {
-		cfg.Server.Endpoints.Healthz = "healthz"
+	if cfg.Service.Endpoints.Healthz == "" {
+		cfg.Service.Endpoints.Healthz = "healthz"
 	}
-	if cfg.Server.Endpoints.Readyz == "" {
-		cfg.Server.Endpoints.Readyz = "readyz"
+	if cfg.Service.Endpoints.Readyz == "" {
+		cfg.Service.Endpoints.Readyz = "readyz"
 	}
-	if cfg.Server.Endpoints.Subscription == "" {
-		cfg.Server.Endpoints.Subscription = "subscription"
+	if cfg.Service.Endpoints.Subscription == "" {
+		cfg.Service.Endpoints.Subscription = "subscription"
 	}
 	if cfg.Handler == nil {
 		cfg.Handler = &gateway.HandlerConfig{}
