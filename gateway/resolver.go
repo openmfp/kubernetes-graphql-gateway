@@ -352,6 +352,9 @@ func (r *resolver) patchItem(crd apiextensionsv1.CustomResourceDefinition, typeI
 			patchType = types.MergePatchType
 		case "patch-strategic":
 			patchType = types.StrategicMergePatchType
+		default:
+			logger.Error("invalid patch type, patch type can be patch-json, patch-merge or patch-strategic")
+			return nil, errors.New("invalid patch type, patch type can be patch-json, patch-merge or patch-strategic")
 		}
 
 		patch := client.RawPatch(patchType, []byte(payload))
