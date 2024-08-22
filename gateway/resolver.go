@@ -126,7 +126,7 @@ func (r *resolver) getPatchArguments() graphql.FieldConfigArgument {
 	return graphql.FieldConfigArgument{
 		"type": &graphql.ArgumentConfig{
 			Type:        graphql.NewNonNull(graphql.String),
-			Description: "The JSON patch type",
+			Description: "The JSON patch type, it can be json-patch, merge-patch, strategic-merge-patch",
 		},
 		"payload": &graphql.ArgumentConfig{
 			Type:        graphql.NewNonNull(graphql.String),
@@ -346,14 +346,14 @@ func (r *resolver) patchItem(crd apiextensionsv1.CustomResourceDefinition, typeI
 		
 		var patchType types.PatchType
 		switch patchTypeArg {
-		case "patch-json":
+		case "json-patch":
 			patchType = types.JSONPatchType
-		case "patch-merge":
+		case "merge-patch":
 			patchType = types.MergePatchType
-		case "patch-strategic":
+		case "strategic-merge-patch":
 			patchType = types.StrategicMergePatchType
 		default:
-			logger.Error("invalid patch type, patch type can be patch-json, patch-merge or patch-strategic")
+			logger.Error("invalid patch type, patch type can be json-patch, merge-patch or strategic-patch")
 			return nil, errors.New("invalid patch type, patch type can be patch-json, patch-merge or patch-strategic")
 		}
 
