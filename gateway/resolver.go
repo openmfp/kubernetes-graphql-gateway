@@ -122,6 +122,19 @@ func (r *resolver) getChangeArguments(input graphql.Input) graphql.FieldConfigAr
 	}
 }
 
+func (r *resolver) getPatchArguments() graphql.FieldConfigArgument {
+	return graphql.FieldConfigArgument{
+		"payload": &graphql.ArgumentConfig{
+			Type:        graphql.NewNonNull(graphql.String),
+			Description: "The JSON patch to apply to the object",
+		},
+		"metadata": &graphql.ArgumentConfig{
+			Type:        graphql.NewNonNull(metadataInput),
+			Description: "Metadata including name and namespace of the object you want to patch",
+		},
+	}
+}
+
 func (r *resolver) getItem(crd apiextensionsv1.CustomResourceDefinition, typeInformation apiextensionsv1.CustomResourceDefinitionVersion) func(p graphql.ResolveParams) (interface{}, error) {
 	logger := slog.With(slog.String("operation", "get"), slog.String("kind", crd.Spec.Names.Kind), slog.String("version", typeInformation.Name))
 	return func(p graphql.ResolveParams) (interface{}, error) {
