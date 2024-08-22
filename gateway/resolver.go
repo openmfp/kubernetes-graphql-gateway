@@ -317,7 +317,8 @@ func (r *resolver) patchItem(crd apiextensionsv1.CustomResourceDefinition, typeI
 
 		payload, ok := p.Args["payload"].(string)
 		if !ok {
-			return nil, nil
+			logger.Error("unable to parse payload field")
+			return nil, errors.New("unable to parse payload field")
 		}
 
 		patch := client.RawPatch(types.JSONPatchType, []byte(payload))
@@ -325,6 +326,7 @@ func (r *resolver) patchItem(crd apiextensionsv1.CustomResourceDefinition, typeI
 		err = r.conf.Client.Patch(ctx, us, patch, &client.PatchOptions{})
 
 		if err != nil {
+			logger.Error("unable to patch object", slog.Any("error", err))
 			return nil, err
 		}
 		
