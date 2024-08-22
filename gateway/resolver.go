@@ -315,23 +315,6 @@ func (r *resolver) patchItem(crd apiextensionsv1.CustomResourceDefinition, typeI
 			return nil, err
 		}
 
-		// spec, ok := p.Args["patch"].(map[string]interface{})
-		// if !ok {
-		// 	return "", nil
-		// }
-
-		// payload, ok := spec["description"].(string)
-		// if !ok {
-		// 	return "", nil
-		// }
-
-		// TODO check whether payloadBytes can be passed directly as a string instead of an object and then it to be marshaled in a string
-		// payloadBytes, err := json.Marshal(payload)
-		// if err != nil {
-		// 	return nil, err
-		// }
-		// patch := client.RawPatch(types.JSONPatchType, payloadBytes)
-		
 		payload, ok := p.Args["payload"].(string)
 		if !ok {
 			return nil, nil
