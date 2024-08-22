@@ -124,6 +124,10 @@ func (r *resolver) getChangeArguments(input graphql.Input) graphql.FieldConfigAr
 
 func (r *resolver) getPatchArguments() graphql.FieldConfigArgument {
 	return graphql.FieldConfigArgument{
+		"type": &graphql.ArgumentConfig{
+			Type:        graphql.NewNonNull(graphql.String),
+			Description: "The JSON patch type",
+		},
 		"payload": &graphql.ArgumentConfig{
 			Type:        graphql.NewNonNull(graphql.String),
 			Description: "The JSON patch to apply to the object",
@@ -333,8 +337,24 @@ func (r *resolver) patchItem(crd apiextensionsv1.CustomResourceDefinition, typeI
 			logger.Error("unable to parse payload field")
 			return nil, errors.New("unable to parse payload field")
 		}
+		
+		patchTypeArg, ok := p.Args["type"].(string)
+		if !ok {
+			logger.Error("unable to parse patch type field")
+			return nil, errors.New("unable to parse patch type field")
+		}
+		
+		var patchType types.PatchType
+		switch patchTypeArg {
+		case "patch-json":
+			patchType = types.JSONPatchType
+		case "patch-merge":
+			patchType = types.MergePatchType
+		case "patch-strategic":
+			patchType = types.StrategicMergePatchType
+		}
 
-		patch := client.RawPatch(types.JSONPatchType, []byte(payload))
+		patch := client.RawPatch(patchType, []byte(payload))
 
 		err = r.conf.Client.Patch(ctx, us, patch, &client.PatchOptions{})
 
