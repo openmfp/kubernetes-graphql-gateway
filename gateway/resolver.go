@@ -3,6 +3,7 @@ package gateway
 import (
 	"context"
 	"errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"log/slog"
 	"slices"
 	"strings"
@@ -46,14 +47,14 @@ func (r *resolver) getListArguments() graphql.FieldConfigArgument {
 	}
 }
 
-func (r *resolver) listItems(crd apiextensionsv1.CustomResourceDefinition, typeInformation apiextensionsv1.CustomResourceDefinitionVersion) func(p graphql.ResolveParams) (interface{}, error) {
-	logger := slog.With(slog.String("operation", "list"), slog.String("kind", crd.Spec.Names.Kind), slog.String("version", typeInformation.Name))
+func (r *resolver) listItems(resource v1.APIResource) func(p graphql.ResolveParams) (interface{}, error) {
+	logger := slog.With(slog.String("operation", "list"), slog.String("kind", resource.Kind), slog.String("version", resource.Name))
 
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		ctx, span := otel.Tracer("").Start(p.Context, "Resolve", trace.WithAttributes(attribute.String("kind", crd.Spec.Names.Kind)))
+		ctx, span := otel.Tracer("").Start(p.Context, "Resolve", trace.WithAttributes(attribute.String("kind", resource.Kind)))
 		defer span.End()
 
-		listFunc, ok := r.conf.pluralToListType[crd.Spec.Names.Plural]
+		listFunc, ok := r.conf.pluralToListType[resource.Name]
 		if !ok {
 			logger.Error("no typed client available for the reuqested type")
 			return nil, errors.New("no typed client available for the reuqested type")
@@ -209,10 +210,10 @@ func (r *resolver) deleteItem(crd apiextensionsv1.CustomResourceDefinition, type
 	}
 }
 
-func (r *resolver) createItem(crd apiextensionsv1.CustomResourceDefinition, typeInformation apiextensionsv1.CustomResourceDefinitionVersion) func(p graphql.ResolveParams) (interface{}, error) {
-	logger := slog.With(slog.String("operation", "create"), slog.String("kind", crd.Spec.Names.Kind), slog.String("version", typeInformation.Name))
+func (r *resolver) createItem(resource v1.APIResource) func(p graphql.ResolveParams) (interface{}, error) {
+	logger := slog.With(slog.String("operation", "create"), slog.String("kind", resource.Kind), slog.String("version", resource.Name))
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		ctx, span := otel.Tracer("").Start(p.Context, "Create", trace.WithAttributes(attribute.String("kind", crd.Spec.Names.Kind)))
+		ctx, span := otel.Tracer("").Start(p.Context, "Create", trace.WithAttributes(attribute.String("kind", resource.Kind)))
 		defer span.End()
 
 		var metadatInput MetadatInput
@@ -225,9 +226,9 @@ func (r *resolver) createItem(crd apiextensionsv1.CustomResourceDefinition, type
 
 		us := &unstructured.Unstructured{}
 		us.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   crd.Spec.Group,
-			Version: typeInformation.Name,
-			Kind:    crd.Spec.Names.Kind,
+			Group:   resource.Group,
+			Version: resource.Name,
+			Kind:    resource.Kind,
 		})
 
 		us.SetNamespace(metadatInput.Namespace)
@@ -337,13 +338,13 @@ func (r *resolver) patchItem(crd apiextensionsv1.CustomResourceDefinition, typeI
 			logger.Error("unable to parse payload field")
 			return nil, errors.New("unable to parse payload field")
 		}
-		
+
 		patchTypeArg, ok := p.Args["type"].(string)
 		if !ok {
 			logger.Error("unable to parse patch type field")
 			return nil, errors.New("unable to parse patch type field")
 		}
-		
+
 		var patchType types.PatchType
 		switch patchTypeArg {
 		case "json-patch":
@@ -365,7 +366,7 @@ func (r *resolver) patchItem(crd apiextensionsv1.CustomResourceDefinition, typeI
 			logger.Error("unable to patch object", slog.Any("error", err))
 			return nil, err
 		}
-		
+
 		return us.Object, nil
 	}
 }

@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+	"k8s.io/client-go/discovery"
 	"net/http"
 
 	"context"
@@ -9,7 +11,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/openmfp/crd-gql-gateway/gateway"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -32,6 +36,9 @@ var startCmd = &cobra.Command{
 
 		jirav1alpha1.AddToScheme(schema)
 		jenxv1.AddToScheme(schema)
+
+		// Add the types you want to support to the schema
+		utilruntime.Must(corev1.AddToScheme(schema))
 
 		k8sCache, err := cache.New(cfg, cache.Options{
 			Scheme: schema,
@@ -60,8 +67,20 @@ var startCmd = &cobra.Command{
 			return err
 		}
 
+		discoveryClient, err := discovery.NewDiscoveryClientForConfig(cfg)
+		if err != nil {
+			return err
+		}
+
+		document, err := discoveryClient.OpenAPISchema()
+		if err != nil {
+			panic(err.Error())
+		}
+
 		gqlSchema, err := gateway.New(cmd.Context(), gateway.Config{
-			Client: cl,
+			Client:    cl,
+			Discovery: discoveryClient,
+			Document:  document,
 		})
 		if err != nil {
 			return err
@@ -76,6 +95,8 @@ var startCmd = &cobra.Command{
 			UserClaim:   "mail",
 			GroupsClaim: "groups",
 		}))
+
+		fmt.Println("Serving at http://localhost:3000/graphql")
 
 		return http.ListenAndServe(":3000", nil)
 	},
