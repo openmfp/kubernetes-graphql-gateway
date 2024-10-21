@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"net/http"
 
 	"context"
@@ -18,6 +19,8 @@ import (
 	jirav1alpha1 "github.tools.sap/automaticd/automaticd/operators/jira/api/v1alpha1"
 	authzv1 "k8s.io/api/authorization/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+
+	accounts "github.com/openmfp/account-operator/api/v1alpha1"
 )
 
 var startCmd = &cobra.Command{
@@ -32,6 +35,8 @@ var startCmd = &cobra.Command{
 
 		jirav1alpha1.AddToScheme(schema)
 		jenxv1.AddToScheme(schema)
+
+		accounts.AddToScheme(schema)
 
 		k8sCache, err := cache.New(cfg, cache.Options{
 			Scheme: schema,
@@ -66,6 +71,8 @@ var startCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
+		fmt.Println("Server is running on http://localhost:3000/graphql")
 
 		http.Handle("/graphql", gateway.Handler(gateway.HandlerConfig{
 			Config: &handler.Config{
