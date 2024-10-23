@@ -1,0 +1,68 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: api-access-sa
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: openapi-read-access
+rules:
+- nonResourceURLs: ["/openapi/v3"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: openapi-read-access-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: openapi-read-access  # Must match the role created above.
+subjects:
+- kind: ServiceAccount
+  name: api-access-sa
+  namespace: default  # Match the namespace where your pod runs.
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kubectl-openapi-fetch
+spec:
+  serviceAccountName: api-access-sa  # Attach the least-privilege service account.
+  initContainers:
+  - name: kubectl-container
+    image: bitnami/kubectl:latest ##TODO(fourthisle): create a custom kubectl image
+    command: ["/bin/sh", "-c", "kubectl get --raw /openapi/v2 > /data/openapi-schema-v2.json"]
+    # 
+    # kubectl-openapi-fetch:/data/openapi-schema-v2.json ./openapi-schema-v2.json
+    volumeMounts:
+    - name: data-volume
+      mountPath: /data
+    resources:
+      limits:
+        memory: "64Mi"  # Limit memory usage to 64MiB
+        cpu: "100m"     # Limit CPU usage to 100 millicores (0.1 core)
+      requests:
+        memory: "32Mi"  # Request 32MiB of memory
+        cpu: "50m"
+  containers:
+  - name: busybox
+    image: busybox
+    command: ["sleep", "3600"]
+    resources:
+      limits:
+        memory: "64Mi"  # Limit memory usage to 64MiB
+        cpu: "100m"     # Limit CPU usage to 100 millicores (0.1 core)
+      requests:
+        memory: "32Mi"  # Request 32MiB of memory
+        cpu: "50m"
+    volumeMounts:
+    - name: data-volume
+      mountPath: /data
+  restartPolicy: Never
+  volumes:
+  - name: data-volume
+    emptyDir: {}
