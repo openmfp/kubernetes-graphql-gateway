@@ -1,29 +1,17 @@
-package main
+package research
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/graphql-go/graphql/language/ast"
-	"github.com/graphql-go/handler"
-	"github.com/openmfp/crd-gql-gateway/gateway"
-	"io/ioutil"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"context"
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/graphql"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"sort"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/dynamic"
-
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 var stringMapScalar = graphql.NewScalar(graphql.ScalarConfig{
@@ -95,109 +83,10 @@ type MetadatInput struct {
 	Labels       map[string]string `mapstructure:"labels,omitempty"`
 }
 
-func main() {
-	config, err := getKubeConfig()
-	if err != nil {
-		fmt.Printf("Error getting kubeconfig: %v\n", err)
-		os.Exit(1)
-	}
-
-	httpClient, err := rest.HTTPClientFor(config)
-	if err != nil {
-		fmt.Printf("Error creating HTTP client: %v\n", err)
-		os.Exit(1)
-	}
-
-	url := config.Host + "/openapi/v2"
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		fmt.Printf("Error creating request: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Add authentication headers if needed
-	if config.BearerToken != "" {
-		req.Header.Set("Authorization", "Bearer "+config.BearerToken)
-	}
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		fmt.Printf("Error making request: %v\n", err)
-		os.Exit(1)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("Unexpected status code: %d\n", resp.StatusCode)
-		os.Exit(1)
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Printf("Error reading response body: %v\n", err)
-		os.Exit(1)
-	}
-
-	var swagger spec.Swagger
-	err = json.Unmarshal(body, &swagger)
-	if err != nil {
-		fmt.Printf("Error unmarshalling OpenAPI schema: %v\n", err)
-		os.Exit(1)
-	}
-
-	err = spec.ExpandSpec(&swagger, nil)
-	if err != nil {
-		fmt.Printf("Error expanding OpenAPI schema: %v\n", err)
-		os.Exit(1)
-	}
-
-	filteredResources := map[string]struct{}{
-		"io.k8s.api.core.v1.Pod": {},
-		// "io.k8s.api.core.v1.Endpoints": {},
-		// "io.k8s.api.core.v1.Service":   {},
-	}
-
-	filteredDefinitions := make(map[string]spec.Schema)
-	for key, val := range swagger.Definitions {
-		if _, ok := filteredResources[key]; ok {
-			filteredDefinitions[key] = val
-		}
-	}
-
-	dynamicClient, err := dynamic.NewForConfig(config)
-	if err != nil {
-		fmt.Printf("Error creating dynamic client: %v\n", err)
-		os.Exit(1)
-	}
-
-	resolver := NewResolver(dynamicClient)
-
-	gqlSchema, err := GetGraphqlSchema(filteredDefinitions, resolver)
-	if err != nil {
-		fmt.Println("Error creating GraphQL schema")
-		panic(err)
-	}
-
-	fmt.Println("Server is running on http://localhost:3000/graphql")
-
-	http.Handle("/graphql", gateway.Handler(gateway.HandlerConfig{
-		Config: &handler.Config{
-			Schema:     &gqlSchema,
-			Pretty:     true,
-			Playground: true,
-		},
-		UserClaim:   "mail",
-		GroupsClaim: "groups",
-	}))
-
-	http.ListenAndServe(":3000", nil)
-}
-
 var typeCache = make(map[string]graphql.Type)
 var inputTypeCache = make(map[string]graphql.Input)
 
-func GetGraphqlSchema(definitions spec.Definitions, res *resolverProvider) (graphql.Schema, error) {
+func GetGraphqlSchema(definitions spec.Definitions, res *ResolverProvider) (graphql.Schema, error) {
 	rootQueryFields := graphql.Fields{}
 	for group, groupedResources := range definitionByGroup(definitions) {
 		queryGroupType := graphql.NewObject(graphql.ObjectConfig{
@@ -205,7 +94,14 @@ func GetGraphqlSchema(definitions spec.Definitions, res *resolverProvider) (grap
 			Fields: graphql.Fields{},
 		})
 
-		for resourceName, resourceScheme := range groupedResources {
+		for resourceUri, resourceScheme := range groupedResources {
+			gvk, err := parseGroupVersionKind(resourceUri)
+			if err != nil {
+				fmt.Printf("Error parsing group version kind: %v\n", err)
+				continue
+			}
+			resourceName := gvk.Kind
+
 			fields, _ := GenerateGraphQLInputFields(resourceName, &resourceScheme, definitions)
 
 			if len(fields) == 0 {
@@ -224,10 +120,12 @@ func GetGraphqlSchema(definitions spec.Definitions, res *resolverProvider) (grap
 			})
 
 			pluralResourceName := getPluralResourceName(resourceName)
+
+			// Extract group and version information
 			queryGroupType.AddFieldConfig(pluralResourceName, &graphql.Field{
 				Type:    graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(resourceType))),
 				Args:    res.getListArguments(),
-				Resolve: res.listItems(),
+				Resolve: res.listItems(gvk),
 			})
 		}
 
@@ -275,7 +173,7 @@ func definitionByGroup(definitions spec.Definitions) map[string]spec.Definitions
 			groups[group] = spec.Definitions{}
 		}
 
-		groups[group][gvk.Kind] = definition
+		groups[group][key] = definition
 	}
 
 	return groups
@@ -448,121 +346,4 @@ func parseGroupVersionKind(resourceKey string) (schema.GroupVersionKind, error) 
 		Version: version,
 		Kind:    kind,
 	}, nil
-}
-
-// resovler
-type resolverProvider struct {
-	dynamicClient dynamic.Interface
-}
-
-func NewResolver(dynamicClient dynamic.Interface) *resolverProvider {
-	return &resolverProvider{
-		dynamicClient: dynamicClient,
-	}
-}
-
-func (r *resolverProvider) listItems() func(p graphql.ResolveParams) (interface{}, error) {
-	return func(p graphql.ResolveParams) (interface{}, error) {
-		resourceName := p.Info.FieldName
-		gvr, err := getGroupVersionResource(resourceName)
-		if err != nil {
-			return nil, err
-		}
-
-		namespace, _ := p.Args["namespace"].(string)
-		labelSelector, _ := p.Args["labelselector"].(string)
-
-		listOptions := metav1.ListOptions{
-			LabelSelector: labelSelector,
-		}
-
-		var list *unstructured.UnstructuredList
-		if namespace != "" {
-			list, err = r.dynamicClient.Resource(gvr).Namespace(namespace).List(context.Background(), listOptions)
-		} else {
-			list, err = r.dynamicClient.Resource(gvr).List(context.Background(), listOptions)
-		}
-
-		if err != nil {
-			return nil, err
-		}
-
-		items := list.Items
-
-		// Sort the items by name
-		sort.Slice(items, func(i, j int) bool {
-			return items[i].GetName() < items[j].GetName()
-		})
-
-		return items, nil
-	}
-}
-
-// Helper function to convert resource name to GroupVersionResource
-func getGroupVersionResource(resourceName string) (schema.GroupVersionResource, error) {
-	switch resourceName {
-	case "pods", "Pod":
-		return schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}, nil
-	case "services", "Service":
-		return schema.GroupVersionResource{Group: "", Version: "v1", Resource: "services"}, nil
-	// Add more cases for other resource types
-	default:
-		return schema.GroupVersionResource{}, fmt.Errorf("unknown resource: %s", resourceName)
-	}
-}
-
-func (r *resolverProvider) getListArguments() graphql.FieldConfigArgument {
-	return graphql.FieldConfigArgument{
-		"labelselector": &graphql.ArgumentConfig{
-			Type:        graphql.String,
-			Description: "a label selector to filter the objects by",
-		},
-		"namespace": &graphql.ArgumentConfig{
-			Type:        graphql.String,
-			Description: "the namespace in which to search for the objects",
-		},
-	}
-}
-
-func (r *resolverProvider) getItemArguments() graphql.FieldConfigArgument {
-	return graphql.FieldConfigArgument{
-		"name": &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(graphql.String),
-			Description: "the metadata.name of the object",
-		},
-		"namespace": &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(graphql.String),
-			Description: "the metadata.namespace of the object",
-		},
-	}
-}
-
-func (r *resolverProvider) getChangeArguments(input graphql.Input) graphql.FieldConfigArgument {
-	return graphql.FieldConfigArgument{
-		"metadata": &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(metadataInput),
-			Description: "the metadata of the object",
-		},
-		"spec": &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(input),
-			Description: "the spec of the object",
-		},
-	}
-}
-
-func (r *resolverProvider) getPatchArguments() graphql.FieldConfigArgument {
-	return graphql.FieldConfigArgument{
-		"type": &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(graphql.String),
-			Description: "The JSON patch type, it can be json-patch, merge-patch, strategic-merge-patch",
-		},
-		"payload": &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(graphql.String),
-			Description: "The JSON patch to apply to the object",
-		},
-		"metadata": &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(metadataInput),
-			Description: "Metadata including name and namespace of the object you want to patch",
-		},
-	}
 }
