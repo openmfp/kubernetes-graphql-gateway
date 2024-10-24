@@ -3,6 +3,7 @@ module github.com/openmfp/crd-gql-gateway
 go 1.22.5
 
 require (
+	github.com/go-openapi/spec v0.21.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/go-cmp v0.6.0
 	github.com/graphql-go/graphql v0.8.1
