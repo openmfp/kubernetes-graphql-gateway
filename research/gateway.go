@@ -5,14 +5,10 @@ import (
 	"github.com/graphql-go/graphql/language/ast"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/graphql"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 var stringMapScalar = graphql.NewScalar(graphql.ScalarConfig{
@@ -187,6 +183,7 @@ func objectMetaType() *graphql.Object {
 	})
 }
 
+// replace it with better option
 func getPluralResourceName(singularName string) string {
 	switch singularName {
 	case "Pod":
@@ -290,127 +287,6 @@ func mapSwaggerTypeToGraphQL(fieldSpec spec.Schema, definitions spec.Definitions
 func getTypeNameFromRef(ref string) string {
 	parts := strings.Split(ref, "/")
 	return parts[len(parts)-1]
-}
-
-func ConvertSchemaToGraphQLType(name string, schema *spec.Schema, definitions spec.Definitions, parentNames []string) (graphql.Type, graphql.Input) {
-	newNameWithParentName := append(parentNames, name)
-	typeID := getTypeID(schema, parentNames)
-	// Check if the type already exists in the cache
-	if outputType, exists := typeCache[typeID]; exists {
-		inputType := inputTypeCache[typeID]
-		return outputType, inputType
-	}
-
-	// Handle $ref
-	if schema.Ref.GetURL() != nil {
-		ref := schema.Ref.String()
-		ref = strings.TrimPrefix(ref, "#/definitions/")
-		refSchema, ok := definitions[ref]
-		if ok {
-			return ConvertSchemaToGraphQLType(ref, &refSchema, definitions, newNameWithParentName)
-		}
-	}
-
-	var outputType graphql.Type
-	var inputType graphql.Input
-
-	switch schema.Type[0] {
-	case "string":
-		outputType = graphql.String
-		inputType = graphql.String
-	case "integer":
-		outputType = graphql.Int
-		inputType = graphql.Int
-	case "number":
-		outputType = graphql.Float
-		inputType = graphql.Float
-	case "boolean":
-		outputType = graphql.Boolean
-		inputType = graphql.Boolean
-	case "array":
-		itemOutputType, itemInputType := ConvertSchemaToGraphQLType(name, schema.Items.Schema, definitions, newNameWithParentName)
-		if itemOutputType != nil {
-			outputType = graphql.NewList(itemOutputType)
-		}
-		if itemInputType != nil {
-			inputType = graphql.NewList(itemInputType)
-		}
-	case "object":
-		// Handle additionalProperties for map types
-		if schema.AdditionalProperties != nil && schema.AdditionalProperties.Schema != nil {
-			valueOutputType, valueInputType := ConvertSchemaToGraphQLType(name, schema.AdditionalProperties.Schema, definitions, newNameWithParentName)
-			if valueOutputType != nil {
-				outputType = graphql.NewScalar(graphql.ScalarConfig{
-					Name: "Map",
-				})
-			}
-			if valueInputType != nil {
-				inputType = graphql.NewScalar(graphql.ScalarConfig{
-					Name: "Map",
-				})
-			}
-		} else {
-			// Handle regular objects
-			subFields := graphql.Fields{}
-			subInputFields := graphql.InputObjectConfigFieldMap{}
-			for propName, propSchema := range schema.Properties {
-				fieldType, inputFieldType := ConvertSchemaToGraphQLType(propName, &propSchema, definitions, newNameWithParentName)
-				if fieldType != nil {
-					subFields[propName] = &graphql.Field{
-						Type: fieldType,
-					}
-				}
-				if inputFieldType != nil {
-					subInputFields[propName] = &graphql.InputObjectFieldConfig{
-						Type: inputFieldType,
-					}
-				}
-			}
-			typeName := NormalizeTypeName(newNameWithParentName)
-			outputType = graphql.NewObject(graphql.ObjectConfig{
-				Name:   typeName,
-				Fields: subFields,
-			})
-			inputType = graphql.NewInputObject(graphql.InputObjectConfig{
-				Name:   typeName + "Input",
-				Fields: subInputFields,
-			})
-		}
-	}
-
-	// After creating types, store them in cache
-	typeCache[typeID] = outputType
-	inputTypeCache[typeID] = inputType
-
-	return outputType, inputType
-}
-
-func getTypeID(schema *spec.Schema, parentNames []string) string {
-	if schema.ID != "" {
-		return schema.ID
-	}
-	return strings.Join(append(parentNames, schema.Title), "_")
-}
-
-func NormalizeTypeName(parentNames []string) string {
-	name := strings.Join(parentNames, "_")
-	name = strings.ReplaceAll(name, ".", "_")
-	name = strings.ReplaceAll(name, "-", "_")
-	return name
-}
-
-// getKubeConfig retrieves Kubernetes configuration
-func getKubeConfig() (*rest.Config, error) {
-	var kubeconfigPath string
-	if envKubeconfig := os.Getenv("KUBECONFIG"); envKubeconfig != "" {
-		kubeconfigPath = envKubeconfig
-	} else if home := os.Getenv("HOME"); home != "" {
-		kubeconfigPath = filepath.Join(home, ".kube", "config")
-	} else {
-		return nil, fmt.Errorf("cannot find kubeconfig")
-	}
-
-	return clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 }
 
 func parseGroupVersionKind(resourceKey string) (schema.GroupVersionKind, error) {

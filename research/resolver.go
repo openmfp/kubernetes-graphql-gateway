@@ -1,7 +1,6 @@
 package research
 
 import (
-	"fmt"
 	"github.com/graphql-go/graphql"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -14,7 +13,6 @@ import (
 	"sort"
 )
 
-// resovler
 type ResolverProvider struct {
 	runtimeClient client.Client
 }
@@ -48,6 +46,7 @@ func unstructuredFieldResolver(fieldPath []string) graphql.FieldResolveFn {
 		return value, nil
 	}
 }
+
 func (r *ResolverProvider) listItems(gvk schema.GroupVersionKind) func(p graphql.ResolveParams) (interface{}, error) {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		ctx, span := otel.Tracer("").Start(p.Context, "Resolve", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
@@ -99,19 +98,6 @@ func (r *ResolverProvider) listItems(gvk schema.GroupVersionKind) func(p graphql
 	}
 }
 
-// Helper function to convert resource name to GroupVersionResource
-func getGroupVersionResource(resourceName string) (schema.GroupVersionResource, error) {
-	switch resourceName {
-	case "pods", "Pod":
-		return schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}, nil
-	case "services", "Service":
-		return schema.GroupVersionResource{Group: "", Version: "v1", Resource: "services"}, nil
-	// Add more cases for other resource types
-	default:
-		return schema.GroupVersionResource{}, fmt.Errorf("unknown resource: %s", resourceName)
-	}
-}
-
 func (r *ResolverProvider) getListArguments() graphql.FieldConfigArgument {
 	return graphql.FieldConfigArgument{
 		"labelselector": &graphql.ArgumentConfig{
@@ -121,49 +107,6 @@ func (r *ResolverProvider) getListArguments() graphql.FieldConfigArgument {
 		"namespace": &graphql.ArgumentConfig{
 			Type:        graphql.String,
 			Description: "the namespace in which to search for the objects",
-		},
-	}
-}
-
-func (r *ResolverProvider) getItemArguments() graphql.FieldConfigArgument {
-	return graphql.FieldConfigArgument{
-		"name": &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(graphql.String),
-			Description: "the metadata.name of the object",
-		},
-		"namespace": &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(graphql.String),
-			Description: "the metadata.namespace of the object",
-		},
-	}
-}
-
-func (r *ResolverProvider) getChangeArguments(input graphql.Input) graphql.FieldConfigArgument {
-	return graphql.FieldConfigArgument{
-		"metadata": &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(metadataInput),
-			Description: "the metadata of the object",
-		},
-		"spec": &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(input),
-			Description: "the spec of the object",
-		},
-	}
-}
-
-func (r *ResolverProvider) getPatchArguments() graphql.FieldConfigArgument {
-	return graphql.FieldConfigArgument{
-		"type": &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(graphql.String),
-			Description: "The JSON patch type, it can be json-patch, merge-patch, strategic-merge-patch",
-		},
-		"payload": &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(graphql.String),
-			Description: "The JSON patch to apply to the object",
-		},
-		"metadata": &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(metadataInput),
-			Description: "Metadata including name and namespace of the object you want to patch",
 		},
 	}
 }

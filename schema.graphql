@@ -1,0 +1,2194 @@
+type coreType {
+  pods(
+    """a label selector to filter the objects by"""
+    labelselector: String
+
+    """the namespace in which to search for the objects"""
+    namespace: String
+  ): [Pod!]!
+}
+
+scalar LabelsMap
+
+type Object_spec {
+  activeDeadlineSeconds: Int
+  affinity: Object_spec_affinity
+  automountServiceAccountToken: Boolean
+  containers: [Object_spec_containers!]
+  dnsConfig: Object_spec_dnsConfig
+  dnsPolicy: String
+  enableServiceLinks: Boolean
+  ephemeralContainers: [Object_spec_ephemeralContainers!]
+  hostAliases: [Object_spec_hostAliases!]
+  hostIPC: Boolean
+  hostNetwork: Boolean
+  hostPID: Boolean
+  hostUsers: Boolean
+  hostname: String
+  imagePullSecrets: [Object_spec_imagePullSecrets!]
+  initContainers: [Object_spec_initContainers!]
+  nodeName: String
+  nodeSelector: String
+  os: Object_spec_os
+  overhead: String
+  preemptionPolicy: String
+  priority: Int
+  priorityClassName: String
+  readinessGates: [Object_spec_readinessGates!]
+  resourceClaims: [Object_spec_resourceClaims!]
+  restartPolicy: String
+  runtimeClassName: String
+  schedulerName: String
+  schedulingGates: [Object_spec_schedulingGates!]
+  securityContext: Object_spec_securityContext
+  serviceAccount: String
+  serviceAccountName: String
+  setHostnameAsFQDN: Boolean
+  shareProcessNamespace: Boolean
+  subdomain: String
+  terminationGracePeriodSeconds: Int
+  tolerations: [Object_spec_tolerations!]
+  topologySpreadConstraints: [Object_spec_topologySpreadConstraints!]
+  volumes: [Object_spec_volumes!]
+}
+
+type Object_spec_affinity {
+  nodeAffinity: Object_spec_affinity_nodeAffinity
+  podAffinity: Object_spec_affinity_podAffinity
+  podAntiAffinity: Object_spec_affinity_podAntiAffinity
+}
+
+type Object_spec_affinity_nodeAffinity {
+  preferredDuringSchedulingIgnoredDuringExecution: [Object_spec_affinity_nodeAffinity_preferredDuringSchedulingIgnoredDuringExecution!]
+  requiredDuringSchedulingIgnoredDuringExecution: Object_spec_affinity_nodeAffinity_requiredDuringSchedulingIgnoredDuringExecution
+}
+
+type Object_spec_affinity_nodeAffinity_preferredDuringSchedulingIgnoredDuringExecution {
+  preference: Object_spec_affinity_nodeAffinity_preferredDuringSchedulingIgnoredDuringExecution_preference
+  weight: Int
+}
+
+type Object_spec_affinity_nodeAffinity_preferredDuringSchedulingIgnoredDuringExecution_preference {
+  matchExpressions: [Object_spec_affinity_nodeAffinity_preferredDuringSchedulingIgnoredDuringExecution_preference_matchExpressions!]
+  matchFields: [Object_spec_affinity_nodeAffinity_preferredDuringSchedulingIgnoredDuringExecution_preference_matchFields!]
+}
+
+type Object_spec_affinity_nodeAffinity_preferredDuringSchedulingIgnoredDuringExecution_preference_matchExpressions {
+  key: String
+  operator: String
+  values: [String!]
+}
+
+type Object_spec_affinity_nodeAffinity_preferredDuringSchedulingIgnoredDuringExecution_preference_matchFields {
+  key: String
+  operator: String
+  values: [String!]
+}
+
+type Object_spec_affinity_nodeAffinity_requiredDuringSchedulingIgnoredDuringExecution {
+  nodeSelectorTerms: [Object_spec_affinity_nodeAffinity_requiredDuringSchedulingIgnoredDuringExecution_nodeSelectorTerms!]
+}
+
+type Object_spec_affinity_nodeAffinity_requiredDuringSchedulingIgnoredDuringExecution_nodeSelectorTerms {
+  matchExpressions: [Object_spec_affinity_nodeAffinity_requiredDuringSchedulingIgnoredDuringExecution_nodeSelectorTerms_matchExpressions!]
+  matchFields: [Object_spec_affinity_nodeAffinity_requiredDuringSchedulingIgnoredDuringExecution_nodeSelectorTerms_matchFields!]
+}
+
+type Object_spec_affinity_nodeAffinity_requiredDuringSchedulingIgnoredDuringExecution_nodeSelectorTerms_matchExpressions {
+  key: String
+  operator: String
+  values: [String!]
+}
+
+type Object_spec_affinity_nodeAffinity_requiredDuringSchedulingIgnoredDuringExecution_nodeSelectorTerms_matchFields {
+  key: String
+  operator: String
+  values: [String!]
+}
+
+type Object_spec_affinity_podAffinity {
+  preferredDuringSchedulingIgnoredDuringExecution: [Object_spec_affinity_podAffinity_preferredDuringSchedulingIgnoredDuringExecution!]
+  requiredDuringSchedulingIgnoredDuringExecution: [Object_spec_affinity_podAffinity_requiredDuringSchedulingIgnoredDuringExecution!]
+}
+
+type Object_spec_affinity_podAffinity_preferredDuringSchedulingIgnoredDuringExecution {
+  podAffinityTerm: Object_spec_affinity_podAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm
+  weight: Int
+}
+
+type Object_spec_affinity_podAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm {
+  labelSelector: Object_spec_affinity_podAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm_labelSelector
+  matchLabelKeys: [String!]
+  mismatchLabelKeys: [String!]
+  namespaceSelector: Object_spec_affinity_podAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm_namespaceSelector
+  namespaces: [String!]
+  topologyKey: String
+}
+
+type Object_spec_affinity_podAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm_labelSelector {
+  matchExpressions: [Object_spec_affinity_podAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm_labelSelector_matchExpressions!]
+  matchLabels: String
+}
+
+type Object_spec_affinity_podAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm_labelSelector_matchExpressions {
+  key: String
+  operator: String
+  values: [String!]
+}
+
+type Object_spec_affinity_podAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm_namespaceSelector {
+  matchExpressions: [Object_spec_affinity_podAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm_namespaceSelector_matchExpressions!]
+  matchLabels: String
+}
+
+type Object_spec_affinity_podAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm_namespaceSelector_matchExpressions {
+  key: String
+  operator: String
+  values: [String!]
+}
+
+type Object_spec_affinity_podAffinity_requiredDuringSchedulingIgnoredDuringExecution {
+  labelSelector: Object_spec_affinity_podAffinity_requiredDuringSchedulingIgnoredDuringExecution_labelSelector
+  matchLabelKeys: [String!]
+  mismatchLabelKeys: [String!]
+  namespaceSelector: Object_spec_affinity_podAffinity_requiredDuringSchedulingIgnoredDuringExecution_namespaceSelector
+  namespaces: [String!]
+  topologyKey: String
+}
+
+type Object_spec_affinity_podAffinity_requiredDuringSchedulingIgnoredDuringExecution_labelSelector {
+  matchExpressions: [Object_spec_affinity_podAffinity_requiredDuringSchedulingIgnoredDuringExecution_labelSelector_matchExpressions!]
+  matchLabels: String
+}
+
+type Object_spec_affinity_podAffinity_requiredDuringSchedulingIgnoredDuringExecution_labelSelector_matchExpressions {
+  key: String
+  operator: String
+  values: [String!]
+}
+
+type Object_spec_affinity_podAffinity_requiredDuringSchedulingIgnoredDuringExecution_namespaceSelector {
+  matchExpressions: [Object_spec_affinity_podAffinity_requiredDuringSchedulingIgnoredDuringExecution_namespaceSelector_matchExpressions!]
+  matchLabels: String
+}
+
+type Object_spec_affinity_podAffinity_requiredDuringSchedulingIgnoredDuringExecution_namespaceSelector_matchExpressions {
+  key: String
+  operator: String
+  values: [String!]
+}
+
+type Object_spec_affinity_podAntiAffinity {
+  preferredDuringSchedulingIgnoredDuringExecution: [Object_spec_affinity_podAntiAffinity_preferredDuringSchedulingIgnoredDuringExecution!]
+  requiredDuringSchedulingIgnoredDuringExecution: [Object_spec_affinity_podAntiAffinity_requiredDuringSchedulingIgnoredDuringExecution!]
+}
+
+type Object_spec_affinity_podAntiAffinity_preferredDuringSchedulingIgnoredDuringExecution {
+  podAffinityTerm: Object_spec_affinity_podAntiAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm
+  weight: Int
+}
+
+type Object_spec_affinity_podAntiAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm {
+  labelSelector: Object_spec_affinity_podAntiAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm_labelSelector
+  matchLabelKeys: [String!]
+  mismatchLabelKeys: [String!]
+  namespaceSelector: Object_spec_affinity_podAntiAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm_namespaceSelector
+  namespaces: [String!]
+  topologyKey: String
+}
+
+type Object_spec_affinity_podAntiAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm_labelSelector {
+  matchExpressions: [Object_spec_affinity_podAntiAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm_labelSelector_matchExpressions!]
+  matchLabels: String
+}
+
+type Object_spec_affinity_podAntiAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm_labelSelector_matchExpressions {
+  key: String
+  operator: String
+  values: [String!]
+}
+
+type Object_spec_affinity_podAntiAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm_namespaceSelector {
+  matchExpressions: [Object_spec_affinity_podAntiAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm_namespaceSelector_matchExpressions!]
+  matchLabels: String
+}
+
+type Object_spec_affinity_podAntiAffinity_preferredDuringSchedulingIgnoredDuringExecution_podAffinityTerm_namespaceSelector_matchExpressions {
+  key: String
+  operator: String
+  values: [String!]
+}
+
+type Object_spec_affinity_podAntiAffinity_requiredDuringSchedulingIgnoredDuringExecution {
+  labelSelector: Object_spec_affinity_podAntiAffinity_requiredDuringSchedulingIgnoredDuringExecution_labelSelector
+  matchLabelKeys: [String!]
+  mismatchLabelKeys: [String!]
+  namespaceSelector: Object_spec_affinity_podAntiAffinity_requiredDuringSchedulingIgnoredDuringExecution_namespaceSelector
+  namespaces: [String!]
+  topologyKey: String
+}
+
+type Object_spec_affinity_podAntiAffinity_requiredDuringSchedulingIgnoredDuringExecution_labelSelector {
+  matchExpressions: [Object_spec_affinity_podAntiAffinity_requiredDuringSchedulingIgnoredDuringExecution_labelSelector_matchExpressions!]
+  matchLabels: String
+}
+
+type Object_spec_affinity_podAntiAffinity_requiredDuringSchedulingIgnoredDuringExecution_labelSelector_matchExpressions {
+  key: String
+  operator: String
+  values: [String!]
+}
+
+type Object_spec_affinity_podAntiAffinity_requiredDuringSchedulingIgnoredDuringExecution_namespaceSelector {
+  matchExpressions: [Object_spec_affinity_podAntiAffinity_requiredDuringSchedulingIgnoredDuringExecution_namespaceSelector_matchExpressions!]
+  matchLabels: String
+}
+
+type Object_spec_affinity_podAntiAffinity_requiredDuringSchedulingIgnoredDuringExecution_namespaceSelector_matchExpressions {
+  key: String
+  operator: String
+  values: [String!]
+}
+
+type Object_spec_containers {
+  args: [String!]
+  command: [String!]
+  env: [Object_spec_containers_env!]
+  envFrom: [Object_spec_containers_envFrom!]
+  image: String
+  imagePullPolicy: String
+  lifecycle: Object_spec_containers_lifecycle
+  livenessProbe: Object_spec_containers_livenessProbe
+  name: String
+  ports: [Object_spec_containers_ports!]
+  readinessProbe: Object_spec_containers_readinessProbe
+  resizePolicy: [Object_spec_containers_resizePolicy!]
+  resources: Object_spec_containers_resources
+  restartPolicy: String
+  securityContext: Object_spec_containers_securityContext
+  startupProbe: Object_spec_containers_startupProbe
+  stdin: Boolean
+  stdinOnce: Boolean
+  terminationMessagePath: String
+  terminationMessagePolicy: String
+  tty: Boolean
+  volumeDevices: [Object_spec_containers_volumeDevices!]
+  volumeMounts: [Object_spec_containers_volumeMounts!]
+  workingDir: String
+}
+
+type Object_spec_containers_env {
+  name: String
+  value: String
+  valueFrom: Object_spec_containers_env_valueFrom
+}
+
+type Object_spec_containers_env_valueFrom {
+  configMapKeyRef: Object_spec_containers_env_valueFrom_configMapKeyRef
+  fieldRef: Object_spec_containers_env_valueFrom_fieldRef
+  resourceFieldRef: Object_spec_containers_env_valueFrom_resourceFieldRef
+  secretKeyRef: Object_spec_containers_env_valueFrom_secretKeyRef
+}
+
+type Object_spec_containers_env_valueFrom_configMapKeyRef {
+  key: String
+  name: String
+  optional: Boolean
+}
+
+type Object_spec_containers_env_valueFrom_fieldRef {
+  apiVersion: String
+  fieldPath: String
+}
+
+type Object_spec_containers_env_valueFrom_resourceFieldRef {
+  containerName: String
+  divisor: String
+  resource: String
+}
+
+type Object_spec_containers_env_valueFrom_secretKeyRef {
+  key: String
+  name: String
+  optional: Boolean
+}
+
+type Object_spec_containers_envFrom {
+  configMapRef: Object_spec_containers_envFrom_configMapRef
+  prefix: String
+  secretRef: Object_spec_containers_envFrom_secretRef
+}
+
+type Object_spec_containers_envFrom_configMapRef {
+  name: String
+  optional: Boolean
+}
+
+type Object_spec_containers_envFrom_secretRef {
+  name: String
+  optional: Boolean
+}
+
+type Object_spec_containers_lifecycle {
+  postStart: Object_spec_containers_lifecycle_postStart
+  preStop: Object_spec_containers_lifecycle_preStop
+}
+
+type Object_spec_containers_lifecycle_postStart {
+  exec: Object_spec_containers_lifecycle_postStart_exec
+  httpGet: Object_spec_containers_lifecycle_postStart_httpGet
+  sleep: Object_spec_containers_lifecycle_postStart_sleep
+  tcpSocket: Object_spec_containers_lifecycle_postStart_tcpSocket
+}
+
+type Object_spec_containers_lifecycle_postStart_exec {
+  command: [String!]
+}
+
+type Object_spec_containers_lifecycle_postStart_httpGet {
+  host: String
+  httpHeaders: [Object_spec_containers_lifecycle_postStart_httpGet_httpHeaders!]
+  path: String
+  port: String
+  scheme: String
+}
+
+type Object_spec_containers_lifecycle_postStart_httpGet_httpHeaders {
+  name: String
+  value: String
+}
+
+type Object_spec_containers_lifecycle_postStart_sleep {
+  seconds: Int
+}
+
+type Object_spec_containers_lifecycle_postStart_tcpSocket {
+  host: String
+  port: String
+}
+
+type Object_spec_containers_lifecycle_preStop {
+  exec: Object_spec_containers_lifecycle_preStop_exec
+  httpGet: Object_spec_containers_lifecycle_preStop_httpGet
+  sleep: Object_spec_containers_lifecycle_preStop_sleep
+  tcpSocket: Object_spec_containers_lifecycle_preStop_tcpSocket
+}
+
+type Object_spec_containers_lifecycle_preStop_exec {
+  command: [String!]
+}
+
+type Object_spec_containers_lifecycle_preStop_httpGet {
+  host: String
+  httpHeaders: [Object_spec_containers_lifecycle_preStop_httpGet_httpHeaders!]
+  path: String
+  port: String
+  scheme: String
+}
+
+type Object_spec_containers_lifecycle_preStop_httpGet_httpHeaders {
+  name: String
+  value: String
+}
+
+type Object_spec_containers_lifecycle_preStop_sleep {
+  seconds: Int
+}
+
+type Object_spec_containers_lifecycle_preStop_tcpSocket {
+  host: String
+  port: String
+}
+
+type Object_spec_containers_livenessProbe {
+  exec: Object_spec_containers_livenessProbe_exec
+  failureThreshold: Int
+  grpc: Object_spec_containers_livenessProbe_grpc
+  httpGet: Object_spec_containers_livenessProbe_httpGet
+  initialDelaySeconds: Int
+  periodSeconds: Int
+  successThreshold: Int
+  tcpSocket: Object_spec_containers_livenessProbe_tcpSocket
+  terminationGracePeriodSeconds: Int
+  timeoutSeconds: Int
+}
+
+type Object_spec_containers_livenessProbe_exec {
+  command: [String!]
+}
+
+type Object_spec_containers_livenessProbe_grpc {
+  port: Int
+  service: String
+}
+
+type Object_spec_containers_livenessProbe_httpGet {
+  host: String
+  httpHeaders: [Object_spec_containers_livenessProbe_httpGet_httpHeaders!]
+  path: String
+  port: String
+  scheme: String
+}
+
+type Object_spec_containers_livenessProbe_httpGet_httpHeaders {
+  name: String
+  value: String
+}
+
+type Object_spec_containers_livenessProbe_tcpSocket {
+  host: String
+  port: String
+}
+
+type Object_spec_containers_ports {
+  containerPort: Int
+  hostIP: String
+  hostPort: Int
+  name: String
+  protocol: String
+}
+
+type Object_spec_containers_readinessProbe {
+  exec: Object_spec_containers_readinessProbe_exec
+  failureThreshold: Int
+  grpc: Object_spec_containers_readinessProbe_grpc
+  httpGet: Object_spec_containers_readinessProbe_httpGet
+  initialDelaySeconds: Int
+  periodSeconds: Int
+  successThreshold: Int
+  tcpSocket: Object_spec_containers_readinessProbe_tcpSocket
+  terminationGracePeriodSeconds: Int
+  timeoutSeconds: Int
+}
+
+type Object_spec_containers_readinessProbe_exec {
+  command: [String!]
+}
+
+type Object_spec_containers_readinessProbe_grpc {
+  port: Int
+  service: String
+}
+
+type Object_spec_containers_readinessProbe_httpGet {
+  host: String
+  httpHeaders: [Object_spec_containers_readinessProbe_httpGet_httpHeaders!]
+  path: String
+  port: String
+  scheme: String
+}
+
+type Object_spec_containers_readinessProbe_httpGet_httpHeaders {
+  name: String
+  value: String
+}
+
+type Object_spec_containers_readinessProbe_tcpSocket {
+  host: String
+  port: String
+}
+
+type Object_spec_containers_resizePolicy {
+  resourceName: String
+  restartPolicy: String
+}
+
+type Object_spec_containers_resources {
+  claims: [Object_spec_containers_resources_claims!]
+  limits: String
+  requests: String
+}
+
+type Object_spec_containers_resources_claims {
+  name: String
+}
+
+type Object_spec_containers_securityContext {
+  allowPrivilegeEscalation: Boolean
+  appArmorProfile: Object_spec_containers_securityContext_appArmorProfile
+  capabilities: Object_spec_containers_securityContext_capabilities
+  privileged: Boolean
+  procMount: String
+  readOnlyRootFilesystem: Boolean
+  runAsGroup: Int
+  runAsNonRoot: Boolean
+  runAsUser: Int
+  seLinuxOptions: Object_spec_containers_securityContext_seLinuxOptions
+  seccompProfile: Object_spec_containers_securityContext_seccompProfile
+  windowsOptions: Object_spec_containers_securityContext_windowsOptions
+}
+
+type Object_spec_containers_securityContext_appArmorProfile {
+  localhostProfile: String
+  type: String
+}
+
+type Object_spec_containers_securityContext_capabilities {
+  add: [String!]
+  drop: [String!]
+}
+
+type Object_spec_containers_securityContext_seccompProfile {
+  localhostProfile: String
+  type: String
+}
+
+type Object_spec_containers_securityContext_seLinuxOptions {
+  level: String
+  role: String
+  type: String
+  user: String
+}
+
+type Object_spec_containers_securityContext_windowsOptions {
+  gmsaCredentialSpec: String
+  gmsaCredentialSpecName: String
+  hostProcess: Boolean
+  runAsUserName: String
+}
+
+type Object_spec_containers_startupProbe {
+  exec: Object_spec_containers_startupProbe_exec
+  failureThreshold: Int
+  grpc: Object_spec_containers_startupProbe_grpc
+  httpGet: Object_spec_containers_startupProbe_httpGet
+  initialDelaySeconds: Int
+  periodSeconds: Int
+  successThreshold: Int
+  tcpSocket: Object_spec_containers_startupProbe_tcpSocket
+  terminationGracePeriodSeconds: Int
+  timeoutSeconds: Int
+}
+
+type Object_spec_containers_startupProbe_exec {
+  command: [String!]
+}
+
+type Object_spec_containers_startupProbe_grpc {
+  port: Int
+  service: String
+}
+
+type Object_spec_containers_startupProbe_httpGet {
+  host: String
+  httpHeaders: [Object_spec_containers_startupProbe_httpGet_httpHeaders!]
+  path: String
+  port: String
+  scheme: String
+}
+
+type Object_spec_containers_startupProbe_httpGet_httpHeaders {
+  name: String
+  value: String
+}
+
+type Object_spec_containers_startupProbe_tcpSocket {
+  host: String
+  port: String
+}
+
+type Object_spec_containers_volumeDevices {
+  devicePath: String
+  name: String
+}
+
+type Object_spec_containers_volumeMounts {
+  mountPath: String
+  mountPropagation: String
+  name: String
+  readOnly: Boolean
+  recursiveReadOnly: String
+  subPath: String
+  subPathExpr: String
+}
+
+type Object_spec_dnsConfig {
+  nameservers: [String!]
+  options: [Object_spec_dnsConfig_options!]
+  searches: [String!]
+}
+
+type Object_spec_dnsConfig_options {
+  name: String
+  value: String
+}
+
+type Object_spec_ephemeralContainers {
+  args: [String!]
+  command: [String!]
+  env: [Object_spec_ephemeralContainers_env!]
+  envFrom: [Object_spec_ephemeralContainers_envFrom!]
+  image: String
+  imagePullPolicy: String
+  lifecycle: Object_spec_ephemeralContainers_lifecycle
+  livenessProbe: Object_spec_ephemeralContainers_livenessProbe
+  name: String
+  ports: [Object_spec_ephemeralContainers_ports!]
+  readinessProbe: Object_spec_ephemeralContainers_readinessProbe
+  resizePolicy: [Object_spec_ephemeralContainers_resizePolicy!]
+  resources: Object_spec_ephemeralContainers_resources
+  restartPolicy: String
+  securityContext: Object_spec_ephemeralContainers_securityContext
+  startupProbe: Object_spec_ephemeralContainers_startupProbe
+  stdin: Boolean
+  stdinOnce: Boolean
+  targetContainerName: String
+  terminationMessagePath: String
+  terminationMessagePolicy: String
+  tty: Boolean
+  volumeDevices: [Object_spec_ephemeralContainers_volumeDevices!]
+  volumeMounts: [Object_spec_ephemeralContainers_volumeMounts!]
+  workingDir: String
+}
+
+type Object_spec_ephemeralContainers_env {
+  name: String
+  value: String
+  valueFrom: Object_spec_ephemeralContainers_env_valueFrom
+}
+
+type Object_spec_ephemeralContainers_env_valueFrom {
+  configMapKeyRef: Object_spec_ephemeralContainers_env_valueFrom_configMapKeyRef
+  fieldRef: Object_spec_ephemeralContainers_env_valueFrom_fieldRef
+  resourceFieldRef: Object_spec_ephemeralContainers_env_valueFrom_resourceFieldRef
+  secretKeyRef: Object_spec_ephemeralContainers_env_valueFrom_secretKeyRef
+}
+
+type Object_spec_ephemeralContainers_env_valueFrom_configMapKeyRef {
+  key: String
+  name: String
+  optional: Boolean
+}
+
+type Object_spec_ephemeralContainers_env_valueFrom_fieldRef {
+  apiVersion: String
+  fieldPath: String
+}
+
+type Object_spec_ephemeralContainers_env_valueFrom_resourceFieldRef {
+  containerName: String
+  divisor: String
+  resource: String
+}
+
+type Object_spec_ephemeralContainers_env_valueFrom_secretKeyRef {
+  key: String
+  name: String
+  optional: Boolean
+}
+
+type Object_spec_ephemeralContainers_envFrom {
+  configMapRef: Object_spec_ephemeralContainers_envFrom_configMapRef
+  prefix: String
+  secretRef: Object_spec_ephemeralContainers_envFrom_secretRef
+}
+
+type Object_spec_ephemeralContainers_envFrom_configMapRef {
+  name: String
+  optional: Boolean
+}
+
+type Object_spec_ephemeralContainers_envFrom_secretRef {
+  name: String
+  optional: Boolean
+}
+
+type Object_spec_ephemeralContainers_lifecycle {
+  postStart: Object_spec_ephemeralContainers_lifecycle_postStart
+  preStop: Object_spec_ephemeralContainers_lifecycle_preStop
+}
+
+type Object_spec_ephemeralContainers_lifecycle_postStart {
+  exec: Object_spec_ephemeralContainers_lifecycle_postStart_exec
+  httpGet: Object_spec_ephemeralContainers_lifecycle_postStart_httpGet
+  sleep: Object_spec_ephemeralContainers_lifecycle_postStart_sleep
+  tcpSocket: Object_spec_ephemeralContainers_lifecycle_postStart_tcpSocket
+}
+
+type Object_spec_ephemeralContainers_lifecycle_postStart_exec {
+  command: [String!]
+}
+
+type Object_spec_ephemeralContainers_lifecycle_postStart_httpGet {
+  host: String
+  httpHeaders: [Object_spec_ephemeralContainers_lifecycle_postStart_httpGet_httpHeaders!]
+  path: String
+  port: String
+  scheme: String
+}
+
+type Object_spec_ephemeralContainers_lifecycle_postStart_httpGet_httpHeaders {
+  name: String
+  value: String
+}
+
+type Object_spec_ephemeralContainers_lifecycle_postStart_sleep {
+  seconds: Int
+}
+
+type Object_spec_ephemeralContainers_lifecycle_postStart_tcpSocket {
+  host: String
+  port: String
+}
+
+type Object_spec_ephemeralContainers_lifecycle_preStop {
+  exec: Object_spec_ephemeralContainers_lifecycle_preStop_exec
+  httpGet: Object_spec_ephemeralContainers_lifecycle_preStop_httpGet
+  sleep: Object_spec_ephemeralContainers_lifecycle_preStop_sleep
+  tcpSocket: Object_spec_ephemeralContainers_lifecycle_preStop_tcpSocket
+}
+
+type Object_spec_ephemeralContainers_lifecycle_preStop_exec {
+  command: [String!]
+}
+
+type Object_spec_ephemeralContainers_lifecycle_preStop_httpGet {
+  host: String
+  httpHeaders: [Object_spec_ephemeralContainers_lifecycle_preStop_httpGet_httpHeaders!]
+  path: String
+  port: String
+  scheme: String
+}
+
+type Object_spec_ephemeralContainers_lifecycle_preStop_httpGet_httpHeaders {
+  name: String
+  value: String
+}
+
+type Object_spec_ephemeralContainers_lifecycle_preStop_sleep {
+  seconds: Int
+}
+
+type Object_spec_ephemeralContainers_lifecycle_preStop_tcpSocket {
+  host: String
+  port: String
+}
+
+type Object_spec_ephemeralContainers_livenessProbe {
+  exec: Object_spec_ephemeralContainers_livenessProbe_exec
+  failureThreshold: Int
+  grpc: Object_spec_ephemeralContainers_livenessProbe_grpc
+  httpGet: Object_spec_ephemeralContainers_livenessProbe_httpGet
+  initialDelaySeconds: Int
+  periodSeconds: Int
+  successThreshold: Int
+  tcpSocket: Object_spec_ephemeralContainers_livenessProbe_tcpSocket
+  terminationGracePeriodSeconds: Int
+  timeoutSeconds: Int
+}
+
+type Object_spec_ephemeralContainers_livenessProbe_exec {
+  command: [String!]
+}
+
+type Object_spec_ephemeralContainers_livenessProbe_grpc {
+  port: Int
+  service: String
+}
+
+type Object_spec_ephemeralContainers_livenessProbe_httpGet {
+  host: String
+  httpHeaders: [Object_spec_ephemeralContainers_livenessProbe_httpGet_httpHeaders!]
+  path: String
+  port: String
+  scheme: String
+}
+
+type Object_spec_ephemeralContainers_livenessProbe_httpGet_httpHeaders {
+  name: String
+  value: String
+}
+
+type Object_spec_ephemeralContainers_livenessProbe_tcpSocket {
+  host: String
+  port: String
+}
+
+type Object_spec_ephemeralContainers_ports {
+  containerPort: Int
+  hostIP: String
+  hostPort: Int
+  name: String
+  protocol: String
+}
+
+type Object_spec_ephemeralContainers_readinessProbe {
+  exec: Object_spec_ephemeralContainers_readinessProbe_exec
+  failureThreshold: Int
+  grpc: Object_spec_ephemeralContainers_readinessProbe_grpc
+  httpGet: Object_spec_ephemeralContainers_readinessProbe_httpGet
+  initialDelaySeconds: Int
+  periodSeconds: Int
+  successThreshold: Int
+  tcpSocket: Object_spec_ephemeralContainers_readinessProbe_tcpSocket
+  terminationGracePeriodSeconds: Int
+  timeoutSeconds: Int
+}
+
+type Object_spec_ephemeralContainers_readinessProbe_exec {
+  command: [String!]
+}
+
+type Object_spec_ephemeralContainers_readinessProbe_grpc {
+  port: Int
+  service: String
+}
+
+type Object_spec_ephemeralContainers_readinessProbe_httpGet {
+  host: String
+  httpHeaders: [Object_spec_ephemeralContainers_readinessProbe_httpGet_httpHeaders!]
+  path: String
+  port: String
+  scheme: String
+}
+
+type Object_spec_ephemeralContainers_readinessProbe_httpGet_httpHeaders {
+  name: String
+  value: String
+}
+
+type Object_spec_ephemeralContainers_readinessProbe_tcpSocket {
+  host: String
+  port: String
+}
+
+type Object_spec_ephemeralContainers_resizePolicy {
+  resourceName: String
+  restartPolicy: String
+}
+
+type Object_spec_ephemeralContainers_resources {
+  claims: [Object_spec_ephemeralContainers_resources_claims!]
+  limits: String
+  requests: String
+}
+
+type Object_spec_ephemeralContainers_resources_claims {
+  name: String
+}
+
+type Object_spec_ephemeralContainers_securityContext {
+  allowPrivilegeEscalation: Boolean
+  appArmorProfile: Object_spec_ephemeralContainers_securityContext_appArmorProfile
+  capabilities: Object_spec_ephemeralContainers_securityContext_capabilities
+  privileged: Boolean
+  procMount: String
+  readOnlyRootFilesystem: Boolean
+  runAsGroup: Int
+  runAsNonRoot: Boolean
+  runAsUser: Int
+  seLinuxOptions: Object_spec_ephemeralContainers_securityContext_seLinuxOptions
+  seccompProfile: Object_spec_ephemeralContainers_securityContext_seccompProfile
+  windowsOptions: Object_spec_ephemeralContainers_securityContext_windowsOptions
+}
+
+type Object_spec_ephemeralContainers_securityContext_appArmorProfile {
+  localhostProfile: String
+  type: String
+}
+
+type Object_spec_ephemeralContainers_securityContext_capabilities {
+  add: [String!]
+  drop: [String!]
+}
+
+type Object_spec_ephemeralContainers_securityContext_seccompProfile {
+  localhostProfile: String
+  type: String
+}
+
+type Object_spec_ephemeralContainers_securityContext_seLinuxOptions {
+  level: String
+  role: String
+  type: String
+  user: String
+}
+
+type Object_spec_ephemeralContainers_securityContext_windowsOptions {
+  gmsaCredentialSpec: String
+  gmsaCredentialSpecName: String
+  hostProcess: Boolean
+  runAsUserName: String
+}
+
+type Object_spec_ephemeralContainers_startupProbe {
+  exec: Object_spec_ephemeralContainers_startupProbe_exec
+  failureThreshold: Int
+  grpc: Object_spec_ephemeralContainers_startupProbe_grpc
+  httpGet: Object_spec_ephemeralContainers_startupProbe_httpGet
+  initialDelaySeconds: Int
+  periodSeconds: Int
+  successThreshold: Int
+  tcpSocket: Object_spec_ephemeralContainers_startupProbe_tcpSocket
+  terminationGracePeriodSeconds: Int
+  timeoutSeconds: Int
+}
+
+type Object_spec_ephemeralContainers_startupProbe_exec {
+  command: [String!]
+}
+
+type Object_spec_ephemeralContainers_startupProbe_grpc {
+  port: Int
+  service: String
+}
+
+type Object_spec_ephemeralContainers_startupProbe_httpGet {
+  host: String
+  httpHeaders: [Object_spec_ephemeralContainers_startupProbe_httpGet_httpHeaders!]
+  path: String
+  port: String
+  scheme: String
+}
+
+type Object_spec_ephemeralContainers_startupProbe_httpGet_httpHeaders {
+  name: String
+  value: String
+}
+
+type Object_spec_ephemeralContainers_startupProbe_tcpSocket {
+  host: String
+  port: String
+}
+
+type Object_spec_ephemeralContainers_volumeDevices {
+  devicePath: String
+  name: String
+}
+
+type Object_spec_ephemeralContainers_volumeMounts {
+  mountPath: String
+  mountPropagation: String
+  name: String
+  readOnly: Boolean
+  recursiveReadOnly: String
+  subPath: String
+  subPathExpr: String
+}
+
+type Object_spec_hostAliases {
+  hostnames: [String!]
+  ip: String
+}
+
+type Object_spec_imagePullSecrets {
+  name: String
+}
+
+type Object_spec_initContainers {
+  args: [String!]
+  command: [String!]
+  env: [Object_spec_initContainers_env!]
+  envFrom: [Object_spec_initContainers_envFrom!]
+  image: String
+  imagePullPolicy: String
+  lifecycle: Object_spec_initContainers_lifecycle
+  livenessProbe: Object_spec_initContainers_livenessProbe
+  name: String
+  ports: [Object_spec_initContainers_ports!]
+  readinessProbe: Object_spec_initContainers_readinessProbe
+  resizePolicy: [Object_spec_initContainers_resizePolicy!]
+  resources: Object_spec_initContainers_resources
+  restartPolicy: String
+  securityContext: Object_spec_initContainers_securityContext
+  startupProbe: Object_spec_initContainers_startupProbe
+  stdin: Boolean
+  stdinOnce: Boolean
+  terminationMessagePath: String
+  terminationMessagePolicy: String
+  tty: Boolean
+  volumeDevices: [Object_spec_initContainers_volumeDevices!]
+  volumeMounts: [Object_spec_initContainers_volumeMounts!]
+  workingDir: String
+}
+
+type Object_spec_initContainers_env {
+  name: String
+  value: String
+  valueFrom: Object_spec_initContainers_env_valueFrom
+}
+
+type Object_spec_initContainers_env_valueFrom {
+  configMapKeyRef: Object_spec_initContainers_env_valueFrom_configMapKeyRef
+  fieldRef: Object_spec_initContainers_env_valueFrom_fieldRef
+  resourceFieldRef: Object_spec_initContainers_env_valueFrom_resourceFieldRef
+  secretKeyRef: Object_spec_initContainers_env_valueFrom_secretKeyRef
+}
+
+type Object_spec_initContainers_env_valueFrom_configMapKeyRef {
+  key: String
+  name: String
+  optional: Boolean
+}
+
+type Object_spec_initContainers_env_valueFrom_fieldRef {
+  apiVersion: String
+  fieldPath: String
+}
+
+type Object_spec_initContainers_env_valueFrom_resourceFieldRef {
+  containerName: String
+  divisor: String
+  resource: String
+}
+
+type Object_spec_initContainers_env_valueFrom_secretKeyRef {
+  key: String
+  name: String
+  optional: Boolean
+}
+
+type Object_spec_initContainers_envFrom {
+  configMapRef: Object_spec_initContainers_envFrom_configMapRef
+  prefix: String
+  secretRef: Object_spec_initContainers_envFrom_secretRef
+}
+
+type Object_spec_initContainers_envFrom_configMapRef {
+  name: String
+  optional: Boolean
+}
+
+type Object_spec_initContainers_envFrom_secretRef {
+  name: String
+  optional: Boolean
+}
+
+type Object_spec_initContainers_lifecycle {
+  postStart: Object_spec_initContainers_lifecycle_postStart
+  preStop: Object_spec_initContainers_lifecycle_preStop
+}
+
+type Object_spec_initContainers_lifecycle_postStart {
+  exec: Object_spec_initContainers_lifecycle_postStart_exec
+  httpGet: Object_spec_initContainers_lifecycle_postStart_httpGet
+  sleep: Object_spec_initContainers_lifecycle_postStart_sleep
+  tcpSocket: Object_spec_initContainers_lifecycle_postStart_tcpSocket
+}
+
+type Object_spec_initContainers_lifecycle_postStart_exec {
+  command: [String!]
+}
+
+type Object_spec_initContainers_lifecycle_postStart_httpGet {
+  host: String
+  httpHeaders: [Object_spec_initContainers_lifecycle_postStart_httpGet_httpHeaders!]
+  path: String
+  port: String
+  scheme: String
+}
+
+type Object_spec_initContainers_lifecycle_postStart_httpGet_httpHeaders {
+  name: String
+  value: String
+}
+
+type Object_spec_initContainers_lifecycle_postStart_sleep {
+  seconds: Int
+}
+
+type Object_spec_initContainers_lifecycle_postStart_tcpSocket {
+  host: String
+  port: String
+}
+
+type Object_spec_initContainers_lifecycle_preStop {
+  exec: Object_spec_initContainers_lifecycle_preStop_exec
+  httpGet: Object_spec_initContainers_lifecycle_preStop_httpGet
+  sleep: Object_spec_initContainers_lifecycle_preStop_sleep
+  tcpSocket: Object_spec_initContainers_lifecycle_preStop_tcpSocket
+}
+
+type Object_spec_initContainers_lifecycle_preStop_exec {
+  command: [String!]
+}
+
+type Object_spec_initContainers_lifecycle_preStop_httpGet {
+  host: String
+  httpHeaders: [Object_spec_initContainers_lifecycle_preStop_httpGet_httpHeaders!]
+  path: String
+  port: String
+  scheme: String
+}
+
+type Object_spec_initContainers_lifecycle_preStop_httpGet_httpHeaders {
+  name: String
+  value: String
+}
+
+type Object_spec_initContainers_lifecycle_preStop_sleep {
+  seconds: Int
+}
+
+type Object_spec_initContainers_lifecycle_preStop_tcpSocket {
+  host: String
+  port: String
+}
+
+type Object_spec_initContainers_livenessProbe {
+  exec: Object_spec_initContainers_livenessProbe_exec
+  failureThreshold: Int
+  grpc: Object_spec_initContainers_livenessProbe_grpc
+  httpGet: Object_spec_initContainers_livenessProbe_httpGet
+  initialDelaySeconds: Int
+  periodSeconds: Int
+  successThreshold: Int
+  tcpSocket: Object_spec_initContainers_livenessProbe_tcpSocket
+  terminationGracePeriodSeconds: Int
+  timeoutSeconds: Int
+}
+
+type Object_spec_initContainers_livenessProbe_exec {
+  command: [String!]
+}
+
+type Object_spec_initContainers_livenessProbe_grpc {
+  port: Int
+  service: String
+}
+
+type Object_spec_initContainers_livenessProbe_httpGet {
+  host: String
+  httpHeaders: [Object_spec_initContainers_livenessProbe_httpGet_httpHeaders!]
+  path: String
+  port: String
+  scheme: String
+}
+
+type Object_spec_initContainers_livenessProbe_httpGet_httpHeaders {
+  name: String
+  value: String
+}
+
+type Object_spec_initContainers_livenessProbe_tcpSocket {
+  host: String
+  port: String
+}
+
+type Object_spec_initContainers_ports {
+  containerPort: Int
+  hostIP: String
+  hostPort: Int
+  name: String
+  protocol: String
+}
+
+type Object_spec_initContainers_readinessProbe {
+  exec: Object_spec_initContainers_readinessProbe_exec
+  failureThreshold: Int
+  grpc: Object_spec_initContainers_readinessProbe_grpc
+  httpGet: Object_spec_initContainers_readinessProbe_httpGet
+  initialDelaySeconds: Int
+  periodSeconds: Int
+  successThreshold: Int
+  tcpSocket: Object_spec_initContainers_readinessProbe_tcpSocket
+  terminationGracePeriodSeconds: Int
+  timeoutSeconds: Int
+}
+
+type Object_spec_initContainers_readinessProbe_exec {
+  command: [String!]
+}
+
+type Object_spec_initContainers_readinessProbe_grpc {
+  port: Int
+  service: String
+}
+
+type Object_spec_initContainers_readinessProbe_httpGet {
+  host: String
+  httpHeaders: [Object_spec_initContainers_readinessProbe_httpGet_httpHeaders!]
+  path: String
+  port: String
+  scheme: String
+}
+
+type Object_spec_initContainers_readinessProbe_httpGet_httpHeaders {
+  name: String
+  value: String
+}
+
+type Object_spec_initContainers_readinessProbe_tcpSocket {
+  host: String
+  port: String
+}
+
+type Object_spec_initContainers_resizePolicy {
+  resourceName: String
+  restartPolicy: String
+}
+
+type Object_spec_initContainers_resources {
+  claims: [Object_spec_initContainers_resources_claims!]
+  limits: String
+  requests: String
+}
+
+type Object_spec_initContainers_resources_claims {
+  name: String
+}
+
+type Object_spec_initContainers_securityContext {
+  allowPrivilegeEscalation: Boolean
+  appArmorProfile: Object_spec_initContainers_securityContext_appArmorProfile
+  capabilities: Object_spec_initContainers_securityContext_capabilities
+  privileged: Boolean
+  procMount: String
+  readOnlyRootFilesystem: Boolean
+  runAsGroup: Int
+  runAsNonRoot: Boolean
+  runAsUser: Int
+  seLinuxOptions: Object_spec_initContainers_securityContext_seLinuxOptions
+  seccompProfile: Object_spec_initContainers_securityContext_seccompProfile
+  windowsOptions: Object_spec_initContainers_securityContext_windowsOptions
+}
+
+type Object_spec_initContainers_securityContext_appArmorProfile {
+  localhostProfile: String
+  type: String
+}
+
+type Object_spec_initContainers_securityContext_capabilities {
+  add: [String!]
+  drop: [String!]
+}
+
+type Object_spec_initContainers_securityContext_seccompProfile {
+  localhostProfile: String
+  type: String
+}
+
+type Object_spec_initContainers_securityContext_seLinuxOptions {
+  level: String
+  role: String
+  type: String
+  user: String
+}
+
+type Object_spec_initContainers_securityContext_windowsOptions {
+  gmsaCredentialSpec: String
+  gmsaCredentialSpecName: String
+  hostProcess: Boolean
+  runAsUserName: String
+}
+
+type Object_spec_initContainers_startupProbe {
+  exec: Object_spec_initContainers_startupProbe_exec
+  failureThreshold: Int
+  grpc: Object_spec_initContainers_startupProbe_grpc
+  httpGet: Object_spec_initContainers_startupProbe_httpGet
+  initialDelaySeconds: Int
+  periodSeconds: Int
+  successThreshold: Int
+  tcpSocket: Object_spec_initContainers_startupProbe_tcpSocket
+  terminationGracePeriodSeconds: Int
+  timeoutSeconds: Int
+}
+
+type Object_spec_initContainers_startupProbe_exec {
+  command: [String!]
+}
+
+type Object_spec_initContainers_startupProbe_grpc {
+  port: Int
+  service: String
+}
+
+type Object_spec_initContainers_startupProbe_httpGet {
+  host: String
+  httpHeaders: [Object_spec_initContainers_startupProbe_httpGet_httpHeaders!]
+  path: String
+  port: String
+  scheme: String
+}
+
+type Object_spec_initContainers_startupProbe_httpGet_httpHeaders {
+  name: String
+  value: String
+}
+
+type Object_spec_initContainers_startupProbe_tcpSocket {
+  host: String
+  port: String
+}
+
+type Object_spec_initContainers_volumeDevices {
+  devicePath: String
+  name: String
+}
+
+type Object_spec_initContainers_volumeMounts {
+  mountPath: String
+  mountPropagation: String
+  name: String
+  readOnly: Boolean
+  recursiveReadOnly: String
+  subPath: String
+  subPathExpr: String
+}
+
+type Object_spec_os {
+  name: String
+}
+
+type Object_spec_readinessGates {
+  conditionType: String
+}
+
+type Object_spec_resourceClaims {
+  name: String
+  source: Object_spec_resourceClaims_source
+}
+
+type Object_spec_resourceClaims_source {
+  resourceClaimName: String
+  resourceClaimTemplateName: String
+}
+
+type Object_spec_schedulingGates {
+  name: String
+}
+
+type Object_spec_securityContext {
+  appArmorProfile: Object_spec_securityContext_appArmorProfile
+  fsGroup: Int
+  fsGroupChangePolicy: String
+  runAsGroup: Int
+  runAsNonRoot: Boolean
+  runAsUser: Int
+  seLinuxOptions: Object_spec_securityContext_seLinuxOptions
+  seccompProfile: Object_spec_securityContext_seccompProfile
+  supplementalGroups: [Int!]
+  sysctls: [Object_spec_securityContext_sysctls!]
+  windowsOptions: Object_spec_securityContext_windowsOptions
+}
+
+type Object_spec_securityContext_appArmorProfile {
+  localhostProfile: String
+  type: String
+}
+
+type Object_spec_securityContext_seccompProfile {
+  localhostProfile: String
+  type: String
+}
+
+type Object_spec_securityContext_seLinuxOptions {
+  level: String
+  role: String
+  type: String
+  user: String
+}
+
+type Object_spec_securityContext_sysctls {
+  name: String
+  value: String
+}
+
+type Object_spec_securityContext_windowsOptions {
+  gmsaCredentialSpec: String
+  gmsaCredentialSpecName: String
+  hostProcess: Boolean
+  runAsUserName: String
+}
+
+type Object_spec_tolerations {
+  effect: String
+  key: String
+  operator: String
+  tolerationSeconds: Int
+  value: String
+}
+
+type Object_spec_topologySpreadConstraints {
+  labelSelector: Object_spec_topologySpreadConstraints_labelSelector
+  matchLabelKeys: [String!]
+  maxSkew: Int
+  minDomains: Int
+  nodeAffinityPolicy: String
+  nodeTaintsPolicy: String
+  topologyKey: String
+  whenUnsatisfiable: String
+}
+
+type Object_spec_topologySpreadConstraints_labelSelector {
+  matchExpressions: [Object_spec_topologySpreadConstraints_labelSelector_matchExpressions!]
+  matchLabels: String
+}
+
+type Object_spec_topologySpreadConstraints_labelSelector_matchExpressions {
+  key: String
+  operator: String
+  values: [String!]
+}
+
+type Object_spec_volumes {
+  awsElasticBlockStore: Object_spec_volumes_awsElasticBlockStore
+  azureDisk: Object_spec_volumes_azureDisk
+  azureFile: Object_spec_volumes_azureFile
+  cephfs: Object_spec_volumes_cephfs
+  cinder: Object_spec_volumes_cinder
+  configMap: Object_spec_volumes_configMap
+  csi: Object_spec_volumes_csi
+  downwardAPI: Object_spec_volumes_downwardAPI
+  emptyDir: Object_spec_volumes_emptyDir
+  ephemeral: Object_spec_volumes_ephemeral
+  fc: Object_spec_volumes_fc
+  flexVolume: Object_spec_volumes_flexVolume
+  flocker: Object_spec_volumes_flocker
+  gcePersistentDisk: Object_spec_volumes_gcePersistentDisk
+  gitRepo: Object_spec_volumes_gitRepo
+  glusterfs: Object_spec_volumes_glusterfs
+  hostPath: Object_spec_volumes_hostPath
+  iscsi: Object_spec_volumes_iscsi
+  name: String
+  nfs: Object_spec_volumes_nfs
+  persistentVolumeClaim: Object_spec_volumes_persistentVolumeClaim
+  photonPersistentDisk: Object_spec_volumes_photonPersistentDisk
+  portworxVolume: Object_spec_volumes_portworxVolume
+  projected: Object_spec_volumes_projected
+  quobyte: Object_spec_volumes_quobyte
+  rbd: Object_spec_volumes_rbd
+  scaleIO: Object_spec_volumes_scaleIO
+  secret: Object_spec_volumes_secret
+  storageos: Object_spec_volumes_storageos
+  vsphereVolume: Object_spec_volumes_vsphereVolume
+}
+
+type Object_spec_volumes_awsElasticBlockStore {
+  fsType: String
+  partition: Int
+  readOnly: Boolean
+  volumeID: String
+}
+
+type Object_spec_volumes_azureDisk {
+  cachingMode: String
+  diskName: String
+  diskURI: String
+  fsType: String
+  kind: String
+  readOnly: Boolean
+}
+
+type Object_spec_volumes_azureFile {
+  readOnly: Boolean
+  secretName: String
+  shareName: String
+}
+
+type Object_spec_volumes_cephfs {
+  monitors: [String!]
+  path: String
+  readOnly: Boolean
+  secretFile: String
+  secretRef: Object_spec_volumes_cephfs_secretRef
+  user: String
+}
+
+type Object_spec_volumes_cephfs_secretRef {
+  name: String
+}
+
+type Object_spec_volumes_cinder {
+  fsType: String
+  readOnly: Boolean
+  secretRef: Object_spec_volumes_cinder_secretRef
+  volumeID: String
+}
+
+type Object_spec_volumes_cinder_secretRef {
+  name: String
+}
+
+type Object_spec_volumes_configMap {
+  defaultMode: Int
+  items: [Object_spec_volumes_configMap_items!]
+  name: String
+  optional: Boolean
+}
+
+type Object_spec_volumes_configMap_items {
+  key: String
+  mode: Int
+  path: String
+}
+
+type Object_spec_volumes_csi {
+  driver: String
+  fsType: String
+  nodePublishSecretRef: Object_spec_volumes_csi_nodePublishSecretRef
+  readOnly: Boolean
+  volumeAttributes: String
+}
+
+type Object_spec_volumes_csi_nodePublishSecretRef {
+  name: String
+}
+
+type Object_spec_volumes_downwardAPI {
+  defaultMode: Int
+  items: [Object_spec_volumes_downwardAPI_items!]
+}
+
+type Object_spec_volumes_downwardAPI_items {
+  fieldRef: Object_spec_volumes_downwardAPI_items_fieldRef
+  mode: Int
+  path: String
+  resourceFieldRef: Object_spec_volumes_downwardAPI_items_resourceFieldRef
+}
+
+type Object_spec_volumes_downwardAPI_items_fieldRef {
+  apiVersion: String
+  fieldPath: String
+}
+
+type Object_spec_volumes_downwardAPI_items_resourceFieldRef {
+  containerName: String
+  divisor: String
+  resource: String
+}
+
+type Object_spec_volumes_emptyDir {
+  medium: String
+  sizeLimit: String
+}
+
+type Object_spec_volumes_ephemeral {
+  volumeClaimTemplate: Object_spec_volumes_ephemeral_volumeClaimTemplate
+}
+
+type Object_spec_volumes_ephemeral_volumeClaimTemplate {
+  metadata: Object_spec_volumes_ephemeral_volumeClaimTemplate_metadata
+  spec: Object_spec_volumes_ephemeral_volumeClaimTemplate_spec
+}
+
+type Object_spec_volumes_ephemeral_volumeClaimTemplate_metadata {
+  annotations: String
+  creationTimestamp: String
+  deletionGracePeriodSeconds: Int
+  deletionTimestamp: String
+  finalizers: [String!]
+  generateName: String
+  generation: Int
+  labels: String
+  managedFields: [Object_spec_volumes_ephemeral_volumeClaimTemplate_metadata_managedFields!]
+  name: String
+  namespace: String
+  ownerReferences: [Object_spec_volumes_ephemeral_volumeClaimTemplate_metadata_ownerReferences!]
+  resourceVersion: String
+  selfLink: String
+  uid: String
+}
+
+type Object_spec_volumes_ephemeral_volumeClaimTemplate_metadata_managedFields {
+  apiVersion: String
+  fieldsType: String
+  fieldsV1: String
+  manager: String
+  operation: String
+  subresource: String
+  time: String
+}
+
+type Object_spec_volumes_ephemeral_volumeClaimTemplate_metadata_ownerReferences {
+  apiVersion: String
+  blockOwnerDeletion: Boolean
+  controller: Boolean
+  kind: String
+  name: String
+  uid: String
+}
+
+type Object_spec_volumes_ephemeral_volumeClaimTemplate_spec {
+  accessModes: [String!]
+  dataSource: Object_spec_volumes_ephemeral_volumeClaimTemplate_spec_dataSource
+  dataSourceRef: Object_spec_volumes_ephemeral_volumeClaimTemplate_spec_dataSourceRef
+  resources: Object_spec_volumes_ephemeral_volumeClaimTemplate_spec_resources
+  selector: Object_spec_volumes_ephemeral_volumeClaimTemplate_spec_selector
+  storageClassName: String
+  volumeAttributesClassName: String
+  volumeMode: String
+  volumeName: String
+}
+
+type Object_spec_volumes_ephemeral_volumeClaimTemplate_spec_dataSource {
+  apiGroup: String
+  kind: String
+  name: String
+}
+
+type Object_spec_volumes_ephemeral_volumeClaimTemplate_spec_dataSourceRef {
+  apiGroup: String
+  kind: String
+  name: String
+  namespace: String
+}
+
+type Object_spec_volumes_ephemeral_volumeClaimTemplate_spec_resources {
+  limits: String
+  requests: String
+}
+
+type Object_spec_volumes_ephemeral_volumeClaimTemplate_spec_selector {
+  matchExpressions: [Object_spec_volumes_ephemeral_volumeClaimTemplate_spec_selector_matchExpressions!]
+  matchLabels: String
+}
+
+type Object_spec_volumes_ephemeral_volumeClaimTemplate_spec_selector_matchExpressions {
+  key: String
+  operator: String
+  values: [String!]
+}
+
+type Object_spec_volumes_fc {
+  fsType: String
+  lun: Int
+  readOnly: Boolean
+  targetWWNs: [String!]
+  wwids: [String!]
+}
+
+type Object_spec_volumes_flexVolume {
+  driver: String
+  fsType: String
+  options: String
+  readOnly: Boolean
+  secretRef: Object_spec_volumes_flexVolume_secretRef
+}
+
+type Object_spec_volumes_flexVolume_secretRef {
+  name: String
+}
+
+type Object_spec_volumes_flocker {
+  datasetName: String
+  datasetUUID: String
+}
+
+type Object_spec_volumes_gcePersistentDisk {
+  fsType: String
+  partition: Int
+  pdName: String
+  readOnly: Boolean
+}
+
+type Object_spec_volumes_gitRepo {
+  directory: String
+  repository: String
+  revision: String
+}
+
+type Object_spec_volumes_glusterfs {
+  endpoints: String
+  path: String
+  readOnly: Boolean
+}
+
+type Object_spec_volumes_hostPath {
+  path: String
+  type: String
+}
+
+type Object_spec_volumes_iscsi {
+  chapAuthDiscovery: Boolean
+  chapAuthSession: Boolean
+  fsType: String
+  initiatorName: String
+  iqn: String
+  iscsiInterface: String
+  lun: Int
+  portals: [String!]
+  readOnly: Boolean
+  secretRef: Object_spec_volumes_iscsi_secretRef
+  targetPortal: String
+}
+
+type Object_spec_volumes_iscsi_secretRef {
+  name: String
+}
+
+type Object_spec_volumes_nfs {
+  path: String
+  readOnly: Boolean
+  server: String
+}
+
+type Object_spec_volumes_persistentVolumeClaim {
+  claimName: String
+  readOnly: Boolean
+}
+
+type Object_spec_volumes_photonPersistentDisk {
+  fsType: String
+  pdID: String
+}
+
+type Object_spec_volumes_portworxVolume {
+  fsType: String
+  readOnly: Boolean
+  volumeID: String
+}
+
+type Object_spec_volumes_projected {
+  defaultMode: Int
+  sources: [Object_spec_volumes_projected_sources!]
+}
+
+type Object_spec_volumes_projected_sources {
+  clusterTrustBundle: Object_spec_volumes_projected_sources_clusterTrustBundle
+  configMap: Object_spec_volumes_projected_sources_configMap
+  downwardAPI: Object_spec_volumes_projected_sources_downwardAPI
+  secret: Object_spec_volumes_projected_sources_secret
+  serviceAccountToken: Object_spec_volumes_projected_sources_serviceAccountToken
+}
+
+type Object_spec_volumes_projected_sources_clusterTrustBundle {
+  labelSelector: Object_spec_volumes_projected_sources_clusterTrustBundle_labelSelector
+  name: String
+  optional: Boolean
+  path: String
+  signerName: String
+}
+
+type Object_spec_volumes_projected_sources_clusterTrustBundle_labelSelector {
+  matchExpressions: [Object_spec_volumes_projected_sources_clusterTrustBundle_labelSelector_matchExpressions!]
+  matchLabels: String
+}
+
+type Object_spec_volumes_projected_sources_clusterTrustBundle_labelSelector_matchExpressions {
+  key: String
+  operator: String
+  values: [String!]
+}
+
+type Object_spec_volumes_projected_sources_configMap {
+  items: [Object_spec_volumes_projected_sources_configMap_items!]
+  name: String
+  optional: Boolean
+}
+
+type Object_spec_volumes_projected_sources_configMap_items {
+  key: String
+  mode: Int
+  path: String
+}
+
+type Object_spec_volumes_projected_sources_downwardAPI {
+  items: [Object_spec_volumes_projected_sources_downwardAPI_items!]
+}
+
+type Object_spec_volumes_projected_sources_downwardAPI_items {
+  fieldRef: Object_spec_volumes_projected_sources_downwardAPI_items_fieldRef
+  mode: Int
+  path: String
+  resourceFieldRef: Object_spec_volumes_projected_sources_downwardAPI_items_resourceFieldRef
+}
+
+type Object_spec_volumes_projected_sources_downwardAPI_items_fieldRef {
+  apiVersion: String
+  fieldPath: String
+}
+
+type Object_spec_volumes_projected_sources_downwardAPI_items_resourceFieldRef {
+  containerName: String
+  divisor: String
+  resource: String
+}
+
+type Object_spec_volumes_projected_sources_secret {
+  items: [Object_spec_volumes_projected_sources_secret_items!]
+  name: String
+  optional: Boolean
+}
+
+type Object_spec_volumes_projected_sources_secret_items {
+  key: String
+  mode: Int
+  path: String
+}
+
+type Object_spec_volumes_projected_sources_serviceAccountToken {
+  audience: String
+  expirationSeconds: Int
+  path: String
+}
+
+type Object_spec_volumes_quobyte {
+  group: String
+  readOnly: Boolean
+  registry: String
+  tenant: String
+  user: String
+  volume: String
+}
+
+type Object_spec_volumes_rbd {
+  fsType: String
+  image: String
+  keyring: String
+  monitors: [String!]
+  pool: String
+  readOnly: Boolean
+  secretRef: Object_spec_volumes_rbd_secretRef
+  user: String
+}
+
+type Object_spec_volumes_rbd_secretRef {
+  name: String
+}
+
+type Object_spec_volumes_scaleIO {
+  fsType: String
+  gateway: String
+  protectionDomain: String
+  readOnly: Boolean
+  secretRef: Object_spec_volumes_scaleIO_secretRef
+  sslEnabled: Boolean
+  storageMode: String
+  storagePool: String
+  system: String
+  volumeName: String
+}
+
+type Object_spec_volumes_scaleIO_secretRef {
+  name: String
+}
+
+type Object_spec_volumes_secret {
+  defaultMode: Int
+  items: [Object_spec_volumes_secret_items!]
+  optional: Boolean
+  secretName: String
+}
+
+type Object_spec_volumes_secret_items {
+  key: String
+  mode: Int
+  path: String
+}
+
+type Object_spec_volumes_storageos {
+  fsType: String
+  readOnly: Boolean
+  secretRef: Object_spec_volumes_storageos_secretRef
+  volumeName: String
+  volumeNamespace: String
+}
+
+type Object_spec_volumes_storageos_secretRef {
+  name: String
+}
+
+type Object_spec_volumes_vsphereVolume {
+  fsType: String
+  storagePolicyID: String
+  storagePolicyName: String
+  volumePath: String
+}
+
+type Object_status {
+  conditions: [Object_status_conditions!]
+  containerStatuses: [Object_status_containerStatuses!]
+  ephemeralContainerStatuses: [Object_status_ephemeralContainerStatuses!]
+  hostIP: String
+  hostIPs: [Object_status_hostIPs!]
+  initContainerStatuses: [Object_status_initContainerStatuses!]
+  message: String
+  nominatedNodeName: String
+  phase: String
+  podIP: String
+  podIPs: [Object_status_podIPs!]
+  qosClass: String
+  reason: String
+  resize: String
+  resourceClaimStatuses: [Object_status_resourceClaimStatuses!]
+  startTime: String
+}
+
+type Object_status_conditions {
+  lastProbeTime: String
+  lastTransitionTime: String
+  message: String
+  reason: String
+  status: String
+  type: String
+}
+
+type Object_status_containerStatuses {
+  allocatedResources: String
+  containerID: String
+  image: String
+  imageID: String
+  lastState: Object_status_containerStatuses_lastState
+  name: String
+  ready: Boolean
+  resources: Object_status_containerStatuses_resources
+  restartCount: Int
+  started: Boolean
+  state: Object_status_containerStatuses_state
+  volumeMounts: [Object_status_containerStatuses_volumeMounts!]
+}
+
+type Object_status_containerStatuses_lastState {
+  running: Object_status_containerStatuses_lastState_running
+  terminated: Object_status_containerStatuses_lastState_terminated
+  waiting: Object_status_containerStatuses_lastState_waiting
+}
+
+type Object_status_containerStatuses_lastState_running {
+  startedAt: String
+}
+
+type Object_status_containerStatuses_lastState_terminated {
+  containerID: String
+  exitCode: Int
+  finishedAt: String
+  message: String
+  reason: String
+  signal: Int
+  startedAt: String
+}
+
+type Object_status_containerStatuses_lastState_waiting {
+  message: String
+  reason: String
+}
+
+type Object_status_containerStatuses_resources {
+  claims: [Object_status_containerStatuses_resources_claims!]
+  limits: String
+  requests: String
+}
+
+type Object_status_containerStatuses_resources_claims {
+  name: String
+}
+
+type Object_status_containerStatuses_state {
+  running: Object_status_containerStatuses_state_running
+  terminated: Object_status_containerStatuses_state_terminated
+  waiting: Object_status_containerStatuses_state_waiting
+}
+
+type Object_status_containerStatuses_state_running {
+  startedAt: String
+}
+
+type Object_status_containerStatuses_state_terminated {
+  containerID: String
+  exitCode: Int
+  finishedAt: String
+  message: String
+  reason: String
+  signal: Int
+  startedAt: String
+}
+
+type Object_status_containerStatuses_state_waiting {
+  message: String
+  reason: String
+}
+
+type Object_status_containerStatuses_volumeMounts {
+  mountPath: String
+  name: String
+  readOnly: Boolean
+  recursiveReadOnly: String
+}
+
+type Object_status_ephemeralContainerStatuses {
+  allocatedResources: String
+  containerID: String
+  image: String
+  imageID: String
+  lastState: Object_status_ephemeralContainerStatuses_lastState
+  name: String
+  ready: Boolean
+  resources: Object_status_ephemeralContainerStatuses_resources
+  restartCount: Int
+  started: Boolean
+  state: Object_status_ephemeralContainerStatuses_state
+  volumeMounts: [Object_status_ephemeralContainerStatuses_volumeMounts!]
+}
+
+type Object_status_ephemeralContainerStatuses_lastState {
+  running: Object_status_ephemeralContainerStatuses_lastState_running
+  terminated: Object_status_ephemeralContainerStatuses_lastState_terminated
+  waiting: Object_status_ephemeralContainerStatuses_lastState_waiting
+}
+
+type Object_status_ephemeralContainerStatuses_lastState_running {
+  startedAt: String
+}
+
+type Object_status_ephemeralContainerStatuses_lastState_terminated {
+  containerID: String
+  exitCode: Int
+  finishedAt: String
+  message: String
+  reason: String
+  signal: Int
+  startedAt: String
+}
+
+type Object_status_ephemeralContainerStatuses_lastState_waiting {
+  message: String
+  reason: String
+}
+
+type Object_status_ephemeralContainerStatuses_resources {
+  claims: [Object_status_ephemeralContainerStatuses_resources_claims!]
+  limits: String
+  requests: String
+}
+
+type Object_status_ephemeralContainerStatuses_resources_claims {
+  name: String
+}
+
+type Object_status_ephemeralContainerStatuses_state {
+  running: Object_status_ephemeralContainerStatuses_state_running
+  terminated: Object_status_ephemeralContainerStatuses_state_terminated
+  waiting: Object_status_ephemeralContainerStatuses_state_waiting
+}
+
+type Object_status_ephemeralContainerStatuses_state_running {
+  startedAt: String
+}
+
+type Object_status_ephemeralContainerStatuses_state_terminated {
+  containerID: String
+  exitCode: Int
+  finishedAt: String
+  message: String
+  reason: String
+  signal: Int
+  startedAt: String
+}
+
+type Object_status_ephemeralContainerStatuses_state_waiting {
+  message: String
+  reason: String
+}
+
+type Object_status_ephemeralContainerStatuses_volumeMounts {
+  mountPath: String
+  name: String
+  readOnly: Boolean
+  recursiveReadOnly: String
+}
+
+type Object_status_hostIPs {
+  ip: String
+}
+
+type Object_status_initContainerStatuses {
+  allocatedResources: String
+  containerID: String
+  image: String
+  imageID: String
+  lastState: Object_status_initContainerStatuses_lastState
+  name: String
+  ready: Boolean
+  resources: Object_status_initContainerStatuses_resources
+  restartCount: Int
+  started: Boolean
+  state: Object_status_initContainerStatuses_state
+  volumeMounts: [Object_status_initContainerStatuses_volumeMounts!]
+}
+
+type Object_status_initContainerStatuses_lastState {
+  running: Object_status_initContainerStatuses_lastState_running
+  terminated: Object_status_initContainerStatuses_lastState_terminated
+  waiting: Object_status_initContainerStatuses_lastState_waiting
+}
+
+type Object_status_initContainerStatuses_lastState_running {
+  startedAt: String
+}
+
+type Object_status_initContainerStatuses_lastState_terminated {
+  containerID: String
+  exitCode: Int
+  finishedAt: String
+  message: String
+  reason: String
+  signal: Int
+  startedAt: String
+}
+
+type Object_status_initContainerStatuses_lastState_waiting {
+  message: String
+  reason: String
+}
+
+type Object_status_initContainerStatuses_resources {
+  claims: [Object_status_initContainerStatuses_resources_claims!]
+  limits: String
+  requests: String
+}
+
+type Object_status_initContainerStatuses_resources_claims {
+  name: String
+}
+
+type Object_status_initContainerStatuses_state {
+  running: Object_status_initContainerStatuses_state_running
+  terminated: Object_status_initContainerStatuses_state_terminated
+  waiting: Object_status_initContainerStatuses_state_waiting
+}
+
+type Object_status_initContainerStatuses_state_running {
+  startedAt: String
+}
+
+type Object_status_initContainerStatuses_state_terminated {
+  containerID: String
+  exitCode: Int
+  finishedAt: String
+  message: String
+  reason: String
+  signal: Int
+  startedAt: String
+}
+
+type Object_status_initContainerStatuses_state_waiting {
+  message: String
+  reason: String
+}
+
+type Object_status_initContainerStatuses_volumeMounts {
+  mountPath: String
+  name: String
+  readOnly: Boolean
+  recursiveReadOnly: String
+}
+
+type Object_status_podIPs {
+  ip: String
+}
+
+type Object_status_resourceClaimStatuses {
+  name: String
+  resourceClaimName: String
+}
+
+type ObjectMeta {
+  labels: LabelsMap
+  name: String
+  namespace: String
+}
+
+type Pod {
+  apiVersion: String
+  kind: String
+  metadata: ObjectMeta
+  spec: Object_spec
+  status: Object_status
+}
+
+type Query {
+  core: coreType
+}
+
