@@ -25,6 +25,29 @@ func NewResolver(runtimeClient client.Client) *ResolverProvider {
 	}
 }
 
+func unstructuredFieldResolver(fieldPath []string) graphql.FieldResolveFn {
+	return func(p graphql.ResolveParams) (interface{}, error) {
+		var objMap map[string]interface{}
+
+		switch source := p.Source.(type) {
+		case *unstructured.Unstructured:
+			objMap = source.Object
+		case unstructured.Unstructured:
+			objMap = source.Object
+		case map[string]interface{}:
+			objMap = source
+		default:
+			return nil, nil
+		}
+
+		value, found, err := unstructured.NestedFieldNoCopy(objMap, fieldPath...)
+		if err != nil || !found {
+			return nil, nil
+		}
+
+		return value, nil
+	}
+}
 func (r *ResolverProvider) listItems(gvk schema.GroupVersionKind) func(p graphql.ResolveParams) (interface{}, error) {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		ctx, span := otel.Tracer("").Start(p.Context, "Resolve", trace.WithAttributes(attribute.String("kind", gvk.Kind)))

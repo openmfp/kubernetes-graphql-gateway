@@ -3,6 +3,7 @@ package research
 import (
 	"fmt"
 	"github.com/graphql-go/graphql/language/ast"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"os"
 	"path/filepath"
@@ -102,7 +103,11 @@ func GetGraphqlSchema(definitions spec.Definitions, res *ResolverProvider) (grap
 			}
 			resourceName := gvk.Kind
 
-			fields, _ := GenerateGraphQLInputFields(resourceName, &resourceScheme, definitions)
+			fields, err := GenerateGraphQLFields(&resourceScheme, definitions, []string{})
+			if err != nil {
+				fmt.Printf("Error generating fields for %s: %v\n", resourceName, err)
+				continue
+			}
 
 			if len(fields) == 0 {
 				fmt.Println("### err no fields for", resourceName)
@@ -115,13 +120,27 @@ func GetGraphqlSchema(definitions spec.Definitions, res *ResolverProvider) (grap
 			})
 
 			resourceType.AddFieldConfig("metadata", &graphql.Field{
-				Type:        objectMeta,
-				Description: "Standard object's metadata.",
+				Type: objectMetaType(),
+				Resolve: func(p graphql.ResolveParams) (interface{}, error) {
+					var objMap map[string]interface{}
+					switch source := p.Source.(type) {
+					case *unstructured.Unstructured:
+						objMap = source.Object
+					case unstructured.Unstructured:
+						objMap = source.Object
+					default:
+						return nil, nil
+					}
+					metadata, found, err := unstructured.NestedMap(objMap, "metadata")
+					if err != nil || !found {
+						return nil, nil
+					}
+					return metadata, nil
+				},
 			})
 
 			pluralResourceName := getPluralResourceName(resourceName)
 
-			// Extract group and version information
 			queryGroupType.AddFieldConfig(pluralResourceName, &graphql.Field{
 				Type:    graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(resourceType))),
 				Args:    res.getListArguments(),
@@ -140,6 +159,31 @@ func GetGraphqlSchema(definitions spec.Definitions, res *ResolverProvider) (grap
 			Name:   "Query",
 			Fields: rootQueryFields,
 		}),
+	})
+}
+func objectMetaType() *graphql.Object {
+	return graphql.NewObject(graphql.ObjectConfig{
+		Name: "ObjectMeta",
+		Fields: graphql.Fields{
+			"name": &graphql.Field{
+				Type:    graphql.String,
+				Resolve: unstructuredFieldResolver([]string{"name"}),
+			},
+			"namespace": &graphql.Field{
+				Type:    graphql.String,
+				Resolve: unstructuredFieldResolver([]string{"namespace"}),
+			},
+			"labels": &graphql.Field{
+				Type: graphql.NewScalar(graphql.ScalarConfig{
+					Name: "LabelsMap",
+					Serialize: func(value interface{}) interface{} {
+						return value
+					},
+				}),
+				Resolve: unstructuredFieldResolver([]string{"labels"}),
+			},
+			// Add other metadata fields as needed
+		},
 	})
 }
 
@@ -180,23 +224,72 @@ func definitionByGroup(definitions spec.Definitions) map[string]spec.Definitions
 }
 
 // GenerateGraphQLInputFields converts an OpenAPI schema to both graphql.Fields and graphql.InputObjectConfigFieldMap
-func GenerateGraphQLInputFields(name string, schema *spec.Schema, definitions spec.Definitions) (graphql.Fields, graphql.InputObjectConfigFieldMap) {
+func GenerateGraphQLFields(resourceScheme *spec.Schema, definitions spec.Definitions, fieldPath []string) (graphql.Fields, error) {
 	fields := graphql.Fields{}
-	inputFields := graphql.InputObjectConfigFieldMap{}
-	for propName, propSchema := range schema.Properties {
-		fieldType, inputFieldType := ConvertSchemaToGraphQLType(propName, &propSchema, definitions, []string{name})
-		if fieldType != nil {
-			fields[propName] = &graphql.Field{
-				Type: fieldType,
-			}
+
+	for fieldName, fieldSpec := range resourceScheme.Properties {
+		currentFieldPath := append(fieldPath, fieldName)
+
+		fieldType, err := mapSwaggerTypeToGraphQL(fieldSpec, definitions, currentFieldPath)
+		if err != nil {
+			return nil, err
 		}
-		if inputFieldType != nil {
-			inputFields[propName] = &graphql.InputObjectFieldConfig{
-				Type: inputFieldType,
-			}
+
+		fields[fieldName] = &graphql.Field{
+			Type:    fieldType,
+			Resolve: unstructuredFieldResolver(currentFieldPath),
 		}
 	}
-	return fields, inputFields
+
+	return fields, nil
+}
+func mapSwaggerTypeToGraphQL(fieldSpec spec.Schema, definitions spec.Definitions, fieldPath []string) (graphql.Output, error) {
+	switch fieldSpec.Type[0] {
+	case "string":
+		return graphql.String, nil
+	case "integer":
+		return graphql.Int, nil
+	case "number":
+		return graphql.Float, nil
+	case "boolean":
+		return graphql.Boolean, nil
+	case "array":
+		if fieldSpec.Items != nil && fieldSpec.Items.Schema != nil {
+			itemType, err := mapSwaggerTypeToGraphQL(*fieldSpec.Items.Schema, definitions, fieldPath)
+			if err != nil {
+				return nil, err
+			}
+			return graphql.NewList(graphql.NewNonNull(itemType)), nil
+		}
+		return graphql.NewList(graphql.String), nil
+	case "object":
+		if len(fieldSpec.Properties) > 0 {
+			nestedFields, err := GenerateGraphQLFields(&fieldSpec, definitions, fieldPath)
+			if err != nil {
+				return nil, err
+			}
+			typeName := "Object_" + strings.Join(fieldPath, "_")
+			return graphql.NewObject(graphql.ObjectConfig{
+				Name:   typeName,
+				Fields: nestedFields,
+			}), nil
+		}
+		return graphql.String, nil
+	default:
+		// Handle $ref to definitions
+		if fieldSpec.Ref.GetURL() != nil {
+			refTypeName := getTypeNameFromRef(fieldSpec.Ref.String())
+			if refDef, ok := definitions[refTypeName]; ok {
+				return mapSwaggerTypeToGraphQL(refDef, definitions, fieldPath)
+			}
+		}
+		return graphql.String, nil
+	}
+}
+
+func getTypeNameFromRef(ref string) string {
+	parts := strings.Split(ref, "/")
+	return parts[len(parts)-1]
 }
 
 func ConvertSchemaToGraphQLType(name string, schema *spec.Schema, definitions spec.Definitions, parentNames []string) (graphql.Type, graphql.Input) {
