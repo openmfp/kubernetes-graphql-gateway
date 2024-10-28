@@ -5,24 +5,53 @@ import (
 	"github.com/graphql-go/graphql/language/ast"
 )
 
+var generatedTypes = make(map[string]*graphql.Object)
+
+//
+// var objectMeta = graphql.NewObject(graphql.ObjectConfig{
+// 	Name: "Metadata",
+// 	Fields: graphql.Fields{
+// 		"name": &graphql.Field{
+// 			Type:        graphql.NewNonNull(graphql.String),
+// 			Description: "the metadata.name of the object",
+// 		},
+// 		"namespace": &graphql.Field{
+// 			Type:        graphql.NewNonNull(graphql.String),
+// 			Description: "the metadata.namespace of the object",
+// 		},
+// 		"labels": &graphql.Field{
+// 			Type:        stringMapScalar,
+// 			Description: "the metadata.labels of the object",
+// 		},
+// 		"annotations": &graphql.Field{
+// 			Type:        stringMapScalar,
+// 			Description: "the metadata.annotations of the object",
+// 		},
+// 	},
+// })
+
 var objectMeta = graphql.NewObject(graphql.ObjectConfig{
 	Name: "Metadata",
 	Fields: graphql.Fields{
 		"name": &graphql.Field{
 			Type:        graphql.NewNonNull(graphql.String),
 			Description: "the metadata.name of the object",
+			Resolve:     unstructuredFieldResolver([]string{"name"}),
 		},
 		"namespace": &graphql.Field{
 			Type:        graphql.NewNonNull(graphql.String),
 			Description: "the metadata.namespace of the object",
+			Resolve:     unstructuredFieldResolver([]string{"namespace"}),
 		},
 		"labels": &graphql.Field{
 			Type:        stringMapScalar,
 			Description: "the metadata.labels of the object",
+			Resolve:     unstructuredFieldResolver([]string{"labels"}),
 		},
 		"annotations": &graphql.Field{
 			Type:        stringMapScalar,
 			Description: "the metadata.annotations of the object",
+			Resolve:     unstructuredFieldResolver([]string{"annotations"}),
 		},
 	},
 })

@@ -25,7 +25,7 @@ func NewResolver(log *logger.Logger, runtimeClient client.Client) *Resolver {
 	}
 }
 
-func (r *Resolver) unstructuredFieldResolver(fieldPath []string) graphql.FieldResolveFn {
+func unstructuredFieldResolver(fieldPath []string) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		var objMap map[string]interface{}
 
@@ -42,7 +42,6 @@ func (r *Resolver) unstructuredFieldResolver(fieldPath []string) graphql.FieldRe
 
 		value, found, err := unstructured.NestedFieldNoCopy(objMap, fieldPath...)
 		if err != nil || !found {
-			r.log.Error().Err(err).Any("path", fieldPath).Msg("Field not found")
 			return nil, nil
 		}
 
