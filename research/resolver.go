@@ -2,28 +2,30 @@ package research
 
 import (
 	"github.com/graphql-go/graphql"
+	"github.com/openmfp/golang-commons/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"log/slog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sort"
 )
 
-type ResolverProvider struct {
+type Resolver struct {
+	log           *logger.Logger
 	runtimeClient client.Client
 }
 
-func NewResolver(runtimeClient client.Client) *ResolverProvider {
-	return &ResolverProvider{
+func NewResolver(log *logger.Logger, runtimeClient client.Client) *Resolver {
+	return &Resolver{
+		log:           log,
 		runtimeClient: runtimeClient,
 	}
 }
 
-func unstructuredFieldResolver(fieldPath []string) graphql.FieldResolveFn {
+func (r *Resolver) unstructuredFieldResolver(fieldPath []string) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		var objMap map[string]interface{}
 
@@ -40,6 +42,7 @@ func unstructuredFieldResolver(fieldPath []string) graphql.FieldResolveFn {
 
 		value, found, err := unstructured.NestedFieldNoCopy(objMap, fieldPath...)
 		if err != nil || !found {
+			r.log.Error().Err(err).Any("path", fieldPath).Msg("Field not found")
 			return nil, nil
 		}
 
@@ -47,17 +50,19 @@ func unstructuredFieldResolver(fieldPath []string) graphql.FieldResolveFn {
 	}
 }
 
-func (r *ResolverProvider) listItems(gvk schema.GroupVersionKind) func(p graphql.ResolveParams) (interface{}, error) {
+func (r *Resolver) listItems(gvk schema.GroupVersionKind) func(p graphql.ResolveParams) (interface{}, error) {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		ctx, span := otel.Tracer("").Start(p.Context, "Resolve", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
-		logger := slog.With(
-			slog.String("operation", "list"),
-			slog.String("group", gvk.Group),
-			slog.String("version", gvk.Version),
-			slog.String("kind", gvk.Kind),
+		log, err := r.log.ChildLoggerWithAttributes(
+			"operation", "list",
+			"group", gvk.Group,
+			"version", gvk.Version, "kind", gvk.Kind,
 		)
+		if err != nil {
+			r.log.Error().Err(err).Msg("failed to create child logger")
+		}
 
 		// Create an unstructured list to hold the results
 		list := &unstructured.UnstructuredList{}
@@ -68,10 +73,11 @@ func (r *ResolverProvider) listItems(gvk schema.GroupVersionKind) func(p graphql
 		})
 
 		var opts []client.ListOption
+		var selector labels.Selector
 		if labelSelector, ok := p.Args["labelselector"].(string); ok && labelSelector != "" {
-			selector, err := labels.Parse(labelSelector)
+			selector, err = labels.Parse(labelSelector)
 			if err != nil {
-				logger.Error("unable to parse given label selector", slog.Any("error", err))
+				log.Error().Err(err).Msg("unable to parse given label selector")
 				return nil, err
 			}
 			opts = append(opts, client.MatchingLabelsSelector{Selector: selector})
@@ -81,9 +87,9 @@ func (r *ResolverProvider) listItems(gvk schema.GroupVersionKind) func(p graphql
 			opts = append(opts, client.InNamespace(namespace))
 		}
 
-		err := r.runtimeClient.List(ctx, list, opts...)
+		err = r.runtimeClient.List(ctx, list, opts...)
 		if err != nil {
-			logger.Error("unable to list objects", slog.Any("error", err))
+			log.Error().Err(err).Msg("unable to list objects")
 			return nil, err
 		}
 
@@ -98,7 +104,7 @@ func (r *ResolverProvider) listItems(gvk schema.GroupVersionKind) func(p graphql
 	}
 }
 
-func (r *ResolverProvider) getListArguments() graphql.FieldConfigArgument {
+func (r *Resolver) getListArguments() graphql.FieldConfigArgument {
 	return graphql.FieldConfigArgument{
 		"labelselector": &graphql.ArgumentConfig{
 			Type:        graphql.String,
