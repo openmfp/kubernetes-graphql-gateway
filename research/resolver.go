@@ -17,6 +17,11 @@ import (
 	"github.com/openmfp/golang-commons/logger"
 )
 
+const (
+	labelSelectorArg = "labelselector"
+	namespaceArg     = "namespace"
+)
+
 type Resolver struct {
 	log           *logger.Logger
 	runtimeClient client.Client
@@ -29,7 +34,8 @@ func NewResolver(log *logger.Logger, runtimeClient client.Client) *Resolver {
 	}
 }
 
-func unstructuredFieldResolver(fieldName string) graphql.FieldResolveFn {
+// unstructuredFieldResolver returns a GraphQL FieldResolveFn to resolve a field from an unstructured object.
+func (r *Resolver) unstructuredFieldResolver(fieldName string) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		var objMap map[string]interface{}
 
@@ -41,28 +47,42 @@ func unstructuredFieldResolver(fieldName string) graphql.FieldResolveFn {
 		case map[string]interface{}:
 			objMap = source
 		default:
-			fmt.Println("Source is of unexpected type")
+			r.log.Error().
+				Str("type", fmt.Sprintf("%T", p.Source)).
+				Msg("Source is of unexpected type")
 			return nil, errors.New("source is of unexpected type")
 		}
 
-		value, _, err := unstructured.NestedFieldNoCopy(objMap, fieldName)
+		value, found, err := unstructured.NestedFieldNoCopy(objMap, fieldName)
+		if err != nil {
+			r.log.Error().Err(err).Str("field", fieldName).Msg("Error retrieving field")
+			return nil, err
+		}
+		if !found {
+			r.log.Debug().Str("field", fieldName).Msg("Field not found")
+			return nil, nil
+		}
 
-		return value, err
+		return value, nil
 	}
 }
 
-func (r *Resolver) listItems(gvk schema.GroupVersionKind) func(p graphql.ResolveParams) (interface{}, error) {
+// listItems returns a GraphQL resolver function that lists Kubernetes resources of the given GroupVersionKind.
+func (r *Resolver) listItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		ctx, span := otel.Tracer("").Start(p.Context, "Resolve", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
+		ctx, span := otel.Tracer("").Start(p.Context, "listItems", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
 		log, err := r.log.ChildLoggerWithAttributes(
 			"operation", "list",
 			"group", gvk.Group,
-			"version", gvk.Version, "kind", gvk.Kind,
+			"version", gvk.Version,
+			"kind", gvk.Kind,
 		)
 		if err != nil {
-			r.log.Error().Err(err).Msg("failed to create child logger")
+			r.log.Error().Err(err).Msg("Failed to create child logger")
+			// Proceed with parent logger if child logger creation fails
+			log = r.log
 		}
 
 		// Create an unstructured list to hold the results
@@ -74,29 +94,33 @@ func (r *Resolver) listItems(gvk schema.GroupVersionKind) func(p graphql.Resolve
 		})
 
 		var opts []client.ListOption
-		var selector labels.Selector
-		if labelSelector, ok := p.Args["labelselector"].(string); ok && labelSelector != "" {
-			selector, err = labels.Parse(labelSelector)
+		// Handle label selector argument
+		if labelSelector, ok := p.Args[labelSelectorArg].(string); ok && labelSelector != "" {
+			selector, err := labels.Parse(labelSelector)
 			if err != nil {
-				log.Error().Err(err).Msg("unable to parse given label selector")
+				log.Error().Err(err).
+					Str(labelSelectorArg, labelSelector).
+					Msg("Unable to parse given label selector")
 				return nil, err
 			}
 			opts = append(opts, client.MatchingLabelsSelector{Selector: selector})
 		}
 
-		if namespace, ok := p.Args["namespace"].(string); ok && namespace != "" {
+		// Handle namespace argument
+		if namespace, ok := p.Args[namespaceArg].(string); ok && namespace != "" {
 			opts = append(opts, client.InNamespace(namespace))
 		}
 
-		err = r.runtimeClient.List(ctx, list, opts...)
-		if err != nil {
-			log.Error().Err(err).Msg("unable to list objects")
+		if err := r.runtimeClient.List(ctx, list, opts...); err != nil {
+			log.Error().
+				Err(err).
+				Msg("Unable to list objects")
 			return nil, err
 		}
 
 		items := list.Items
 
-		// Sort the items by name
+		// Sort the items by name for consistent ordering
 		sort.Slice(items, func(i, j int) bool {
 			return items[i].GetName() < items[j].GetName()
 		})
@@ -105,15 +129,16 @@ func (r *Resolver) listItems(gvk schema.GroupVersionKind) func(p graphql.Resolve
 	}
 }
 
+// getListArguments returns the GraphQL arguments for listing resources.
 func (r *Resolver) getListArguments() graphql.FieldConfigArgument {
 	return graphql.FieldConfigArgument{
-		"labelselector": &graphql.ArgumentConfig{
+		labelSelectorArg: &graphql.ArgumentConfig{
 			Type:        graphql.String,
-			Description: "a label selector to filter the objects by",
+			Description: "A label selector to filter the objects by",
 		},
-		"namespace": &graphql.ArgumentConfig{
+		namespaceArg: &graphql.ArgumentConfig{
 			Type:        graphql.String,
-			Description: "the namespace in which to search for the objects",
+			Description: "The namespace in which to search for the objects",
 		},
 	}
 }

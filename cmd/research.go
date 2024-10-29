@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/rs/zerolog"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/handler"
@@ -51,10 +53,16 @@ func getFilteredResourceList() map[string]struct{} {
 var researchCmd = &cobra.Command{
 	Use: "research",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		log, err := logger.New(logger.Config{Name: "gateway"})
+		start := time.Now()
+		log, err := logger.New(logger.Config{
+			Name:  "gateway",
+			Level: zerolog.DebugLevel.String(),
+		})
 		if err != nil {
 			return err
 		}
+
+		log.Info().Msg("Starting server...")
 
 		cfg, err := getKubeConfig()
 		if err != nil {
@@ -83,7 +91,9 @@ var researchCmd = &cobra.Command{
 			return fmt.Errorf("error creating GraphQL schema: %w", err)
 		}
 
-		fmt.Println("Server is running on http://localhost:3000/graphql")
+		log.Info().Any("Setup took seconds:", time.Since(start).Seconds())
+		log.Info().Msg("Server is running on http://localhost:3000/graphql")
+
 		http.Handle("/graphql", gateway.Handler(gateway.HandlerConfig{
 			Config: &handler.Config{
 				Schema:     &gqlSchema,

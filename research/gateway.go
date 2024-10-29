@@ -59,7 +59,7 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 			}
 			resourceName := gvk.Kind
 
-			// Pass resourceName as typePrefix
+			// Pass resourceName as typePrefix to guarantee unique type names
 			fields, err := g.generateGraphQLFields(&resourceScheme, resourceName, []string{})
 			if err != nil {
 				g.log.Error().Err(err).Str("resource", resourceName).Msg("Error generating fields")
@@ -149,7 +149,7 @@ func (g *Gateway) generateGraphQLFields(resourceScheme *spec.Schema, typePrefix 
 
 		fields[fieldName] = &graphql.Field{
 			Type:    fieldType,
-			Resolve: unstructuredFieldResolver(fieldName),
+			Resolve: g.resolver.unstructuredFieldResolver(fieldName),
 		}
 	}
 
