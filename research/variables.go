@@ -36,22 +36,22 @@ var objectMeta = graphql.NewObject(graphql.ObjectConfig{
 		"name": &graphql.Field{
 			Type:        graphql.NewNonNull(graphql.String),
 			Description: "the metadata.name of the object",
-			Resolve:     unstructuredFieldResolver([]string{"name"}),
+			Resolve:     unstructuredFieldResolver("name"),
 		},
 		"namespace": &graphql.Field{
 			Type:        graphql.NewNonNull(graphql.String),
 			Description: "the metadata.namespace of the object",
-			Resolve:     unstructuredFieldResolver([]string{"namespace"}),
+			Resolve:     unstructuredFieldResolver("namespace"),
 		},
 		"labels": &graphql.Field{
 			Type:        stringMapScalar,
 			Description: "the metadata.labels of the object",
-			Resolve:     unstructuredFieldResolver([]string{"labels"}),
+			Resolve:     unstructuredFieldResolver("labels"),
 		},
 		"annotations": &graphql.Field{
 			Type:        stringMapScalar,
 			Description: "the metadata.annotations of the object",
-			Resolve:     unstructuredFieldResolver([]string{"annotations"}),
+			Resolve:     unstructuredFieldResolver("annotations"),
 		},
 	},
 })

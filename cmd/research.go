@@ -61,7 +61,8 @@ var researchCmd = &cobra.Command{
 
 		resolver := research.NewResolver(log, runtimeClient)
 
-		g := research.New(log, discoveryClient, getFilteredDefinitions(config), resolver)
+		definitions, filteredDefinitions := getDefinitionsAndFilteredDefinitions(config)
+		g := research.New(log, discoveryClient, definitions, filteredDefinitions, resolver)
 
 		gqlSchema, err := g.GetGraphqlSchema()
 		if err != nil {
@@ -85,7 +86,7 @@ var researchCmd = &cobra.Command{
 	},
 }
 
-func getFilteredDefinitions(config *rest.Config) spec.Definitions {
+func getDefinitionsAndFilteredDefinitions(config *rest.Config) (spec.Definitions, spec.Definitions) {
 	httpClient, err := rest.HTTPClientFor(config)
 	if err != nil {
 		fmt.Printf("Error creating HTTP client: %v\n", err)
@@ -137,23 +138,23 @@ func getFilteredDefinitions(config *rest.Config) spec.Definitions {
 	}
 
 	filteredResources := map[string]struct{}{
-		"io.k8s.api.core.v1.Pod": {},
-		// "io.k8s.api.core.v1.Endpoints": {},
-		"io.k8s.api.core.v1.Service": {},
-		// "io.k8s.api.core.v1.Namespace":             {},
-		// "io.k8s.api.core.v1.Node":                  {},
-		// "io.k8s.api.core.v1.Secret":                {},
-		// "io.k8s.api.core.v1.ConfigMap":             {},
-		// "io.k8s.api.core.v1.PersistentVolume":      {},
-		// "io.k8s.api.core.v1.PersistentVolumeClaim": {},
-		// "io.k8s.api.core.v1.ServiceAccount":        {},
-		// "io.k8s.api.core.v1.Event":                 {},
-		// "io.k8s.api.core.v1.ReplicationController": {},
-		// "io.k8s.api.core.v1.LimitRange":            {},
-		// "io.k8s.api.core.v1.ResourceQuota":         {},
-		// "io.k8s.api.core.v1.PodTemplate":           {},
-		// "io.k8s.api.core.v1.ReplicaSet":            {},
-		// "io.k8s.api.apps.v1.Deployment":            {},
+		"io.k8s.api.core.v1.Pod":                   {},
+		"io.k8s.api.core.v1.Endpoints":             {},
+		"io.k8s.api.core.v1.Service":               {},
+		"io.k8s.api.core.v1.Namespace":             {},
+		"io.k8s.api.core.v1.Node":                  {},
+		"io.k8s.api.core.v1.Secret":                {},
+		"io.k8s.api.core.v1.ConfigMap":             {},
+		"io.k8s.api.core.v1.PersistentVolume":      {},
+		"io.k8s.api.core.v1.PersistentVolumeClaim": {},
+		"io.k8s.api.core.v1.ServiceAccount":        {},
+		"io.k8s.api.core.v1.Event":                 {},
+		"io.k8s.api.core.v1.ReplicationController": {},
+		"io.k8s.api.core.v1.LimitRange":            {},
+		"io.k8s.api.core.v1.ResourceQuota":         {},
+		"io.k8s.api.core.v1.PodTemplate":           {},
+		"io.k8s.api.core.v1.ReplicaSet":            {},
+		"io.k8s.api.apps.v1.Deployment":            {},
 	}
 
 	filteredDefinitions := make(map[string]spec.Schema)
@@ -163,7 +164,7 @@ func getFilteredDefinitions(config *rest.Config) spec.Definitions {
 		}
 	}
 
-	return filteredDefinitions
+	return swagger.Definitions, filteredDefinitions
 }
 
 func getKubeConfig() (*rest.Config, error) {

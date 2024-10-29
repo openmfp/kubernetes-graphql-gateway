@@ -1,6 +1,7 @@
 package research
 
 import (
+	"fmt"
 	"github.com/graphql-go/graphql"
 	"github.com/openmfp/golang-commons/logger"
 	"go.opentelemetry.io/otel"
@@ -25,7 +26,7 @@ func NewResolver(log *logger.Logger, runtimeClient client.Client) *Resolver {
 	}
 }
 
-func unstructuredFieldResolver(fieldPath []string) graphql.FieldResolveFn {
+func unstructuredFieldResolver(fieldName string) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		var objMap map[string]interface{}
 
@@ -37,11 +38,13 @@ func unstructuredFieldResolver(fieldPath []string) graphql.FieldResolveFn {
 		case map[string]interface{}:
 			objMap = source
 		default:
+			fmt.Println("Source is of unexpected type")
 			return nil, nil
 		}
 
-		value, found, err := unstructured.NestedFieldNoCopy(objMap, fieldPath...)
+		value, found, err := unstructured.NestedFieldNoCopy(objMap, fieldName)
 		if err != nil || !found {
+			fmt.Printf("field not found: %s \n", fieldName)
 			return nil, nil
 		}
 

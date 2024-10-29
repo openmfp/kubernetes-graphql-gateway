@@ -16,14 +16,15 @@ import (
 )
 
 type Gateway struct {
-	discoveryClient *discovery.DiscoveryClient
-	definitions     spec.Definitions
-	log             *logger.Logger
-	resolver        *Resolver
-	restMapper      meta.RESTMapper
+	discoveryClient     *discovery.DiscoveryClient
+	definitions         spec.Definitions
+	filteredDefinitions spec.Definitions
+	log                 *logger.Logger
+	resolver            *Resolver
+	restMapper          meta.RESTMapper
 }
 
-func New(log *logger.Logger, discoveryClient *discovery.DiscoveryClient, definitions spec.Definitions, resolver *Resolver) *Gateway {
+func New(log *logger.Logger, discoveryClient *discovery.DiscoveryClient, definitions, filteredDefinitions spec.Definitions, resolver *Resolver) *Gateway {
 	groupResources, err := restmapper.GetAPIGroupResources(discoveryClient)
 	if err != nil {
 		log.Err(err).Msg("Error getting GetAPIGroupResources client")
@@ -31,11 +32,12 @@ func New(log *logger.Logger, discoveryClient *discovery.DiscoveryClient, definit
 	}
 
 	return &Gateway{
-		discoveryClient: discoveryClient,
-		definitions:     definitions,
-		log:             log,
-		resolver:        resolver,
-		restMapper:      restmapper.NewDiscoveryRESTMapper(groupResources),
+		discoveryClient:     discoveryClient,
+		definitions:         definitions,
+		filteredDefinitions: filteredDefinitions,
+		log:                 log,
+		resolver:            resolver,
+		restMapper:          restmapper.NewDiscoveryRESTMapper(groupResources),
 	}
 }
 
@@ -192,7 +194,7 @@ func (g *Gateway) getPluralResourceName(gvk schema.GroupVersionKind) (string, er
 
 func (g *Gateway) getDefinitionsByGroup() map[string]spec.Definitions {
 	groups := map[string]spec.Definitions{}
-	for key, definition := range g.definitions {
+	for key, definition := range g.filteredDefinitions {
 		gvk, err := getGroupVersionKind(key)
 		if err != nil {
 			g.log.Error().Err(err).Str("resourceKey", key).Msg("Error parsing group version kind")
@@ -227,7 +229,7 @@ func (g *Gateway) generateGraphQLFields(resourceScheme *spec.Schema, typePrefix 
 
 		fields[fieldName] = &graphql.Field{
 			Type:    fieldType,
-			Resolve: unstructuredFieldResolver(currentFieldPath),
+			Resolve: unstructuredFieldResolver(fieldName),
 		}
 	}
 
