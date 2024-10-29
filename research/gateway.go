@@ -2,7 +2,6 @@ package research
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/go-openapi/spec"
@@ -15,8 +14,6 @@ import (
 	"github.com/openmfp/golang-commons/logger"
 )
 
-var generatedTypes = make(map[string]*graphql.Object)
-
 type Gateway struct {
 	discoveryClient     *discovery.DiscoveryClient
 	definitions         spec.Definitions
@@ -24,13 +21,15 @@ type Gateway struct {
 	log                 *logger.Logger
 	resolver            *Resolver
 	restMapper          meta.RESTMapper
+	// typesCache stores generated GraphQL object types to prevent duplication.
+	typesCache map[string]*graphql.Object
 }
 
-func New(log *logger.Logger, discoveryClient *discovery.DiscoveryClient, definitions, filteredDefinitions spec.Definitions, resolver *Resolver) *Gateway {
+func New(log *logger.Logger, discoveryClient *discovery.DiscoveryClient, definitions, filteredDefinitions spec.Definitions, resolver *Resolver) (*Gateway, error) {
 	groupResources, err := restmapper.GetAPIGroupResources(discoveryClient)
 	if err != nil {
 		log.Err(err).Msg("Error getting GetAPIGroupResources client")
-		os.Exit(1)
+		return nil, err
 	}
 
 	return &Gateway{
@@ -40,7 +39,8 @@ func New(log *logger.Logger, discoveryClient *discovery.DiscoveryClient, definit
 		log:                 log,
 		resolver:            resolver,
 		restMapper:          restmapper.NewDiscoveryRESTMapper(groupResources),
-	}
+		typesCache:          make(map[string]*graphql.Object),
+	}, nil
 }
 
 func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
@@ -103,7 +103,6 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 	})
 }
 
-// replace it with better option
 func (g *Gateway) getPluralResourceName(gvk schema.GroupVersionKind) (string, error) {
 	mapping, err := g.restMapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	if err != nil {
@@ -157,6 +156,17 @@ func (g *Gateway) generateGraphQLFields(resourceScheme *spec.Schema, typePrefix 
 	return fields, nil
 }
 func (g *Gateway) mapSwaggerTypeToGraphQL(fieldSpec spec.Schema, typePrefix string, fieldPath []string) (graphql.Output, error) {
+	if len(fieldSpec.Type) == 0 {
+		// Handle $ref types
+		if fieldSpec.Ref.GetURL() != nil {
+			refTypeName := getTypeNameFromRef(fieldSpec.Ref.String())
+			if refDef, ok := g.definitions[refTypeName]; ok {
+				return g.mapSwaggerTypeToGraphQL(refDef, typePrefix, fieldPath)
+			}
+		}
+		return graphql.String, nil
+	}
+
 	switch fieldSpec.Type[0] {
 	case "string":
 		return graphql.String, nil
@@ -180,7 +190,7 @@ func (g *Gateway) mapSwaggerTypeToGraphQL(fieldSpec spec.Schema, typePrefix stri
 			typeName := typePrefix + "_" + strings.Join(fieldPath, "_")
 
 			// Check if type already generated
-			if existingType, exists := generatedTypes[typeName]; exists {
+			if existingType, exists := g.typesCache[typeName]; exists {
 				return existingType, nil
 			}
 
@@ -193,7 +203,7 @@ func (g *Gateway) mapSwaggerTypeToGraphQL(fieldSpec spec.Schema, typePrefix stri
 				Fields: nestedFields,
 			})
 			// Store the generated type
-			generatedTypes[typeName] = newType
+			g.typesCache[typeName] = newType
 			return newType, nil
 		}
 		return graphql.String, nil

@@ -73,7 +73,10 @@ var researchCmd = &cobra.Command{
 
 		resolver := research.NewResolver(log, runtimeClient)
 		definitions, filteredDefinitions := getDefinitionsAndFilteredDefinitions(cfg)
-		g := research.New(log, discoveryClient, definitions, filteredDefinitions, resolver)
+		g, err := research.New(log, discoveryClient, definitions, filteredDefinitions, resolver)
+		if err != nil {
+			return fmt.Errorf("error creating gateway: %w", err)
+		}
 
 		gqlSchema, err := g.GetGraphqlSchema()
 		if err != nil {
