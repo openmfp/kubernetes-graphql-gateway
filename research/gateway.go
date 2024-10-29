@@ -15,6 +15,8 @@ import (
 	"github.com/openmfp/golang-commons/logger"
 )
 
+var generatedTypes = make(map[string]*graphql.Object)
+
 type Gateway struct {
 	discoveryClient     *discovery.DiscoveryClient
 	definitions         spec.Definitions
@@ -40,87 +42,6 @@ func New(log *logger.Logger, discoveryClient *discovery.DiscoveryClient, definit
 		restMapper:          restmapper.NewDiscoveryRESTMapper(groupResources),
 	}
 }
-
-//
-// func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
-// 	rootQueryFields := graphql.Fields{}
-// 	for group, groupedResources := range g.getDefinitionsByGroup() {
-// 		queryGroupType := graphql.NewObject(graphql.ObjectConfig{
-// 			Name:   group + "Type",
-// 			Fields: graphql.Fields{},
-// 		})
-//
-// 		for resourceUri, resourceScheme := range groupedResources {
-// 			gvk, err := getGroupVersionKind(resourceUri)
-// 			if err != nil {
-// 				g.log.Error().Err(err).Msg("Error parsing group version kind")
-// 				continue
-// 			}
-// 			resourceName := gvk.Kind
-//
-// 			fields, err := g.generateGraphQLFields(&resourceScheme, resourceName, []string{})
-// 			if err != nil {
-// 				g.log.Error().Err(err).Str("resource", resourceName).Msg("Error generating fields")
-// 				continue
-// 			}
-//
-// 			if len(fields) == 0 {
-// 				g.log.Error().Str("resource", resourceName).Msg("No fields found")
-// 				continue
-// 			}
-//
-// 			resourceType := graphql.NewObject(graphql.ObjectConfig{
-// 				Name:   resourceName,
-// 				Fields: fields,
-// 			})
-//
-// 			// resourceType.AddFieldConfig("metadata", &graphql.Field{
-// 			// 	Type:        objectMeta,
-// 			// 	Description: "Standard object's metadata.",
-// 			// 	Resolve: func(p graphql.ResolveParams) (interface{}, error) {
-// 			// 		var objMap map[string]interface{}
-// 			// 		switch source := p.Source.(type) {
-// 			// 		case *unstructured.Unstructured:
-// 			// 			objMap = source.Object
-// 			// 		case unstructured.Unstructured:
-// 			// 			objMap = source.Object
-// 			// 		default:
-// 			// 			return nil, nil
-// 			// 		}
-// 			// 		metadata, found, err := unstructured.NestedMap(objMap, "metadata")
-// 			// 		if err != nil || !found {
-// 			// 			return nil, nil
-// 			// 		}
-// 			// 		return metadata, nil
-// 			// 	},
-// 			// })
-//
-// 			pluralResourceName, err := g.getPluralResourceName(gvk)
-// 			if err != nil {
-// 				g.log.Error().Err(err).Str("kind", gvk.Kind).Msg("Error getting plural resource name")
-// 				continue
-// 			}
-//
-// 			queryGroupType.AddFieldConfig(pluralResourceName, &graphql.Field{
-// 				Type:    graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(resourceType))),
-// 				Args:    g.resolver.getListArguments(),
-// 				Resolve: g.resolver.listItems(gvk),
-// 			})
-// 		}
-//
-// 		rootQueryFields[group] = &graphql.Field{
-// 			Type:    queryGroupType,
-// 			Resolve: func(p graphql.ResolveParams) (interface{}, error) { return p.Source, nil },
-// 		}
-// 	}
-//
-// 	return graphql.NewSchema(graphql.SchemaConfig{
-// 		Query: graphql.NewObject(graphql.ObjectConfig{
-// 			Name:   "Query",
-// 			Fields: rootQueryFields,
-// 		}),
-// 	})
-// }
 
 func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 	rootQueryFields := graphql.Fields{}

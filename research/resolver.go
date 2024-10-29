@@ -1,9 +1,11 @@
 package research
 
 import (
+	"errors"
 	"fmt"
+	"sort"
+
 	"github.com/graphql-go/graphql"
-	"github.com/openmfp/golang-commons/logger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -11,7 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sort"
+
+	"github.com/openmfp/golang-commons/logger"
 )
 
 type Resolver struct {
@@ -39,16 +42,12 @@ func unstructuredFieldResolver(fieldName string) graphql.FieldResolveFn {
 			objMap = source
 		default:
 			fmt.Println("Source is of unexpected type")
-			return nil, nil
+			return nil, errors.New("source is of unexpected type")
 		}
 
-		value, found, err := unstructured.NestedFieldNoCopy(objMap, fieldName)
-		if err != nil || !found {
-			fmt.Printf("field not found: %s \n", fieldName)
-			return nil, nil
-		}
+		value, _, err := unstructured.NestedFieldNoCopy(objMap, fieldName)
 
-		return value, nil
+		return value, err
 	}
 }
 
