@@ -19,6 +19,7 @@ import (
 
 const (
 	labelSelectorArg = "labelselector"
+	nameArg          = "name"
 	namespaceArg     = "namespace"
 )
 
@@ -64,6 +65,20 @@ func (r *Resolver) unstructuredFieldResolver(fieldName string) graphql.FieldReso
 		}
 
 		return value, nil
+	}
+}
+
+// getListItemsArguments returns the GraphQL arguments for listing resources.
+func (r *Resolver) getListItemsArguments() graphql.FieldConfigArgument {
+	return graphql.FieldConfigArgument{
+		labelSelectorArg: &graphql.ArgumentConfig{
+			Type:        graphql.String,
+			Description: "A label selector to filter the objects by",
+		},
+		namespaceArg: &graphql.ArgumentConfig{
+			Type:        graphql.String,
+			Description: "The namespace in which to search for the objects",
+		},
 	}
 }
 
@@ -129,16 +144,71 @@ func (r *Resolver) listItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 	}
 }
 
-// getListArguments returns the GraphQL arguments for listing resources.
-func (r *Resolver) getListArguments() graphql.FieldConfigArgument {
+// getItemArguments returns the GraphQL arguments for getting a single resource.
+func (r *Resolver) getItemArguments() graphql.FieldConfigArgument {
 	return graphql.FieldConfigArgument{
-		labelSelectorArg: &graphql.ArgumentConfig{
-			Type:        graphql.String,
-			Description: "A label selector to filter the objects by",
+		nameArg: &graphql.ArgumentConfig{
+			Type:        graphql.NewNonNull(graphql.String),
+			Description: "The name of the object",
 		},
 		namespaceArg: &graphql.ArgumentConfig{
-			Type:        graphql.String,
-			Description: "The namespace in which to search for the objects",
+			Type:        graphql.NewNonNull(graphql.String),
+			Description: "The namespace of the object",
 		},
+	}
+}
+
+// getItem returns a GraphQL resolver function that retrieves a single Kubernetes resource of the given GroupVersionKind.
+func (r *Resolver) getItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
+	return func(p graphql.ResolveParams) (interface{}, error) {
+		ctx, span := otel.Tracer("").Start(p.Context, "getItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
+		defer span.End()
+
+		log, err := r.log.ChildLoggerWithAttributes(
+			"operation", "get",
+			"group", gvk.Group,
+			"version", gvk.Version,
+			"kind", gvk.Kind,
+		)
+		if err != nil {
+			r.log.Error().Err(err).Msg("Failed to create child logger")
+			// Proceed with parent logger if child logger creation fails
+			log = r.log
+		}
+
+		// Retrieve required arguments
+		name, nameOK := p.Args["name"].(string)
+		namespace, nsOK := p.Args["namespace"].(string)
+
+		if !nameOK || name == "" {
+			err := errors.New("missing required argument: name")
+			log.Error().Err(err).Msg("Name argument is required")
+			return nil, err
+		}
+		if !nsOK || namespace == "" {
+			err := errors.New("missing required argument: namespace")
+			log.Error().Err(err).Msg("Namespace argument is required")
+			return nil, err
+		}
+
+		// Create an unstructured object to hold the result
+		obj := &unstructured.Unstructured{}
+		obj.SetGroupVersionKind(gvk)
+
+		key := client.ObjectKey{
+			Namespace: namespace,
+			Name:      name,
+		}
+
+		// Get the object using the runtime client
+		if err := r.runtimeClient.Get(ctx, key, obj); err != nil {
+			log.Error().Err(err).
+				Str("name", name).
+				Str("namespace", namespace).
+				Msg("Unable to get object")
+			return nil, err
+		}
+
+		return obj, nil
 	}
 }

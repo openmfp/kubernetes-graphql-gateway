@@ -76,7 +76,7 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 				Fields: fields,
 			})
 
-			pluralResourceName, err := g.getPluralResourceName(gvk)
+			singularResourceName, pluralResourceName, err := g.getSingularAndPluralResourceNames(gvk)
 			if err != nil {
 				g.log.Error().Err(err).Str("kind", gvk.Kind).Msg("Error getting plural resource name")
 				continue
@@ -84,8 +84,14 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 
 			queryGroupType.AddFieldConfig(pluralResourceName, &graphql.Field{
 				Type:    graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(resourceType))),
-				Args:    g.resolver.getListArguments(),
+				Args:    g.resolver.getListItemsArguments(),
 				Resolve: g.resolver.listItems(gvk),
+			})
+
+			queryGroupType.AddFieldConfig(singularResourceName, &graphql.Field{
+				Type:    graphql.NewNonNull(resourceType),
+				Args:    g.resolver.getItemArguments(),
+				Resolve: g.resolver.getItem(gvk),
 			})
 		}
 
@@ -103,13 +109,13 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 	})
 }
 
-func (g *Gateway) getPluralResourceName(gvk schema.GroupVersionKind) (string, error) {
+func (g *Gateway) getSingularAndPluralResourceNames(gvk schema.GroupVersionKind) (string, string, error) {
 	mapping, err := g.restMapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return mapping.Resource.Resource, nil
+	return strings.ToLower(gvk.Kind), mapping.Resource.Resource, nil
 }
 
 func (g *Gateway) getDefinitionsByGroup() map[string]spec.Definitions {
