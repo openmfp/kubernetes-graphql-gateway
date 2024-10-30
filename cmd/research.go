@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/rs/zerolog"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
+	controllerruntime "sigs.k8s.io/controller-runtime"
 	"time"
 
 	"github.com/go-openapi/spec"
@@ -27,8 +27,8 @@ import (
 	"github.com/openmfp/golang-commons/logger"
 )
 
-// getFilteredResourceList returns a set of resource names allowed for filtering.
-func getFilteredResourceList() map[string]struct{} {
+// getFilteredResourceMap returns a set of resource names allowed for filtering.
+func getFilteredResourceMap() map[string]struct{} {
 	return map[string]struct{}{
 		"io.k8s.api.core.v1.Pod":                   {},
 		"io.k8s.api.core.v1.Endpoints":             {},
@@ -50,24 +50,27 @@ func getFilteredResourceList() map[string]struct{} {
 	}
 }
 
+func getFilteredResourceArray() (res []string) {
+	for val := range getFilteredResourceMap() {
+		res = append(res, val)
+	}
+
+	return res
+}
+
 var researchCmd = &cobra.Command{
 	Use: "research",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		start := time.Now()
-		log, err := logger.New(logger.Config{
-			Name:  "gateway",
-			Level: zerolog.DebugLevel.String(),
-		})
+
+		log, err := setupLogger()
 		if err != nil {
 			return err
 		}
 
 		log.Info().Msg("Starting server...")
 
-		cfg, err := getKubeConfig()
-		if err != nil {
-			return fmt.Errorf("error getting kubeconfig: %w", err)
-		}
+		cfg := controllerruntime.GetConfigOrDie()
 
 		runtimeClient, err := setupK8sClients(cfg)
 		if err != nil {
@@ -80,7 +83,8 @@ var researchCmd = &cobra.Command{
 		}
 
 		resolver := research.NewResolver(log, runtimeClient)
-		definitions, filteredDefinitions := getDefinitionsAndFilteredDefinitions(cfg)
+
+		definitions, filteredDefinitions := getDefinitionsAndFilteredDefinitions(log, cfg)
 		g, err := research.New(log, discoveryClient, definitions, filteredDefinitions, resolver)
 		if err != nil {
 			return fmt.Errorf("error creating gateway: %w", err)
@@ -90,9 +94,6 @@ var researchCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("error creating GraphQL schema: %w", err)
 		}
-
-		log.Info().Any("Setup took seconds:", time.Since(start).Seconds())
-		log.Info().Msg("Server is running on http://localhost:3000/graphql")
 
 		http.Handle("/graphql", gateway.Handler(gateway.HandlerConfig{
 			Config: &handler.Config{
@@ -104,8 +105,17 @@ var researchCmd = &cobra.Command{
 			GroupsClaim: "groups",
 		}))
 
+		log.Info().Float64("elapsed", time.Since(start).Seconds()).Msg("Setup took seconds")
+		log.Info().Msg("Server is running on http://localhost:3000/graphql")
+
 		return http.ListenAndServe(":3000", nil)
 	},
+}
+
+func setupLogger() (*logger.Logger, error) {
+	loggerCfg := logger.DefaultConfig()
+	loggerCfg.Name = "gateway"
+	return logger.New(loggerCfg)
 }
 
 // setupK8sClients initializes and returns the runtime client and cache for Kubernetes.
@@ -134,7 +144,7 @@ func setupK8sClients(cfg *rest.Config) (client.Client, error) {
 }
 
 // getDefinitionsAndFilteredDefinitions fetches OpenAPI schema definitions and filters resources.
-func getDefinitionsAndFilteredDefinitions(config *rest.Config) (spec.Definitions, spec.Definitions) {
+func getDefinitionsAndFilteredDefinitions(log *logger.Logger, config *rest.Config) (spec.Definitions, spec.Definitions) {
 	httpClient, err := rest.HTTPClientFor(config)
 	if err != nil {
 		panic(fmt.Sprintf("Error creating HTTP client: %v", err))
@@ -165,12 +175,33 @@ func getDefinitionsAndFilteredDefinitions(config *rest.Config) (spec.Definitions
 	if err := json.Unmarshal(body, &swagger); err != nil {
 		panic(fmt.Sprintf("Error unmarshalling OpenAPI schema: %v", err))
 	}
-	if err := spec.ExpandSpec(&swagger, nil); err != nil {
-		panic(fmt.Sprintf("Error expanding OpenAPI schema: %v", err))
+
+	err = expandSpec(false, log, &swagger, getFilteredResourceArray())
+
+	filteredDefinitions := filterDefinitions(swagger.Definitions, getFilteredResourceMap())
+
+	return swagger.Definitions, filteredDefinitions
+}
+
+// ExpandPartial expands only specific parts of the schema
+func expandSpec(fullExpand bool, log *logger.Logger, swagger *spec.Swagger, targetDefinitions []string) error {
+	if fullExpand {
+		return spec.ExpandSpec(swagger, nil)
 	}
 
-	filteredDefinitions := filterDefinitions(swagger.Definitions, getFilteredResourceList())
-	return swagger.Definitions, filteredDefinitions
+	for _, target := range targetDefinitions {
+		if def, exists := swagger.Definitions[target]; exists {
+			err := spec.ExpandSchema(&def, &swagger, nil /* expandSpec options */)
+			if err != nil {
+				return fmt.Errorf("failed to expandSpec schema for %s: %v", target, err)
+			}
+			// After expansion, reassign the expanded schema back
+			swagger.Definitions[target] = def
+		} else {
+			log.Printf("definition %s not found in schema", target)
+		}
+	}
+	return nil
 }
 
 // filterDefinitions filters definitions based on allowed resources.
