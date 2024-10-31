@@ -212,3 +212,113 @@ func (r *Resolver) getItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 		return obj, nil
 	}
 }
+
+// getMutationArguments returns the GraphQL arguments for create and update mutations.
+func (r *Resolver) getMutationArguments(resourceInputType *graphql.InputObject) graphql.FieldConfigArgument {
+	return graphql.FieldConfigArgument{
+		namespaceArg: &graphql.ArgumentConfig{
+			Type:        graphql.NewNonNull(graphql.String),
+			Description: "The namespace of the object",
+		},
+		"object": &graphql.ArgumentConfig{
+			Type:        graphql.NewNonNull(resourceInputType),
+			Description: "The object to create or update",
+		},
+	}
+}
+
+// getDeleteArguments returns the GraphQL arguments for delete mutations.
+func (r *Resolver) getDeleteArguments() graphql.FieldConfigArgument {
+	return graphql.FieldConfigArgument{
+		nameArg: &graphql.ArgumentConfig{
+			Type:        graphql.NewNonNull(graphql.String),
+			Description: "The name of the object",
+		},
+		namespaceArg: &graphql.ArgumentConfig{
+			Type:        graphql.NewNonNull(graphql.String),
+			Description: "The namespace of the object",
+		},
+	}
+}
+
+func (r *Resolver) createItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
+	return func(p graphql.ResolveParams) (interface{}, error) {
+		ctx, span := otel.Tracer("").Start(p.Context, "createItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
+		defer span.End()
+
+		log := r.log.With().Str("operation", "create").Str("kind", gvk.Kind).Logger()
+
+		namespace := p.Args[namespaceArg].(string)
+		objectInput := p.Args["object"].(map[string]interface{})
+
+		obj := &unstructured.Unstructured{
+			Object: objectInput,
+		}
+		obj.SetGroupVersionKind(gvk)
+		obj.SetNamespace(namespace)
+
+		if obj.GetName() == "" {
+			return nil, errors.New("object metadata.name is required")
+		}
+
+		if err := r.runtimeClient.Create(ctx, obj); err != nil {
+			log.Error().Err(err).Msg("Failed to create object")
+			return nil, err
+		}
+
+		return obj, nil
+	}
+}
+func (r *Resolver) updateItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
+	return func(p graphql.ResolveParams) (interface{}, error) {
+		ctx, span := otel.Tracer("").Start(p.Context, "updateItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
+		defer span.End()
+
+		log := r.log.With().Str("operation", "update").Str("kind", gvk.Kind).Logger()
+
+		namespace := p.Args[namespaceArg].(string)
+		objectInput := p.Args["object"].(map[string]interface{})
+
+		obj := &unstructured.Unstructured{
+			Object: objectInput,
+		}
+		obj.SetGroupVersionKind(gvk)
+		obj.SetNamespace(namespace)
+
+		if obj.GetName() == "" {
+			return nil, errors.New("object metadata.name is required")
+		}
+
+		if err := r.runtimeClient.Update(ctx, obj); err != nil {
+			log.Error().Err(err).Msg("Failed to update object")
+			return nil, err
+		}
+
+		return obj, nil
+	}
+}
+
+// deleteItem returns a resolver function for deleting a resource.
+func (r *Resolver) deleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
+	return func(p graphql.ResolveParams) (interface{}, error) {
+		ctx, span := otel.Tracer("").Start(p.Context, "deleteItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
+		defer span.End()
+
+		log := r.log.With().Str("operation", "delete").Str("kind", gvk.Kind).Logger()
+
+		name := p.Args[nameArg].(string)
+		namespace := p.Args[namespaceArg].(string)
+
+		obj := &unstructured.Unstructured{}
+		obj.SetGroupVersionKind(gvk)
+		obj.SetNamespace(namespace)
+		obj.SetName(name)
+
+		if err := r.runtimeClient.Delete(ctx, obj); err != nil {
+			log.Error().Err(err).Msg("Failed to delete object")
+			return nil, err
+		}
+
+		return true, nil
+	}
+}

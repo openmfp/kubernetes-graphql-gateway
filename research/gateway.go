@@ -22,7 +22,8 @@ type Gateway struct {
 	resolver            *Resolver
 	restMapper          meta.RESTMapper
 	// typesCache stores generated GraphQL object types to prevent duplication.
-	typesCache map[string]*graphql.Object
+	typesCache      map[string]*graphql.Object
+	inputTypesCache map[string]*graphql.InputObject
 }
 
 func New(log *logger.Logger, discoveryClient *discovery.DiscoveryClient, definitions, filteredDefinitions spec.Definitions, resolver *Resolver) (*Gateway, error) {
@@ -40,14 +41,21 @@ func New(log *logger.Logger, discoveryClient *discovery.DiscoveryClient, definit
 		resolver:            resolver,
 		restMapper:          restmapper.NewDiscoveryRESTMapper(groupResources),
 		typesCache:          make(map[string]*graphql.Object),
+		inputTypesCache:     make(map[string]*graphql.InputObject),
 	}, nil
 }
-
 func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 	rootQueryFields := graphql.Fields{}
+	rootMutationFields := graphql.Fields{}
+
 	for group, groupedResources := range g.getDefinitionsByGroup() {
 		queryGroupType := graphql.NewObject(graphql.ObjectConfig{
 			Name:   group + "Type",
+			Fields: graphql.Fields{},
+		})
+
+		mutationGroupType := graphql.NewObject(graphql.ObjectConfig{
+			Name:   group + "Mutation",
 			Fields: graphql.Fields{},
 		})
 
@@ -57,31 +65,37 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 				g.log.Error().Err(err).Msg("Error parsing group version kind")
 				continue
 			}
-			resourceName := gvk.Kind
+			singularResourceName := strings.ToLower(gvk.Kind)
 
-			// Pass resourceName as typePrefix to guarantee unique type names
-			fields, err := g.generateGraphQLFields(&resourceScheme, resourceName, []string{})
+			// Generate both fields and inputFields
+			fields, inputFields, err := g.generateGraphQLFields(&resourceScheme, singularResourceName, []string{})
 			if err != nil {
-				g.log.Error().Err(err).Str("resource", resourceName).Msg("Error generating fields")
+				g.log.Error().Err(err).Str("resource", singularResourceName).Msg("Error generating fields")
 				continue
 			}
 
 			if len(fields) == 0 {
-				g.log.Error().Str("resource", resourceName).Msg("No fields found")
+				g.log.Error().Str("resource", singularResourceName).Msg("No fields found")
 				continue
 			}
 
 			resourceType := graphql.NewObject(graphql.ObjectConfig{
-				Name:   resourceName,
+				Name:   singularResourceName,
 				Fields: fields,
 			})
 
-			singularResourceName, pluralResourceName, err := g.getSingularAndPluralResourceNames(gvk)
+			resourceInputType := graphql.NewInputObject(graphql.InputObjectConfig{
+				Name:   singularResourceName + "Input",
+				Fields: inputFields,
+			})
+
+			capitalizedResourceName, pluralResourceName, err := g.getCapitalizedAndPluralResourceNames(gvk)
 			if err != nil {
 				g.log.Error().Err(err).Str("kind", gvk.Kind).Msg("Error getting plural resource name")
 				continue
 			}
 
+			// Query definitions
 			queryGroupType.AddFieldConfig(pluralResourceName, &graphql.Field{
 				Type:    graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(resourceType))),
 				Args:    g.resolver.getListItemsArguments(),
@@ -93,10 +107,35 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 				Args:    g.resolver.getItemArguments(),
 				Resolve: g.resolver.getItem(gvk),
 			})
+
+			// Mutation definitions
+			mutationGroupType.AddFieldConfig("create"+capitalizedResourceName, &graphql.Field{
+				Type:    resourceType,
+				Args:    g.resolver.getMutationArguments(resourceInputType),
+				Resolve: g.resolver.createItem(gvk),
+			})
+
+			mutationGroupType.AddFieldConfig("update"+capitalizedResourceName, &graphql.Field{
+				Type:    resourceType,
+				Args:    g.resolver.getMutationArguments(resourceInputType),
+				Resolve: g.resolver.updateItem(gvk),
+			})
+
+			mutationGroupType.AddFieldConfig("delete"+capitalizedResourceName, &graphql.Field{
+				Type:    graphql.Boolean,
+				Args:    g.resolver.getDeleteArguments(),
+				Resolve: g.resolver.deleteItem(gvk),
+			})
 		}
 
+		// Add group types to root fields
 		rootQueryFields[group] = &graphql.Field{
 			Type:    queryGroupType,
+			Resolve: func(p graphql.ResolveParams) (interface{}, error) { return p.Source, nil },
+		}
+
+		rootMutationFields[group] = &graphql.Field{
+			Type:    mutationGroupType,
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) { return p.Source, nil },
 		}
 	}
@@ -106,16 +145,20 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 			Name:   "Query",
 			Fields: rootQueryFields,
 		}),
+		Mutation: graphql.NewObject(graphql.ObjectConfig{
+			Name:   "Mutation",
+			Fields: rootMutationFields,
+		}),
 	})
 }
 
-func (g *Gateway) getSingularAndPluralResourceNames(gvk schema.GroupVersionKind) (string, string, error) {
+func (g *Gateway) getCapitalizedAndPluralResourceNames(gvk schema.GroupVersionKind) (string, string, error) {
 	mapping, err := g.restMapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	if err != nil {
 		return "", "", err
 	}
 
-	return strings.ToLower(gvk.Kind), mapping.Resource.Resource, nil
+	return strings.Title(strings.ToLower(gvk.Kind)), mapping.Resource.Resource, nil
 }
 
 func (g *Gateway) getDefinitionsByGroup() map[string]spec.Definitions {
@@ -141,27 +184,32 @@ func (g *Gateway) getDefinitionsByGroup() map[string]spec.Definitions {
 
 	return groups
 }
-
-func (g *Gateway) generateGraphQLFields(resourceScheme *spec.Schema, typePrefix string, fieldPath []string) (graphql.Fields, error) {
+func (g *Gateway) generateGraphQLFields(resourceScheme *spec.Schema, typePrefix string, fieldPath []string) (graphql.Fields, graphql.InputObjectConfigFieldMap, error) {
 	fields := graphql.Fields{}
+	inputFields := graphql.InputObjectConfigFieldMap{}
 
 	for fieldName, fieldSpec := range resourceScheme.Properties {
 		currentFieldPath := append(fieldPath, fieldName)
 
-		fieldType, err := g.mapSwaggerTypeToGraphQL(fieldSpec, typePrefix, currentFieldPath)
+		fieldType, inputFieldType, err := g.mapSwaggerTypeToGraphQL(fieldSpec, typePrefix, currentFieldPath)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		fields[fieldName] = &graphql.Field{
 			Type:    fieldType,
 			Resolve: g.resolver.unstructuredFieldResolver(fieldName),
 		}
+
+		inputFields[fieldName] = &graphql.InputObjectFieldConfig{
+			Type: inputFieldType,
+		}
 	}
 
-	return fields, nil
+	return fields, inputFields, nil
 }
-func (g *Gateway) mapSwaggerTypeToGraphQL(fieldSpec spec.Schema, typePrefix string, fieldPath []string) (graphql.Output, error) {
+
+func (g *Gateway) mapSwaggerTypeToGraphQL(fieldSpec spec.Schema, typePrefix string, fieldPath []string) (graphql.Output, graphql.Input, error) {
 	if len(fieldSpec.Type) == 0 {
 		// Handle $ref types
 		if fieldSpec.Ref.GetURL() != nil {
@@ -170,49 +218,59 @@ func (g *Gateway) mapSwaggerTypeToGraphQL(fieldSpec spec.Schema, typePrefix stri
 				return g.mapSwaggerTypeToGraphQL(refDef, typePrefix, fieldPath)
 			}
 		}
-		return graphql.String, nil
+		return graphql.String, graphql.String, nil
 	}
 
 	switch fieldSpec.Type[0] {
 	case "string":
-		return graphql.String, nil
+		return graphql.String, graphql.String, nil
 	case "integer":
-		return graphql.Int, nil
+		return graphql.Int, graphql.Int, nil
 	case "number":
-		return graphql.Float, nil
+		return graphql.Float, graphql.Float, nil
 	case "boolean":
-		return graphql.Boolean, nil
+		return graphql.Boolean, graphql.Boolean, nil
 	case "array":
 		if fieldSpec.Items != nil && fieldSpec.Items.Schema != nil {
-			itemType, err := g.mapSwaggerTypeToGraphQL(*fieldSpec.Items.Schema, typePrefix, fieldPath)
+			itemType, inputItemType, err := g.mapSwaggerTypeToGraphQL(*fieldSpec.Items.Schema, typePrefix, fieldPath)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
-			return graphql.NewList(itemType), nil
+			return graphql.NewList(itemType), graphql.NewList(inputItemType), nil
 		}
-		return graphql.NewList(graphql.String), nil
+		return graphql.NewList(graphql.String), graphql.NewList(graphql.String), nil
 	case "object":
 		if len(fieldSpec.Properties) > 0 {
 			typeName := typePrefix + "_" + strings.Join(fieldPath, "_")
 
 			// Check if type already generated
 			if existingType, exists := g.typesCache[typeName]; exists {
-				return existingType, nil
+				existingInputType := g.inputTypesCache[typeName]
+				return existingType, existingInputType, nil
 			}
 
-			nestedFields, err := g.generateGraphQLFields(&fieldSpec, typePrefix, fieldPath)
+			nestedFields, nestedInputFields, err := g.generateGraphQLFields(&fieldSpec, typePrefix, fieldPath)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
+
 			newType := graphql.NewObject(graphql.ObjectConfig{
 				Name:   typeName,
 				Fields: nestedFields,
 			})
-			// Store the generated type
+
+			newInputType := graphql.NewInputObject(graphql.InputObjectConfig{
+				Name:   typeName + "Input",
+				Fields: nestedInputFields,
+			})
+
+			// Store the generated types
 			g.typesCache[typeName] = newType
-			return newType, nil
+			g.inputTypesCache[typeName] = newInputType
+
+			return newType, newInputType, nil
 		}
-		return graphql.String, nil
+		return graphql.String, graphql.String, nil
 	default:
 		// Handle $ref to definitions
 		if fieldSpec.Ref.GetURL() != nil {
@@ -221,7 +279,7 @@ func (g *Gateway) mapSwaggerTypeToGraphQL(fieldSpec spec.Schema, typePrefix stri
 				return g.mapSwaggerTypeToGraphQL(refDef, typePrefix, fieldPath)
 			}
 		}
-		return graphql.String, nil
+		return graphql.String, graphql.String, nil
 	}
 }
 
