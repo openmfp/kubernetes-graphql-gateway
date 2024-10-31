@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/graphql"
+	"github.com/graphql-go/graphql/language/ast"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
@@ -13,6 +14,29 @@ import (
 
 	"github.com/openmfp/golang-commons/logger"
 )
+
+var stringMapScalar = graphql.NewScalar(graphql.ScalarConfig{
+	Name:        "StringMap",
+	Description: "A map from strings to strings.",
+	Serialize: func(value interface{}) interface{} {
+		return value
+	},
+	ParseValue: func(value interface{}) interface{} {
+		return value
+	},
+	ParseLiteral: func(valueAST ast.Value) interface{} {
+		result := map[string]string{}
+		switch value := valueAST.(type) {
+		case *ast.ObjectValue:
+			for _, field := range value.Fields {
+				if strValue, ok := field.Value.GetValue().(string); ok {
+					result[field.Name.Value] = strValue
+				}
+			}
+		}
+		return result
+	},
+})
 
 type Gateway struct {
 	discoveryClient     *discovery.DiscoveryClient
@@ -184,6 +208,7 @@ func (g *Gateway) getDefinitionsByGroup() map[string]spec.Definitions {
 
 	return groups
 }
+
 func (g *Gateway) generateGraphQLFields(resourceScheme *spec.Schema, typePrefix string, fieldPath []string) (graphql.Fields, graphql.InputObjectConfigFieldMap, error) {
 	fields := graphql.Fields{}
 	inputFields := graphql.InputObjectConfigFieldMap{}
@@ -269,7 +294,15 @@ func (g *Gateway) mapSwaggerTypeToGraphQL(fieldSpec spec.Schema, typePrefix stri
 			g.inputTypesCache[typeName] = newInputType
 
 			return newType, newInputType, nil
+		} else if fieldSpec.AdditionalProperties != nil && fieldSpec.AdditionalProperties.Schema != nil {
+			// Handle map types
+			if len(fieldSpec.AdditionalProperties.Schema.Type) == 1 && fieldSpec.AdditionalProperties.Schema.Type[0] == "string" {
+				// This is a map[string]string
+				return stringMapScalar, stringMapScalar, nil
+			}
 		}
+
+		// It's an empty object
 		return graphql.String, graphql.String, nil
 	default:
 		// Handle $ref to definitions
