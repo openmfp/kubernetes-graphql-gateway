@@ -7,12 +7,9 @@ import (
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
+	"github.com/openmfp/golang-commons/logger"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/restmapper"
-
-	"github.com/openmfp/golang-commons/logger"
 )
 
 var stringMapScalar = graphql.NewScalar(graphql.ScalarConfig{
@@ -39,7 +36,6 @@ var stringMapScalar = graphql.NewScalar(graphql.ScalarConfig{
 })
 
 type Gateway struct {
-	discoveryClient     *discovery.DiscoveryClient
 	definitions         spec.Definitions
 	filteredDefinitions spec.Definitions
 	log                 *logger.Logger
@@ -50,20 +46,13 @@ type Gateway struct {
 	inputTypesCache map[string]*graphql.InputObject
 }
 
-func New(log *logger.Logger, discoveryClient *discovery.DiscoveryClient, definitions, filteredDefinitions spec.Definitions, resolver *Resolver) (*Gateway, error) {
-	groupResources, err := restmapper.GetAPIGroupResources(discoveryClient)
-	if err != nil {
-		log.Err(err).Msg("Error getting GetAPIGroupResources client")
-		return nil, err
-	}
-
+func New(log *logger.Logger, restMapper meta.RESTMapper, definitions, filteredDefinitions spec.Definitions, resolver *Resolver) (*Gateway, error) {
 	return &Gateway{
-		discoveryClient:     discoveryClient,
 		definitions:         definitions,
 		filteredDefinitions: filteredDefinitions,
 		log:                 log,
 		resolver:            resolver,
-		restMapper:          restmapper.NewDiscoveryRESTMapper(groupResources),
+		restMapper:          restMapper,
 		typesCache:          make(map[string]*graphql.Object),
 		inputTypesCache:     make(map[string]*graphql.InputObject),
 	}, nil

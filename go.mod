@@ -11,6 +11,7 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/openmfp/account-operator v0.0.0-20241018080728-4c0b66718de8
 	github.com/openmfp/golang-commons v0.77.0
+	github.com/rs/zerolog v1.33.0
 	github.com/spf13/cobra v1.8.1
 	github.tools.sap/automaticd/automaticd/operators/jenx v0.0.0-20240821081458-cc06fd10fa7b
 	github.tools.sap/automaticd/automaticd/operators/jira v0.0.0-20240513130407-09009e9c881c
@@ -62,7 +63,6 @@ require (
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.55.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
-	github.com/rs/zerolog v1.33.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.tools.sap/automaticd/automaticd/shared v0.41.1 // indirect
@@ -78,6 +78,7 @@ require (
 	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/term v0.24.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
+	golang.org/x/tools v0.24.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240725223205-93522f1f2a9f // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240730163845-b1a4ccb954bf // indirect

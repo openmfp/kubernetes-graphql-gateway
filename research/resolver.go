@@ -1,6 +1,7 @@
 package research
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -12,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openmfp/golang-commons/logger"
@@ -269,6 +271,7 @@ func (r *Resolver) createItem(gvk schema.GroupVersionKind) graphql.FieldResolveF
 		return obj, nil
 	}
 }
+
 func (r *Resolver) updateItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		ctx, span := otel.Tracer("").Start(p.Context, "updateItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
@@ -279,22 +282,37 @@ func (r *Resolver) updateItem(gvk schema.GroupVersionKind) graphql.FieldResolveF
 		namespace := p.Args[namespaceArg].(string)
 		objectInput := p.Args["object"].(map[string]interface{})
 
-		obj := &unstructured.Unstructured{
-			Object: objectInput,
-		}
-		obj.SetGroupVersionKind(gvk)
-		obj.SetNamespace(namespace)
-
-		if obj.GetName() == "" {
+		// Ensure metadata.name is set
+		name, found, err := unstructured.NestedString(objectInput, "metadata", "name")
+		if err != nil || !found || name == "" {
 			return nil, errors.New("object metadata.name is required")
 		}
 
-		if err := r.runtimeClient.Update(ctx, obj); err != nil {
-			log.Error().Err(err).Msg("Failed to update object")
+		// Marshal the input object to JSON to create the patch data
+		patchData, err := json.Marshal(objectInput)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal object input: %v", err)
+		}
+
+		// Prepare a placeholder for the existing object
+		existingObj := &unstructured.Unstructured{}
+		existingObj.SetGroupVersionKind(gvk)
+
+		// Fetch the existing object from the cluster
+		err = r.runtimeClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, existingObj)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to get existing object")
 			return nil, err
 		}
 
-		return obj, nil
+		// Apply the merge patch to the existing object
+		patch := client.RawPatch(types.MergePatchType, patchData)
+		if err := r.runtimeClient.Patch(ctx, existingObj, patch); err != nil {
+			log.Error().Err(err).Msg("Failed to patch object")
+			return nil, err
+		}
+
+		return existingObj, nil
 	}
 }
 

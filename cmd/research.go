@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/rs/zerolog/log"
 	"io/ioutil"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/client-go/restmapper"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -77,15 +80,15 @@ var researchCmd = &cobra.Command{
 			return err
 		}
 
-		discoveryClient, err := discovery.NewDiscoveryClientForConfig(cfg)
-		if err != nil {
-			return fmt.Errorf("error starting discovery client: %w", err)
-		}
-
 		resolver := research.NewResolver(log, runtimeClient)
 
+		restMapper, err := getRestMapper(cfg)
+		if err != nil {
+			return fmt.Errorf("error getting rest mapper: %w", err)
+		}
+
 		definitions, filteredDefinitions := getDefinitionsAndFilteredDefinitions(log, cfg)
-		g, err := research.New(log, discoveryClient, definitions, filteredDefinitions, resolver)
+		g, err := research.New(log, restMapper, definitions, filteredDefinitions, resolver)
 		if err != nil {
 			return fmt.Errorf("error creating gateway: %w", err)
 		}
@@ -141,6 +144,21 @@ func setupK8sClients(cfg *rest.Config) (client.Client, error) {
 		},
 	})
 	return runtimeClient, err
+}
+
+func getRestMapper(cfg *rest.Config) (meta.RESTMapper, error) {
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("error starting discovery client: %w", err)
+	}
+
+	groupResources, err := restmapper.GetAPIGroupResources(discoveryClient)
+	if err != nil {
+		log.Err(err).Msg("Error getting GetAPIGroupResources client")
+		return nil, err
+	}
+
+	return restmapper.NewDiscoveryRESTMapper(groupResources), nil
 }
 
 // getDefinitionsAndFilteredDefinitions fetches OpenAPI schema definitions and filters resources.
