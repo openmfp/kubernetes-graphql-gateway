@@ -27,10 +27,10 @@ const (
 
 type Resolver struct {
 	log           *logger.Logger
-	runtimeClient client.Client
+	runtimeClient client.WithWatch
 }
 
-func NewResolver(log *logger.Logger, runtimeClient client.Client) *Resolver {
+func NewResolver(log *logger.Logger, runtimeClient client.WithWatch) *Resolver {
 	return &Resolver{
 		log:           log,
 		runtimeClient: runtimeClient,
@@ -338,5 +338,62 @@ func (r *Resolver) deleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveF
 		}
 
 		return true, nil
+	}
+}
+func (r *Resolver) subscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
+	return func(p graphql.ResolveParams) (interface{}, error) {
+		ctx := p.Context
+
+		namespace, _ := p.Args[namespaceArg].(string)
+		name, _ := p.Args[nameArg].(string)
+
+		resultChannel := make(chan interface{})
+
+		go func() {
+			defer close(resultChannel)
+
+			list := &unstructured.UnstructuredList{}
+			list.SetGroupVersionKind(schema.GroupVersionKind{
+				Group:   gvk.Group,
+				Version: gvk.Version,
+				Kind:    gvk.Kind + "List",
+			})
+
+			var opts []client.ListOption
+			if namespace != "" {
+				opts = append(opts, client.InNamespace(namespace))
+			}
+			if name != "" {
+				opts = append(opts, client.MatchingFields{"metadata.name": name})
+			}
+
+			watcher, err := r.runtimeClient.Watch(ctx, list, opts...)
+			if err != nil {
+				r.log.Error().Err(err).Msg("Failed to start watch")
+				return
+			}
+			defer watcher.Stop()
+
+			for event := range watcher.ResultChan() {
+				obj, ok := event.Object.(*unstructured.Unstructured)
+				if !ok {
+					continue
+				}
+
+				select {
+				case <-ctx.Done():
+					return
+				case resultChannel <- obj:
+				}
+			}
+		}()
+
+		return resultChannel, nil
+	}
+}
+
+func (r *Resolver) subscriptionResolve() graphql.FieldResolveFn {
+	return func(p graphql.ResolveParams) (interface{}, error) {
+		return p.Source, nil
 	}
 }

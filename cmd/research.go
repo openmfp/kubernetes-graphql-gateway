@@ -4,30 +4,29 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/functionalfoundry/graphqlws"
+	"github.com/go-openapi/spec"
+	"github.com/graphql-go/handler"
+	"github.com/openmfp/crd-gql-gateway/gateway"
+	"github.com/openmfp/crd-gql-gateway/research"
+	"github.com/openmfp/golang-commons/logger"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/cobra"
 	"io/ioutil"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
+	"k8s.io/client-go/tools/clientcmd"
 	"net/http"
 	"os"
 	"path/filepath"
 	controllerruntime "sigs.k8s.io/controller-runtime"
-	"time"
-
-	"github.com/go-openapi/spec"
-	"github.com/graphql-go/handler"
-	"github.com/spf13/cobra"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/discovery"
-	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	"github.com/openmfp/crd-gql-gateway/gateway"
-	"github.com/openmfp/crd-gql-gateway/research"
-	"github.com/openmfp/golang-commons/logger"
+	"time"
 )
 
 // getFilteredResourceMap returns a set of resource names allowed for filtering.
@@ -98,6 +97,13 @@ var researchCmd = &cobra.Command{
 			return fmt.Errorf("error creating GraphQL schema: %w", err)
 		}
 
+		subscriptionManager := graphqlws.NewSubscriptionManager(&gqlSchema)
+		// Set up the WebSocket handler for subscriptions
+		wsHandler := graphqlws.NewHandler(graphqlws.HandlerConfig{
+			SubscriptionManager: subscriptionManager,
+			// Additional configurations can be added here
+		})
+
 		http.Handle("/graphql", gateway.Handler(gateway.HandlerConfig{
 			Config: &handler.Config{
 				Schema:     &gqlSchema,
@@ -107,6 +113,7 @@ var researchCmd = &cobra.Command{
 			UserClaim:   "mail",
 			GroupsClaim: "groups",
 		}))
+		http.Handle("/subscriptions", wsHandler)
 
 		log.Info().Float64("elapsed", time.Since(start).Seconds()).Msg("Setup took seconds")
 		log.Info().Msg("Server is running on http://localhost:3000/graphql")
@@ -122,7 +129,7 @@ func setupLogger() (*logger.Logger, error) {
 }
 
 // setupK8sClients initializes and returns the runtime client and cache for Kubernetes.
-func setupK8sClients(cfg *rest.Config) (client.Client, error) {
+func setupK8sClients(cfg *rest.Config) (client.WithWatch, error) {
 	if err := corev1.AddToScheme(scheme.Scheme); err != nil {
 		return nil, fmt.Errorf("error adding core v1 to scheme: %w", err)
 	}
@@ -143,6 +150,7 @@ func setupK8sClients(cfg *rest.Config) (client.Client, error) {
 			Reader: k8sCache,
 		},
 	})
+
 	return runtimeClient, err
 }
 

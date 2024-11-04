@@ -44,6 +44,8 @@ type Gateway struct {
 	// typesCache stores generated GraphQL object types to prevent duplication.
 	typesCache      map[string]*graphql.Object
 	inputTypesCache map[string]*graphql.InputObject
+
+	subscriptions graphql.Fields
 }
 
 func New(log *logger.Logger, restMapper meta.RESTMapper, definitions, filteredDefinitions spec.Definitions, resolver *Resolver) (*Gateway, error) {
@@ -55,11 +57,13 @@ func New(log *logger.Logger, restMapper meta.RESTMapper, definitions, filteredDe
 		restMapper:          restMapper,
 		typesCache:          make(map[string]*graphql.Object),
 		inputTypesCache:     make(map[string]*graphql.InputObject),
+		subscriptions:       graphql.Fields{},
 	}, nil
 }
 func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 	rootQueryFields := graphql.Fields{}
 	rootMutationFields := graphql.Fields{}
+	rootSubscriptionFields := graphql.Fields{}
 
 	for group, groupedResources := range g.getDefinitionsByGroup() {
 		queryGroupType := graphql.NewObject(graphql.ObjectConfig{
@@ -69,6 +73,11 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 
 		mutationGroupType := graphql.NewObject(graphql.ObjectConfig{
 			Name:   group + "Mutation",
+			Fields: graphql.Fields{},
+		})
+
+		subscriptionGroupType := graphql.NewObject(graphql.ObjectConfig{
+			Name:   group + "Subscription",
 			Fields: graphql.Fields{},
 		})
 
@@ -139,6 +148,24 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 				Args:    g.resolver.getDeleteArguments(),
 				Resolve: g.resolver.deleteItem(gvk),
 			})
+
+			subscriptionFieldName := "subscribeTo" + capitalizedResourceName
+			subscriptionGroupType.AddFieldConfig(subscriptionFieldName, &graphql.Field{
+				Type: resourceType,
+				Args: graphql.FieldConfigArgument{
+					namespaceArg: &graphql.ArgumentConfig{
+						Type:        graphql.String,
+						Description: "The namespace of the resource",
+					},
+					nameArg: &graphql.ArgumentConfig{
+						Type:        graphql.String,
+						Description: "The name of the resource",
+					},
+				},
+				Resolve:     g.resolver.subscriptionResolve(),
+				Subscribe:   g.resolver.subscribeItem(gvk),
+				Description: fmt.Sprintf("Subscribe to changes of %s", singularResourceName),
+			})
 		}
 
 		// Add group types to root fields
@@ -151,6 +178,11 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 			Type:    mutationGroupType,
 			Resolve: func(p graphql.ResolveParams) (interface{}, error) { return p.Source, nil },
 		}
+
+		rootSubscriptionFields[group] = &graphql.Field{
+			Type:    subscriptionGroupType,
+			Resolve: func(p graphql.ResolveParams) (interface{}, error) { return p.Source, nil },
+		}
 	}
 
 	return graphql.NewSchema(graphql.SchemaConfig{
@@ -161,6 +193,10 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 		Mutation: graphql.NewObject(graphql.ObjectConfig{
 			Name:   "Mutation",
 			Fields: rootMutationFields,
+		}),
+		Subscription: graphql.NewObject(graphql.ObjectConfig{
+			Name:   "Subscription",
+			Fields: rootSubscriptionFields,
 		}),
 	})
 }
