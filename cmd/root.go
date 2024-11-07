@@ -10,7 +10,7 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(startCmd)
-	rootCmd.AddCommand(researchCmd)
+	rootCmd.AddCommand(nativeCmd)
 }
 
 func Execute() {

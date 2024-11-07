@@ -1,4 +1,4 @@
-package research
+package native
 
 import (
 	"encoding/json"
@@ -70,20 +70,6 @@ func (r *Resolver) unstructuredFieldResolver(fieldName string) graphql.FieldReso
 	}
 }
 
-// getListItemsArguments returns the GraphQL arguments for listing resources.
-func (r *Resolver) getListItemsArguments() graphql.FieldConfigArgument {
-	return graphql.FieldConfigArgument{
-		labelSelectorArg: &graphql.ArgumentConfig{
-			Type:        graphql.String,
-			Description: "A label selector to filter the objects by",
-		},
-		namespaceArg: &graphql.ArgumentConfig{
-			Type:        graphql.String,
-			Description: "The namespace in which to search for the objects",
-		},
-	}
-}
-
 // listItems returns a GraphQL resolver function that lists Kubernetes resources of the given GroupVersionKind.
 func (r *Resolver) listItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
@@ -146,20 +132,6 @@ func (r *Resolver) listItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 	}
 }
 
-// getItemArguments returns the GraphQL arguments for getting a single resource.
-func (r *Resolver) getItemArguments() graphql.FieldConfigArgument {
-	return graphql.FieldConfigArgument{
-		nameArg: &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(graphql.String),
-			Description: "The name of the object",
-		},
-		namespaceArg: &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(graphql.String),
-			Description: "The namespace of the object",
-		},
-	}
-}
-
 // getItem returns a GraphQL resolver function that retrieves a single Kubernetes resource of the given GroupVersionKind.
 func (r *Resolver) getItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
@@ -215,6 +187,20 @@ func (r *Resolver) getItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	}
 }
 
+// getListItemsArguments returns the GraphQL arguments for listing resources.
+func (r *Resolver) getListItemsArguments() graphql.FieldConfigArgument {
+	return graphql.FieldConfigArgument{
+		labelSelectorArg: &graphql.ArgumentConfig{
+			Type:        graphql.String,
+			Description: "A label selector to filter the objects by",
+		},
+		namespaceArg: &graphql.ArgumentConfig{
+			Type:        graphql.String,
+			Description: "The namespace in which to search for the objects",
+		},
+	}
+}
+
 // getMutationArguments returns the GraphQL arguments for create and update mutations.
 func (r *Resolver) getMutationArguments(resourceInputType *graphql.InputObject) graphql.FieldConfigArgument {
 	return graphql.FieldConfigArgument{
@@ -229,8 +215,8 @@ func (r *Resolver) getMutationArguments(resourceInputType *graphql.InputObject) 
 	}
 }
 
-// getDeleteArguments returns the GraphQL arguments for delete mutations.
-func (r *Resolver) getDeleteArguments() graphql.FieldConfigArgument {
+// getNameAndNamespaceArguments returns the GraphQL arguments for delete mutations.
+func (r *Resolver) getNameAndNamespaceArguments() graphql.FieldConfigArgument {
 	return graphql.FieldConfigArgument{
 		nameArg: &graphql.ArgumentConfig{
 			Type:        graphql.NewNonNull(graphql.String),
@@ -340,14 +326,14 @@ func (r *Resolver) deleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveF
 		return true, nil
 	}
 }
+
 func (r *Resolver) subscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		ctx := p.Context
-
 		namespace, _ := p.Args[namespaceArg].(string)
 		name, _ := p.Args[nameArg].(string)
 
-		resultChannel := make(chan interface{})
+		resultChannel := make(chan interface{}, 1)
 
 		go func() {
 			defer close(resultChannel)
@@ -359,10 +345,7 @@ func (r *Resolver) subscribeItem(gvk schema.GroupVersionKind) graphql.FieldResol
 				Kind:    gvk.Kind + "List",
 			})
 
-			var opts []client.ListOption
-			if namespace != "" {
-				opts = append(opts, client.InNamespace(namespace))
-			}
+			opts := []client.ListOption{client.InNamespace(namespace)}
 			if name != "" {
 				opts = append(opts, client.MatchingFields{"metadata.name": name})
 			}
@@ -374,16 +357,24 @@ func (r *Resolver) subscribeItem(gvk schema.GroupVersionKind) graphql.FieldResol
 			}
 			defer watcher.Stop()
 
-			for event := range watcher.ResultChan() {
-				obj, ok := event.Object.(*unstructured.Unstructured)
-				if !ok {
-					continue
-				}
-
+			for {
 				select {
+				case event, ok := <-watcher.ResultChan():
+					if !ok {
+						return
+					}
+					obj, ok := event.Object.(*unstructured.Unstructured)
+					if !ok {
+						continue
+					}
+					r.log.Info().
+						Str("eventType", string(event.Type)).
+						Str("resource", obj.GetKind()).
+						Str("name", obj.GetName()).
+						Msg("Received event")
+					resultChannel <- obj
 				case <-ctx.Done():
 					return
-				case resultChannel <- obj:
 				}
 			}
 		}()
@@ -394,6 +385,67 @@ func (r *Resolver) subscribeItem(gvk schema.GroupVersionKind) graphql.FieldResol
 
 func (r *Resolver) subscriptionResolve() graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
+		r.log.Info().Msg("Entering subscribeItem resolver")
 		return p.Source, nil
+	}
+}
+
+func (r *Resolver) subscribeItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
+	return func(p graphql.ResolveParams) (interface{}, error) {
+		ctx := p.Context
+
+		// Optional namespace filter from GraphQL arguments
+		namespace, _ := p.Args[namespaceArg].(string)
+
+		// Channel to send events to the subscriber
+		resultChannel := make(chan interface{})
+
+		go func() {
+			defer close(resultChannel)
+
+			// Set up an unstructured list for the specified GVK
+			list := &unstructured.UnstructuredList{}
+			list.SetGroupVersionKind(schema.GroupVersionKind{
+				Group:   gvk.Group,
+				Version: gvk.Version,
+				Kind:    gvk.Kind + "List",
+			})
+
+			// Options for watching within a specific namespace if provided
+			var opts []client.ListOption
+			if namespace != "" {
+				opts = append(opts, client.InNamespace(namespace))
+			}
+
+			// Start the watch for the specified GVK
+			watcher, err := r.runtimeClient.Watch(ctx, list, opts...)
+			if err != nil {
+				r.log.Error().Err(err).Str("gvk", gvk.String()).Msg("Failed to start watch")
+				return
+			}
+			defer watcher.Stop()
+
+			// Process events from the watch and send them to the result channel
+			for event := range watcher.ResultChan() {
+				obj, ok := event.Object.(*unstructured.Unstructured)
+				if !ok {
+					continue
+				}
+
+				r.log.Info().
+					Str("eventType", string(event.Type)).
+					Str("resource", obj.GetKind()).
+					Str("name", obj.GetName()).
+					Msg("Received event")
+
+				select {
+				case <-ctx.Done():
+					return
+				case resultChannel <- obj:
+				}
+			}
+		}()
+
+		return resultChannel, nil
 	}
 }

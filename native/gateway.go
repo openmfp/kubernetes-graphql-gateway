@@ -1,15 +1,14 @@
-package research
+package native
 
 import (
 	"fmt"
-	"strings"
-
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/openmfp/golang-commons/logger"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"strings"
 )
 
 var stringMapScalar = graphql.NewScalar(graphql.ScalarConfig{
@@ -60,6 +59,7 @@ func New(log *logger.Logger, restMapper meta.RESTMapper, definitions, filteredDe
 		subscriptions:       graphql.Fields{},
 	}, nil
 }
+
 func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 	rootQueryFields := graphql.Fields{}
 	rootMutationFields := graphql.Fields{}
@@ -126,7 +126,7 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 
 			queryGroupType.AddFieldConfig(singularResourceName, &graphql.Field{
 				Type:    graphql.NewNonNull(resourceType),
-				Args:    g.resolver.getItemArguments(),
+				Args:    g.resolver.getNameAndNamespaceArguments(),
 				Resolve: g.resolver.getItem(gvk),
 			})
 
@@ -145,26 +145,26 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 
 			mutationGroupType.AddFieldConfig("delete"+capitalizedResourceName, &graphql.Field{
 				Type:    graphql.Boolean,
-				Args:    g.resolver.getDeleteArguments(),
+				Args:    g.resolver.getNameAndNamespaceArguments(),
 				Resolve: g.resolver.deleteItem(gvk),
 			})
 
 			subscriptionFieldName := "subscribeTo" + capitalizedResourceName
 			subscriptionGroupType.AddFieldConfig(subscriptionFieldName, &graphql.Field{
-				Type: resourceType,
-				Args: graphql.FieldConfigArgument{
-					namespaceArg: &graphql.ArgumentConfig{
-						Type:        graphql.String,
-						Description: "The namespace of the resource",
-					},
-					nameArg: &graphql.ArgumentConfig{
-						Type:        graphql.String,
-						Description: "The name of the resource",
-					},
-				},
+				Type:        resourceType,
+				Args:        g.resolver.getNameAndNamespaceArguments(),
 				Resolve:     g.resolver.subscriptionResolve(),
 				Subscribe:   g.resolver.subscribeItem(gvk),
 				Description: fmt.Sprintf("Subscribe to changes of %s", singularResourceName),
+			})
+
+			subscriptionPluralFieldName := "subscribeTo" + pluralResourceName
+			subscriptionGroupType.AddFieldConfig(subscriptionPluralFieldName, &graphql.Field{
+				Type:        graphql.NewList(resourceType),
+				Args:        g.resolver.getListItemsArguments(),
+				Resolve:     g.resolver.subscribeItem(gvk),
+				Subscribe:   g.resolver.subscribeItems(gvk),
+				Description: fmt.Sprintf("Subscribe to changes of %s", subscriptionPluralFieldName),
 			})
 		}
 

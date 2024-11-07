@@ -8,7 +8,7 @@ import (
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/handler"
 	"github.com/openmfp/crd-gql-gateway/gateway"
-	"github.com/openmfp/crd-gql-gateway/research"
+	"github.com/openmfp/crd-gql-gateway/native"
 	"github.com/openmfp/golang-commons/logger"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
@@ -60,8 +60,8 @@ func getFilteredResourceArray() (res []string) {
 	return res
 }
 
-var researchCmd = &cobra.Command{
-	Use: "research",
+var nativeCmd = &cobra.Command{
+	Use: "native",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		start := time.Now()
 
@@ -79,7 +79,7 @@ var researchCmd = &cobra.Command{
 			return err
 		}
 
-		resolver := research.NewResolver(log, runtimeClient)
+		resolver := native.NewResolver(log, runtimeClient)
 
 		restMapper, err := getRestMapper(cfg)
 		if err != nil {
@@ -87,7 +87,7 @@ var researchCmd = &cobra.Command{
 		}
 
 		definitions, filteredDefinitions := getDefinitionsAndFilteredDefinitions(log, cfg)
-		g, err := research.New(log, restMapper, definitions, filteredDefinitions, resolver)
+		g, err := native.New(log, restMapper, definitions, filteredDefinitions, resolver)
 		if err != nil {
 			return fmt.Errorf("error creating gateway: %w", err)
 		}
