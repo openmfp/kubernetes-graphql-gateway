@@ -4,50 +4,34 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"time"
+
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/handler"
-	"github.com/openmfp/crd-gql-gateway/gateway"
-	"github.com/openmfp/crd-gql-gateway/native"
-	"github.com/openmfp/golang-commons/logger"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/cobra"
-	"io/ioutil"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
-	"k8s.io/client-go/tools/clientcmd"
-	"net/http"
-	"os"
-	"path/filepath"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"time"
+
+	"github.com/openmfp/crd-gql-gateway/gateway"
+	"github.com/openmfp/crd-gql-gateway/native"
+	"github.com/openmfp/golang-commons/logger"
 )
 
 // getFilteredResourceMap returns a set of resource names allowed for filtering.
 func getFilteredResourceMap() map[string]struct{} {
 	return map[string]struct{}{
-		"io.k8s.api.core.v1.Pod":                   {},
-		"io.k8s.api.core.v1.Endpoints":             {},
-		"io.k8s.api.core.v1.Service":               {},
-		"io.k8s.api.core.v1.Namespace":             {},
-		"io.k8s.api.core.v1.Node":                  {},
-		"io.k8s.api.core.v1.Secret":                {},
-		"io.k8s.api.core.v1.ConfigMap":             {},
-		"io.k8s.api.core.v1.PersistentVolume":      {},
-		"io.k8s.api.core.v1.PersistentVolumeClaim": {},
-		"io.k8s.api.core.v1.ServiceAccount":        {},
-		"io.k8s.api.core.v1.Event":                 {},
-		"io.k8s.api.core.v1.ReplicationController": {},
-		"io.k8s.api.core.v1.LimitRange":            {},
-		"io.k8s.api.core.v1.ResourceQuota":         {},
-		"io.k8s.api.core.v1.PodTemplate":           {},
-		"io.k8s.api.core.v1.ReplicaSet":            {},
-		"io.k8s.api.apps.v1.Deployment":            {},
+		"io.k8s.api.core.v1.Pod":        {},
+		"io.k8s.api.apps.v1.Deployment": {},
 	}
 }
 
@@ -145,6 +129,7 @@ func setupK8sClients(cfg *rest.Config) (client.WithWatch, error) {
 	return runtimeClient, err
 }
 
+// restMapper is needed to derive plural names for resources.
 func getRestMapper(cfg *rest.Config) (meta.RESTMapper, error) {
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(cfg)
 	if err != nil {
@@ -200,7 +185,7 @@ func getDefinitionsAndFilteredDefinitions(log *logger.Logger, config *rest.Confi
 	return swagger.Definitions, filteredDefinitions
 }
 
-// ExpandPartial expands only specific parts of the schema
+// expandSpec expands the schema, it supports partial expand
 func expandSpec(fullExpand bool, log *logger.Logger, swagger *spec.Swagger, targetDefinitions []string) error {
 	if fullExpand {
 		return spec.ExpandSpec(swagger, nil)
@@ -229,18 +214,6 @@ func filterDefinitions(definitions spec.Definitions, allowedResources map[string
 			filtered[key] = val
 		}
 	}
-	return filtered
-}
 
-// getKubeConfig returns a Kubernetes client configuration.
-func getKubeConfig() (*rest.Config, error) {
-	kubeconfigPath := os.Getenv("KUBECONFIG")
-	if kubeconfigPath == "" {
-		home := os.Getenv("HOME")
-		if home == "" {
-			return nil, fmt.Errorf("cannot find kubeconfig")
-		}
-		kubeconfigPath = filepath.Join(home, ".kube", "config")
-	}
-	return clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	return filtered
 }

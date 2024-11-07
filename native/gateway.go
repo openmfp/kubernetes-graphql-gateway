@@ -35,28 +35,28 @@ var stringMapScalar = graphql.NewScalar(graphql.ScalarConfig{
 })
 
 type Gateway struct {
+	log      *logger.Logger
+	resolver *Resolver
+
 	definitions         spec.Definitions
 	filteredDefinitions spec.Definitions
-	log                 *logger.Logger
-	resolver            *Resolver
+	subscriptions       graphql.Fields
 	restMapper          meta.RESTMapper
-	// typesCache stores generated GraphQL object types to prevent duplication.
-	typesCache      map[string]*graphql.Object
-	inputTypesCache map[string]*graphql.InputObject
 
-	subscriptions graphql.Fields
+	typesCache      map[string]*graphql.Object // typesCache stores generated GraphQL object types to prevent duplication.
+	inputTypesCache map[string]*graphql.InputObject
 }
 
 func New(log *logger.Logger, restMapper meta.RESTMapper, definitions, filteredDefinitions spec.Definitions, resolver *Resolver) (*Gateway, error) {
 	return &Gateway{
-		definitions:         definitions,
-		filteredDefinitions: filteredDefinitions,
 		log:                 log,
 		resolver:            resolver,
+		definitions:         definitions,
+		filteredDefinitions: filteredDefinitions,
+		subscriptions:       graphql.Fields{},
 		restMapper:          restMapper,
 		typesCache:          make(map[string]*graphql.Object),
 		inputTypesCache:     make(map[string]*graphql.InputObject),
-		subscriptions:       graphql.Fields{},
 	}, nil
 }
 
@@ -67,7 +67,7 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 
 	for group, groupedResources := range g.getDefinitionsByGroup() {
 		queryGroupType := graphql.NewObject(graphql.ObjectConfig{
-			Name:   group + "Type",
+			Name:   group + "Query",
 			Fields: graphql.Fields{},
 		})
 
@@ -87,101 +87,95 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 				g.log.Error().Err(err).Msg("Error parsing group version kind")
 				continue
 			}
-			singularResourceName := strings.ToLower(gvk.Kind)
+
+			singular, plural := g.getNames(gvk)
 
 			// Generate both fields and inputFields
-			fields, inputFields, err := g.generateGraphQLFields(&resourceScheme, singularResourceName, []string{})
+			fields, inputFields, err := g.generateGraphQLFields(&resourceScheme, singular, []string{})
 			if err != nil {
-				g.log.Error().Err(err).Str("resource", singularResourceName).Msg("Error generating fields")
+				g.log.Error().Err(err).Str("resource", singular).Msg("Error generating fields")
 				continue
 			}
 
 			if len(fields) == 0 {
-				g.log.Error().Str("resource", singularResourceName).Msg("No fields found")
+				g.log.Error().Str("resource", singular).Msg("No fields found")
 				continue
 			}
 
 			resourceType := graphql.NewObject(graphql.ObjectConfig{
-				Name:   singularResourceName,
+				Name:   singular,
 				Fields: fields,
 			})
 
 			resourceInputType := graphql.NewInputObject(graphql.InputObjectConfig{
-				Name:   singularResourceName + "Input",
+				Name:   singular + "Input",
 				Fields: inputFields,
 			})
 
-			capitalizedResourceName, pluralResourceName, err := g.getCapitalizedAndPluralResourceNames(gvk)
-			if err != nil {
-				g.log.Error().Err(err).Str("kind", gvk.Kind).Msg("Error getting plural resource name")
-				continue
-			}
-
-			// Query definitions
-			queryGroupType.AddFieldConfig(pluralResourceName, &graphql.Field{
+			queryGroupType.AddFieldConfig(plural, &graphql.Field{
 				Type:    graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(resourceType))),
 				Args:    g.resolver.getListItemsArguments(),
 				Resolve: g.resolver.listItems(gvk),
 			})
 
-			queryGroupType.AddFieldConfig(singularResourceName, &graphql.Field{
+			queryGroupType.AddFieldConfig(strings.ToLower(singular), &graphql.Field{
 				Type:    graphql.NewNonNull(resourceType),
 				Args:    g.resolver.getNameAndNamespaceArguments(),
 				Resolve: g.resolver.getItem(gvk),
 			})
 
 			// Mutation definitions
-			mutationGroupType.AddFieldConfig("create"+capitalizedResourceName, &graphql.Field{
+			mutationGroupType.AddFieldConfig("create"+singular, &graphql.Field{
 				Type:    resourceType,
 				Args:    g.resolver.getMutationArguments(resourceInputType),
 				Resolve: g.resolver.createItem(gvk),
 			})
 
-			mutationGroupType.AddFieldConfig("update"+capitalizedResourceName, &graphql.Field{
+			mutationGroupType.AddFieldConfig("update"+singular, &graphql.Field{
 				Type:    resourceType,
 				Args:    g.resolver.getMutationArguments(resourceInputType),
 				Resolve: g.resolver.updateItem(gvk),
 			})
 
-			mutationGroupType.AddFieldConfig("delete"+capitalizedResourceName, &graphql.Field{
+			mutationGroupType.AddFieldConfig("delete"+singular, &graphql.Field{
 				Type:    graphql.Boolean,
 				Args:    g.resolver.getNameAndNamespaceArguments(),
 				Resolve: g.resolver.deleteItem(gvk),
 			})
 
-			subscriptionFieldName := "subscribeTo" + capitalizedResourceName
-			subscriptionGroupType.AddFieldConfig(subscriptionFieldName, &graphql.Field{
+			subscriptionSingular := "subscribeTo" + singular
+			subscriptionGroupType.AddFieldConfig(subscriptionSingular, &graphql.Field{
 				Type:        resourceType,
 				Args:        g.resolver.getNameAndNamespaceArguments(),
-				Resolve:     g.resolver.subscriptionResolve(),
+				Resolve:     g.resolver.commonResolver(),
 				Subscribe:   g.resolver.subscribeItem(gvk),
-				Description: fmt.Sprintf("Subscribe to changes of %s", singularResourceName),
+				Description: fmt.Sprintf("Subscribe to changes of %s", singular),
 			})
 
-			subscriptionPluralFieldName := "subscribeTo" + pluralResourceName
-			subscriptionGroupType.AddFieldConfig(subscriptionPluralFieldName, &graphql.Field{
+			subscriptionPlural := "subscribeTo" + plural
+			subscriptionGroupType.AddFieldConfig(subscriptionPlural, &graphql.Field{
 				Type:        graphql.NewList(resourceType),
 				Args:        g.resolver.getListItemsArguments(),
-				Resolve:     g.resolver.subscribeItem(gvk),
+				Resolve:     g.resolver.commonResolver(),
 				Subscribe:   g.resolver.subscribeItems(gvk),
-				Description: fmt.Sprintf("Subscribe to changes of %s", subscriptionPluralFieldName),
+				Description: fmt.Sprintf("Subscribe to changes of %s", plural),
 			})
 		}
 
 		// Add group types to root fields
 		rootQueryFields[group] = &graphql.Field{
 			Type:    queryGroupType,
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) { return p.Source, nil },
+			Resolve: g.resolver.commonResolver(),
 		}
 
 		rootMutationFields[group] = &graphql.Field{
 			Type:    mutationGroupType,
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) { return p.Source, nil },
+			Resolve: g.resolver.commonResolver(),
 		}
 
 		rootSubscriptionFields[group] = &graphql.Field{
 			Type:    subscriptionGroupType,
-			Resolve: func(p graphql.ResolveParams) (interface{}, error) { return p.Source, nil },
+			Resolve: g.resolver.commonResolver(),
 		}
 	}
 
@@ -201,13 +195,13 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 	})
 }
 
-func (g *Gateway) getCapitalizedAndPluralResourceNames(gvk schema.GroupVersionKind) (string, string, error) {
+func (g *Gateway) getNames(gvk schema.GroupVersionKind) (singular string, plural string) {
 	mapping, err := g.restMapper.RESTMapping(gvk.GroupKind(), gvk.Version)
 	if err != nil {
-		return "", "", err
+		return gvk.Kind, gvk.Kind + "s"
 	}
 
-	return strings.Title(strings.ToLower(gvk.Kind)), mapping.Resource.Resource, nil
+	return gvk.Kind, mapping.Resource.Resource
 }
 
 func (g *Gateway) getDefinitionsByGroup() map[string]spec.Definitions {
@@ -290,45 +284,7 @@ func (g *Gateway) mapSwaggerTypeToGraphQL(fieldSpec spec.Schema, typePrefix stri
 		}
 		return graphql.NewList(graphql.String), graphql.NewList(graphql.String), nil
 	case "object":
-		if len(fieldSpec.Properties) > 0 {
-			typeName := typePrefix + "_" + strings.Join(fieldPath, "_")
-
-			// Check if type already generated
-			if existingType, exists := g.typesCache[typeName]; exists {
-				existingInputType := g.inputTypesCache[typeName]
-				return existingType, existingInputType, nil
-			}
-
-			nestedFields, nestedInputFields, err := g.generateGraphQLFields(&fieldSpec, typePrefix, fieldPath)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			newType := graphql.NewObject(graphql.ObjectConfig{
-				Name:   typeName,
-				Fields: nestedFields,
-			})
-
-			newInputType := graphql.NewInputObject(graphql.InputObjectConfig{
-				Name:   typeName + "Input",
-				Fields: nestedInputFields,
-			})
-
-			// Store the generated types
-			g.typesCache[typeName] = newType
-			g.inputTypesCache[typeName] = newInputType
-
-			return newType, newInputType, nil
-		} else if fieldSpec.AdditionalProperties != nil && fieldSpec.AdditionalProperties.Schema != nil {
-			// Handle map types
-			if len(fieldSpec.AdditionalProperties.Schema.Type) == 1 && fieldSpec.AdditionalProperties.Schema.Type[0] == "string" {
-				// This is a map[string]string
-				return stringMapScalar, stringMapScalar, nil
-			}
-		}
-
-		// It's an empty object
-		return graphql.String, graphql.String, nil
+		return g.handleObjectFieldSpecType(fieldSpec, typePrefix, fieldPath)
 	default:
 		// Handle $ref to definitions
 		if fieldSpec.Ref.GetURL() != nil {
@@ -339,6 +295,48 @@ func (g *Gateway) mapSwaggerTypeToGraphQL(fieldSpec spec.Schema, typePrefix stri
 		}
 		return graphql.String, graphql.String, nil
 	}
+}
+
+func (g *Gateway) handleObjectFieldSpecType(fieldSpec spec.Schema, typePrefix string, fieldPath []string) (graphql.Output, graphql.Input, error) {
+	if len(fieldSpec.Properties) > 0 {
+		typeName := typePrefix + "_" + strings.Join(fieldPath, "_")
+
+		// Check if type already generated
+		if existingType, exists := g.typesCache[typeName]; exists {
+			existingInputType := g.inputTypesCache[typeName]
+			return existingType, existingInputType, nil
+		}
+
+		nestedFields, nestedInputFields, err := g.generateGraphQLFields(&fieldSpec, typePrefix, fieldPath)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		newType := graphql.NewObject(graphql.ObjectConfig{
+			Name:   typeName,
+			Fields: nestedFields,
+		})
+
+		newInputType := graphql.NewInputObject(graphql.InputObjectConfig{
+			Name:   typeName + "Input",
+			Fields: nestedInputFields,
+		})
+
+		// Store the generated types
+		g.typesCache[typeName] = newType
+		g.inputTypesCache[typeName] = newInputType
+
+		return newType, newInputType, nil
+	} else if fieldSpec.AdditionalProperties != nil && fieldSpec.AdditionalProperties.Schema != nil {
+		// Handle map types
+		if len(fieldSpec.AdditionalProperties.Schema.Type) == 1 && fieldSpec.AdditionalProperties.Schema.Type[0] == "string" {
+			// This is a map[string]string
+			return stringMapScalar, stringMapScalar, nil
+		}
+	}
+
+	// It's an empty object
+	return graphql.String, graphql.String, nil
 }
 
 func getTypeNameFromRef(ref string) string {
