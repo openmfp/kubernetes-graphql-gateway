@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/functionalfoundry/graphqlws"
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/handler"
 	"github.com/openmfp/crd-gql-gateway/gateway"
@@ -97,13 +96,6 @@ var nativeCmd = &cobra.Command{
 			return fmt.Errorf("error creating GraphQL schema: %w", err)
 		}
 
-		subscriptionManager := graphqlws.NewSubscriptionManager(&gqlSchema)
-		// Set up the WebSocket handler for subscriptions
-		wsHandler := graphqlws.NewHandler(graphqlws.HandlerConfig{
-			SubscriptionManager: subscriptionManager,
-			// Additional configurations can be added here
-		})
-
 		http.Handle("/graphql", gateway.Handler(gateway.HandlerConfig{
 			Config: &handler.Config{
 				Schema:     &gqlSchema,
@@ -113,7 +105,6 @@ var nativeCmd = &cobra.Command{
 			UserClaim:   "mail",
 			GroupsClaim: "groups",
 		}))
-		http.Handle("/subscriptions", wsHandler)
 
 		log.Info().Float64("elapsed", time.Since(start).Seconds()).Msg("Setup took seconds")
 		log.Info().Msg("Server is running on http://localhost:3000/graphql")
