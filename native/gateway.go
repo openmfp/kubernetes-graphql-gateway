@@ -6,6 +6,7 @@ import (
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/graphql/language/ast"
 	"github.com/openmfp/golang-commons/logger"
+	"github.com/rs/zerolog/log"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"strings"
@@ -65,6 +66,8 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 	rootMutationFields := graphql.Fields{}
 	rootSubscriptionFields := graphql.Fields{}
 
+	var progress float32 = 0
+
 	for group, groupedResources := range g.getDefinitionsByGroup() {
 		queryGroupType := graphql.NewObject(graphql.ObjectConfig{
 			Name:   group + "Query",
@@ -82,6 +85,15 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 		})
 
 		for resourceUri, resourceScheme := range groupedResources {
+			skipList := map[string]struct{}{
+				"io.k8s.apiextensions-apiserver.pkg.apis.apiextensions.v1.CustomResourceDefinition": {},
+				// "io.k8s.api.core.v1.Pod": {},
+			}
+			if _, ok := skipList[resourceUri]; !ok {
+				continue
+			}
+
+			g.log.Debug().Str("resource", resourceUri).Msg("Generating schema")
 			gvk, err := getGroupVersionKind(resourceUri)
 			if err != nil {
 				g.log.Error().Err(err).Msg("Error parsing group version kind")
@@ -160,22 +172,31 @@ func (g *Gateway) GetGraphqlSchema() (graphql.Schema, error) {
 				Subscribe:   g.resolver.subscribeItems(gvk),
 				Description: fmt.Sprintf("Subscribe to changes of %s", plural),
 			})
+
+			progress++
+			log.Debug().Float32("Progress", progress*100/float32(len(g.definitions))).Msg("Resource processed")
 		}
 
-		// Add group types to root fields
-		rootQueryFields[group] = &graphql.Field{
-			Type:    queryGroupType,
-			Resolve: g.resolver.commonResolver(),
+		if len(queryGroupType.Fields()) > 0 {
+			// Add group types to root fields
+			rootQueryFields[group] = &graphql.Field{
+				Type:    queryGroupType,
+				Resolve: g.resolver.commonResolver(),
+			}
 		}
 
-		rootMutationFields[group] = &graphql.Field{
-			Type:    mutationGroupType,
-			Resolve: g.resolver.commonResolver(),
+		if len(mutationGroupType.Fields()) > 0 {
+			rootMutationFields[group] = &graphql.Field{
+				Type:    mutationGroupType,
+				Resolve: g.resolver.commonResolver(),
+			}
 		}
 
-		rootSubscriptionFields[group] = &graphql.Field{
-			Type:    subscriptionGroupType,
-			Resolve: g.resolver.commonResolver(),
+		if len(subscriptionGroupType.Fields()) > 0 {
+			rootSubscriptionFields[group] = &graphql.Field{
+				Type:    subscriptionGroupType,
+				Resolve: g.resolver.commonResolver(),
+			}
 		}
 	}
 
@@ -229,6 +250,8 @@ func (g *Gateway) getDefinitionsByGroup() map[string]spec.Definitions {
 }
 
 func (g *Gateway) generateGraphQLFields(resourceScheme *spec.Schema, typePrefix string, fieldPath []string) (graphql.Fields, graphql.InputObjectConfigFieldMap, error) {
+	fmt.Println("### typePrefix, fieldPath:", typePrefix, fieldPath)
+
 	fields := graphql.Fields{}
 	inputFields := graphql.InputObjectConfigFieldMap{}
 
