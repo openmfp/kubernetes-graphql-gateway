@@ -570,7 +570,7 @@ var nativeCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		start := time.Now()
 
-		log, err := setupLogger("DEBUG")
+		log, err := setupLogger("INFO")
 		if err != nil {
 			return err
 		}

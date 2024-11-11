@@ -62,7 +62,6 @@ func (r *Resolver) unstructuredFieldResolver(fieldName string) graphql.FieldReso
 			return nil, err
 		}
 		if !found {
-			r.log.Debug().Str("field", fieldName).Msg("Field not found")
 			return nil, nil
 		}
 
@@ -138,6 +137,10 @@ func (r *Resolver) getItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 		ctx, span := otel.Tracer("").Start(p.Context, "getItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
+		if gvk.Group == "core" {
+			gvk.Group = ""
+		}
+
 		log, err := r.log.ChildLoggerWithAttributes(
 			"operation", "get",
 			"group", gvk.Group,
@@ -192,6 +195,10 @@ func (r *Resolver) createItem(gvk schema.GroupVersionKind) graphql.FieldResolveF
 		ctx, span := otel.Tracer("").Start(p.Context, "createItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
+		if gvk.Group == "core" {
+			gvk.Group = ""
+		}
+
 		log := r.log.With().Str("operation", "create").Str("kind", gvk.Kind).Logger()
 
 		namespace := p.Args[namespaceArg].(string)
@@ -220,6 +227,10 @@ func (r *Resolver) updateItem(gvk schema.GroupVersionKind) graphql.FieldResolveF
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		ctx, span := otel.Tracer("").Start(p.Context, "updateItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
+
+		if gvk.Group == "core" {
+			gvk.Group = ""
+		}
 
 		log := r.log.With().Str("operation", "update").Str("kind", gvk.Kind).Logger()
 
@@ -266,6 +277,10 @@ func (r *Resolver) deleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveF
 		ctx, span := otel.Tracer("").Start(p.Context, "deleteItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
+		if gvk.Group == "core" {
+			gvk.Group = ""
+		}
+
 		log := r.log.With().Str("operation", "delete").Str("kind", gvk.Kind).Logger()
 
 		name := p.Args[nameArg].(string)
@@ -287,6 +302,11 @@ func (r *Resolver) deleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveF
 
 func (r *Resolver) subscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
+
+		if gvk.Group == "core" {
+			gvk.Group = ""
+		}
+
 		ctx := p.Context
 		namespace, _ := p.Args[namespaceArg].(string)
 		name, _ := p.Args[nameArg].(string)
@@ -343,6 +363,11 @@ func (r *Resolver) subscribeItem(gvk schema.GroupVersionKind) graphql.FieldResol
 
 func (r *Resolver) subscribeItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
+
+		if gvk.Group == "core" {
+			gvk.Group = ""
+		}
+
 		ctx := p.Context
 
 		// Optional namespace filter from GraphQL arguments
