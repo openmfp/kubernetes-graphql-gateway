@@ -1,4 +1,4 @@
-package native
+package resolver
 
 import (
 	"encoding/json"
@@ -25,20 +25,47 @@ const (
 	namespaceArg     = "namespace"
 )
 
-type Resolver struct {
+type Provider interface {
+	CrudProvider
+	FieldResolverProvider
+	ArgumentsProvider
+}
+
+type CrudProvider interface {
+	ListItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn
+	GetItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
+	CreateItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
+	UpdateItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
+	DeleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
+	SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
+	SubscribeItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn
+}
+
+type FieldResolverProvider interface {
+	CommonResolver() graphql.FieldResolveFn
+	UnstructuredFieldResolver(fieldName string) graphql.FieldResolveFn
+}
+
+type ArgumentsProvider interface {
+	GetListItemsArguments() graphql.FieldConfigArgument
+	GetMutationArguments(resourceInputType *graphql.InputObject) graphql.FieldConfigArgument
+	GetNameAndNamespaceArguments() graphql.FieldConfigArgument
+}
+
+type Service struct {
 	log           *logger.Logger
 	runtimeClient client.WithWatch
 }
 
-func NewResolver(log *logger.Logger, runtimeClient client.WithWatch) *Resolver {
-	return &Resolver{
+func New(log *logger.Logger, runtimeClient client.WithWatch) *Service {
+	return &Service{
 		log:           log,
 		runtimeClient: runtimeClient,
 	}
 }
 
 // unstructuredFieldResolver returns a GraphQL FieldResolveFn to resolve a field from an unstructured object.
-func (r *Resolver) unstructuredFieldResolver(fieldName string) graphql.FieldResolveFn {
+func (r *Service) UnstructuredFieldResolver(fieldName string) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		var objMap map[string]interface{}
 
@@ -69,10 +96,10 @@ func (r *Resolver) unstructuredFieldResolver(fieldName string) graphql.FieldReso
 	}
 }
 
-// listItems returns a GraphQL commonResolver function that lists Kubernetes resources of the given GroupVersionKind.
-func (r *Resolver) listItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
+// ListItems returns a GraphQL CommonResolver function that lists Kubernetes resources of the given GroupVersionKind.
+func (r *Service) ListItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		ctx, span := otel.Tracer("").Start(p.Context, "listItems", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
+		ctx, span := otel.Tracer("").Start(p.Context, "ListItems", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
 		log, err := r.log.ChildLoggerWithAttributes(
@@ -131,10 +158,10 @@ func (r *Resolver) listItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 	}
 }
 
-// getItem returns a GraphQL commonResolver function that retrieves a single Kubernetes resource of the given GroupVersionKind.
-func (r *Resolver) getItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
+// GetItem returns a GraphQL CommonResolver function that retrieves a single Kubernetes resource of the given GroupVersionKind.
+func (r *Service) GetItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		ctx, span := otel.Tracer("").Start(p.Context, "getItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
+		ctx, span := otel.Tracer("").Start(p.Context, "GetItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
 		if gvk.Group == "core" {
@@ -190,9 +217,9 @@ func (r *Resolver) getItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	}
 }
 
-func (r *Resolver) createItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
+func (r *Service) CreateItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		ctx, span := otel.Tracer("").Start(p.Context, "createItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
+		ctx, span := otel.Tracer("").Start(p.Context, "CreateItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
 		if gvk.Group == "core" {
@@ -223,9 +250,9 @@ func (r *Resolver) createItem(gvk schema.GroupVersionKind) graphql.FieldResolveF
 	}
 }
 
-func (r *Resolver) updateItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
+func (r *Service) UpdateItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		ctx, span := otel.Tracer("").Start(p.Context, "updateItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
+		ctx, span := otel.Tracer("").Start(p.Context, "UpdateItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
 		if gvk.Group == "core" {
@@ -271,10 +298,10 @@ func (r *Resolver) updateItem(gvk schema.GroupVersionKind) graphql.FieldResolveF
 	}
 }
 
-// deleteItem returns a commonResolver function for deleting a resource.
-func (r *Resolver) deleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
+// DeleteItem returns a CommonResolver function for deleting a resource.
+func (r *Service) DeleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		ctx, span := otel.Tracer("").Start(p.Context, "deleteItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
+		ctx, span := otel.Tracer("").Start(p.Context, "DeleteItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
 		if gvk.Group == "core" {
@@ -300,7 +327,7 @@ func (r *Resolver) deleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveF
 	}
 }
 
-func (r *Resolver) subscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
+func (r *Service) SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 
 		if gvk.Group == "core" {
@@ -361,7 +388,7 @@ func (r *Resolver) subscribeItem(gvk schema.GroupVersionKind) graphql.FieldResol
 	}
 }
 
-func (r *Resolver) subscribeItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
+func (r *Service) SubscribeItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 
 		if gvk.Group == "core" {
@@ -426,14 +453,14 @@ func (r *Resolver) subscribeItems(gvk schema.GroupVersionKind) graphql.FieldReso
 	}
 }
 
-func (r *Resolver) commonResolver() graphql.FieldResolveFn {
+func (r *Service) CommonResolver() graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		return p.Source, nil
 	}
 }
 
-// getListItemsArguments returns the GraphQL arguments for listing resources.
-func (r *Resolver) getListItemsArguments() graphql.FieldConfigArgument {
+// GetListItemsArguments returns the GraphQL arguments for listing resources.
+func (r *Service) GetListItemsArguments() graphql.FieldConfigArgument {
 	return graphql.FieldConfigArgument{
 		labelSelectorArg: &graphql.ArgumentConfig{
 			Type:        graphql.String,
@@ -446,8 +473,8 @@ func (r *Resolver) getListItemsArguments() graphql.FieldConfigArgument {
 	}
 }
 
-// getMutationArguments returns the GraphQL arguments for create and update mutations.
-func (r *Resolver) getMutationArguments(resourceInputType *graphql.InputObject) graphql.FieldConfigArgument {
+// GetMutationArguments returns the GraphQL arguments for create and update mutations.
+func (r *Service) GetMutationArguments(resourceInputType *graphql.InputObject) graphql.FieldConfigArgument {
 	return graphql.FieldConfigArgument{
 		namespaceArg: &graphql.ArgumentConfig{
 			Type:        graphql.NewNonNull(graphql.String),
@@ -460,8 +487,8 @@ func (r *Resolver) getMutationArguments(resourceInputType *graphql.InputObject) 
 	}
 }
 
-// getNameAndNamespaceArguments returns the GraphQL arguments for delete mutations.
-func (r *Resolver) getNameAndNamespaceArguments() graphql.FieldConfigArgument {
+// GetNameAndNamespaceArguments returns the GraphQL arguments for delete mutations.
+func (r *Service) GetNameAndNamespaceArguments() graphql.FieldConfigArgument {
 	return graphql.FieldConfigArgument{
 		nameArg: &graphql.ArgumentConfig{
 			Type:        graphql.NewNonNull(graphql.String),

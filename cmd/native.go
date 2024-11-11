@@ -22,8 +22,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/openmfp/crd-gql-gateway/gateway"
-	"github.com/openmfp/crd-gql-gateway/native"
+	crdGateway "github.com/openmfp/crd-gql-gateway/gateway"
+
+	"github.com/openmfp/crd-gql-gateway/native/gateway"
+	"github.com/openmfp/crd-gql-gateway/native/resolver"
+
 	"github.com/openmfp/golang-commons/logger"
 )
 
@@ -557,14 +560,6 @@ func getFilteredResourceMap() map[string]struct{} {
 	}
 }
 
-func getFilteredResourceArray() (res []string) {
-	for val := range getFilteredResourceMap() {
-		res = append(res, val)
-	}
-
-	return res
-}
-
 var nativeCmd = &cobra.Command{
 	Use: "native",
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -584,7 +579,7 @@ var nativeCmd = &cobra.Command{
 			return err
 		}
 
-		resolver := native.NewResolver(log, runtimeClient)
+		r := resolver.New(log, runtimeClient)
 
 		restMapper, err := getRestMapper(cfg)
 		if err != nil {
@@ -592,19 +587,14 @@ var nativeCmd = &cobra.Command{
 		}
 
 		definitions, filteredDefinitions := getDefinitionsAndFilteredDefinitions(log, cfg)
-		g, err := native.New(log, restMapper, definitions, filteredDefinitions, resolver)
+		g, err := gateway.New(log, restMapper, definitions, filteredDefinitions, r)
 		if err != nil {
-			return fmt.Errorf("error creating gateway: %w", err)
+			return fmt.Errorf("error creating crdGateway: %w", err)
 		}
 
-		gqlSchema, err := g.GetGraphqlSchema()
-		if err != nil {
-			return fmt.Errorf("error creating GraphQL schema: %w", err)
-		}
-
-		http.Handle("/graphql", gateway.Handler(gateway.HandlerConfig{
+		http.Handle("/graphql", crdGateway.Handler(crdGateway.HandlerConfig{
 			Config: &handler.Config{
-				Schema:     &gqlSchema,
+				Schema:     g.GetSchema(),
 				Pretty:     true,
 				Playground: true,
 			},
@@ -621,7 +611,7 @@ var nativeCmd = &cobra.Command{
 
 func setupLogger(logLevel string) (*logger.Logger, error) {
 	loggerCfg := logger.DefaultConfig()
-	loggerCfg.Name = "gateway"
+	loggerCfg.Name = "crdGateway"
 	loggerCfg.Level = logLevel
 	return logger.New(loggerCfg)
 }
@@ -701,35 +691,9 @@ func getDefinitionsAndFilteredDefinitions(log *logger.Logger, config *rest.Confi
 		panic(fmt.Sprintf("Error unmarshalling OpenAPI schema: %v", err))
 	}
 
-	err = expandSpec(false, log, &swagger, getFilteredResourceArray())
-
 	filteredDefinitions := filterDefinitions(false, swagger.Definitions, getFilteredResourceMap())
 
 	return swagger.Definitions, filteredDefinitions
-}
-
-// expandSpec expands the schema, it supports partial expand
-func expandSpec(fullExpand bool, log *logger.Logger, swagger *spec.Swagger, targetDefinitions []string) error {
-	// if fullExpand {
-	// 	return spec.ExpandSpec(swagger, nil)
-	// }
-	//
-	// for _, target := range targetDefinitions {
-	// 	fmt.Println("### target", target)
-	// 	if def, exists := swagger.Definitions[target]; exists {
-	// 		fmt.Println("### ExpandSchema for", target)
-	// 		err := spec.ExpandSchema(&def, &swagger, nil /* expandSpec options */)
-	// 		if err != nil {
-	// 			log.Error().Err(err).Str("target", target).Msg("Error expanding schema")
-	// 			continue
-	// 		}
-	// 		// After expansion, reassign the expanded schema back
-	// 		swagger.Definitions[target] = def
-	// 	} else {
-	// 		log.Warn().Str("target", target).Msg("definition not found in schema")
-	// 	}
-	// }
-	return nil
 }
 
 // filterDefinitions filters definitions based on allowed resources.
