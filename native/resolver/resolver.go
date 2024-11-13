@@ -102,6 +102,10 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn 
 		ctx, span := otel.Tracer("").Start(p.Context, "ListItems", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
+		if gvk.Group == "core" {
+			gvk.Group = ""
+		}
+
 		log, err := r.log.ChildLoggerWithAttributes(
 			"operation", "list",
 			"group", gvk.Group,

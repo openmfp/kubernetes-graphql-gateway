@@ -13,6 +13,10 @@ import (
 	"strings"
 )
 
+type Provider interface {
+	GetSchema() *graphql.Schema
+}
+
 var stringMapScalar = graphql.NewScalar(graphql.ScalarConfig{
 	Name:        "StringMap",
 	Description: "A map from strings to strings.",
@@ -41,17 +45,19 @@ type Gateway struct {
 	resolver      resolver.Provider
 	graphqlSchema graphql.Schema
 
-	definitions spec.Definitions
-	// filteredDefinitions spec.Definitions
+	definitions   spec.Definitions
 	subscriptions graphql.Fields
 	restMapper    meta.RESTMapper
 
-	typesCache       map[string]*graphql.Object // Stores generated GraphQL object types to prevent duplication.
-	inputTypesCache  map[string]*graphql.InputObject
-	typeNameRegistry map[string]string // Maps Kind to unique type names.
+	// typesCache stores generated GraphQL object types(fields) to prevent redundant repeated generation.
+	typesCache map[string]*graphql.Object
+	// inputTypesCache stores generated GraphQL input object types(input fields) to prevent redundant repeated generation.
+	inputTypesCache map[string]*graphql.InputObject
+	// Prevents naming conflict in case of the same Kind name in different groups/versions
+	typeNameRegistry map[string]string
 }
 
-func New(log *logger.Logger, restMapper meta.RESTMapper, definitions, filteredDefinitions spec.Definitions, resolver resolver.Provider) (*Gateway, error) {
+func New(log *logger.Logger, restMapper meta.RESTMapper, definitions spec.Definitions, resolver resolver.Provider) (*Gateway, error) {
 	g := &Gateway{
 		log:              log,
 		resolver:         resolver,
@@ -63,7 +69,7 @@ func New(log *logger.Logger, restMapper meta.RESTMapper, definitions, filteredDe
 		typeNameRegistry: make(map[string]string),
 	}
 
-	err := g.generateGraphqlSchema(filteredDefinitions)
+	err := g.generateGraphqlSchema(definitions)
 
 	return g, err
 }
@@ -174,7 +180,6 @@ func (g *Gateway) generateGraphqlSchema(filteredDefinitions spec.Definitions) er
 			})
 		}
 
-		// Add group types to root fields
 		if len(queryGroupType.Fields()) > 0 {
 			rootQueryFields[group] = &graphql.Field{
 				Type:    queryGroupType,
