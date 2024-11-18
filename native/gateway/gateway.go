@@ -218,7 +218,7 @@ func (g *Gateway) generateGraphqlSchema(filteredDefinitions spec.Definitions) er
 	})
 
 	if err != nil {
-		g.log.Error().Err(err).Msg("Error creating GraphQL schema")
+		g.log.Error().Err(err).Msg("Error creating GraphQL fullSchema")
 		return err
 	}
 

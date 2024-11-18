@@ -26,7 +26,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-type Manager struct {
+type Provider interface {
+	Start()
+	ServeHTTP(w http.ResponseWriter, r *http.Request)
+}
+
+type Service struct {
 	log           *logger.Logger
 	runtimeClient client.WithWatch
 	restMapper    meta.RESTMapper
@@ -37,7 +42,7 @@ type Manager struct {
 	dir           string
 }
 
-func NewManager(log *logger.Logger, cfg *rest.Config, dir string) (*Manager, error) {
+func NewManager(log *logger.Logger, cfg *rest.Config, dir string) (*Service, error) {
 	runtimeClient, err := setupK8sClients(cfg)
 	if err != nil {
 		return nil, err
@@ -53,7 +58,7 @@ func NewManager(log *logger.Logger, cfg *rest.Config, dir string) (*Manager, err
 		return nil, err
 	}
 
-	m := &Manager{
+	m := &Service{
 		log:           log,
 		runtimeClient: runtimeClient,
 		restMapper:    restMapper,
@@ -82,78 +87,78 @@ func NewManager(log *logger.Logger, cfg *rest.Config, dir string) (*Manager, err
 	return m, nil
 }
 
-func (m *Manager) Start() {
+func (s *Service) Start() {
 	go func() {
 		for {
 			select {
-			case event, ok := <-m.watcher.Events:
+			case event, ok := <-s.watcher.Events:
 				if !ok {
 					return
 				}
-				m.handleEvent(event)
-			case err, ok := <-m.watcher.Errors:
+				s.handleEvent(event)
+			case err, ok := <-s.watcher.Errors:
 				if !ok {
 					return
 				}
-				m.log.Error().Err(err).Msg("Error watching files")
+				s.log.Error().Err(err).Msg("Error watching files")
 			}
 		}
 	}()
 }
 
-func (m *Manager) handleEvent(event fsnotify.Event) {
-	m.log.Info().Str("event", event.String()).Msg("File event")
+func (s *Service) handleEvent(event fsnotify.Event) {
+	s.log.Info().Str("event", event.String()).Msg("File event")
 
 	filename := filepath.Base(event.Name)
 	switch event.Op {
 	case fsnotify.Create:
-		m.log.Info().Str("file", filename).Msg("File added")
-		m.OnFileEvent(filename, event.Op)
+		s.log.Info().Str("file", filename).Msg("File added")
+		s.OnFileEvent(filename, event.Op)
 	case fsnotify.Write:
-		m.log.Info().Str("file", filename).Msg("File modified")
-		m.OnFileEvent(filename, event.Op)
+		s.log.Info().Str("file", filename).Msg("File modified")
+		s.OnFileEvent(filename, event.Op)
 	case fsnotify.Rename:
-		m.OnFileDeleted(filename)
+		s.OnFileDeleted(filename)
 	case fsnotify.Remove:
-		m.OnFileDeleted(filename)
+		s.OnFileDeleted(filename)
 	default:
-		m.log.Info().Str("file", filename).Msg("Unknown file event")
+		s.log.Info().Str("file", filename).Msg("Unknown file event")
 	}
 }
 
-func (m *Manager) OnFileEvent(filename string, eventType fsnotify.Op) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *Service) OnFileEvent(filename string, eventType fsnotify.Op) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	// Read the file and generate schema
-	schema, err := m.loadSchemaFromFile(filename)
+	// Read the file and generate fullSchema
+	schema, err := s.loadSchemaFromFile(filename)
 	if err != nil {
-		m.log.Error().Err(err).Str("file", filename).Msg("Error loading schema from file")
+		s.log.Error().Err(err).Str("file", filename).Msg("Error loading fullSchema from file")
 		return
 	}
 
-	m.handlers[filename] = m.createHandler(schema)
+	s.handlers[filename] = s.createHandler(schema)
 }
 
-func (m *Manager) OnFileDeleted(filename string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+func (s *Service) OnFileDeleted(filename string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	m.log.Info().Str("file", filename).Msg("File deleted")
+	s.log.Info().Str("file", filename).Msg("File deleted")
 
-	delete(m.handlers, filename)
+	delete(s.handlers, filename)
 }
 
-func (m *Manager) loadSchemaFromFile(filename string) (*graphql.Schema, error) {
+func (s *Service) loadSchemaFromFile(filename string) (*graphql.Schema, error) {
 	// Read the file
-	filePath := filepath.Join(m.dir, filename)
+	filePath := filepath.Join(s.dir, filename)
 	// Read and parse the OpenAPI spec
 	definitions, err := readDefinitionFromFile(filePath)
 	if err != nil {
 		return nil, err
 	}
 
-	g, err := gateway.New(m.log, m.restMapper, definitions, m.resolver)
+	g, err := gateway.New(s.log, s.restMapper, definitions, s.resolver)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +168,7 @@ func (m *Manager) loadSchemaFromFile(filename string) (*graphql.Schema, error) {
 	return schema, nil
 }
 
-func (m *Manager) createHandler(schema *graphql.Schema) *handler.Handler {
+func (s *Service) createHandler(schema *graphql.Schema) *handler.Handler {
 	h := handler.New(&handler.Config{
 		Schema:     schema,
 		Pretty:     true,
@@ -173,7 +178,7 @@ func (m *Manager) createHandler(schema *graphql.Schema) *handler.Handler {
 	return h
 }
 
-func (m *Manager) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 	// Expected path is /{filename}/graphql
 	parts := strings.Split(strings.Trim(path, "/"), "/")
@@ -183,9 +188,9 @@ func (m *Manager) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filename := parts[0]
-	m.mu.RLock()
-	h, ok := m.handlers[filename]
-	m.mu.RUnlock()
+	s.mu.RLock()
+	h, ok := s.handlers[filename]
+	s.mu.RUnlock()
 	if !ok {
 		http.NotFound(w, r)
 		return
