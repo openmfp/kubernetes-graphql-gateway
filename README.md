@@ -1,6 +1,52 @@
 > [!WARNING]
 > This repository is under construction and not yet ready for public consumption. Please check back later for updates.
 
+# Native GQL Gateway
+
+Native GQL Gateway adds a support of Graphql queries and mutations for native resources.
+
+It expects a directory as an input to watch for files which will contain OpenAPI spec for the resources.
+
+Each file in that directory will correspond to a KCP workspace(or API server)
+
+For each single file it will create a separate URL like `/<workspace-name>/graphql` which will be used to query the resources of that workspace.
+
+And it will be watching for changes in the directory and update the schema accordingly.
+
+## Usage
+
+! Note, that for now it acts a standalone cobra command, and it is not integrated with CRD gateway.
+
+```shell
+task native
+```
+OR
+```shell
+go run main.go native ./definitions
+# where ./definitions is the directory containing the OpenAPI spec files
+```
+
+## Components overview
+
+### Workspace manager
+
+Holds the logic of watching a directory, triggers the schema generation and binds it to a http handler.
+
+P.S. We are going to have an Event Listener which will watch the KCP workspace and write the OpenAPI spec into that directory.
+
+### Gateway
+
+Is responsible for the conversion from OpenAPI spec into the graqphl schema.
+
+### Resolver
+
+Holds the logic of interaction with the cluster.
+
+## Testing
+
+```shell
+task test
+```
 
 # crd-gql-gateway
 
@@ -80,4 +126,5 @@ http.Handle("/graphql", gateway.Handler(gateway.HandlerConfig{
 You can expose the `gateway.Handler()` via the normal `net/http` package.
 
 It takes care of serving the right protocol based on the `Content-Type` header, as it exposes the `subscriptions` via the [`SSE`](https://html.spec.whatwg.org/multipage/server-sent-events.html) standard.
+
 

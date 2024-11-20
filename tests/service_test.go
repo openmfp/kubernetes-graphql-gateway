@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/openmfp/crd-gql-gateway/tests/graphql"
 	"github.com/stretchr/testify/require"
@@ -24,13 +23,9 @@ func (suite *CommonTestSuite) TestFullSchemaGeneration() {
 	url := fmt.Sprintf("%s/%s/g", suite.server.URL, workspaceName)
 
 	// Create the Pod and check results
-	createRespBytes, statusCode, err := graphql.SendRequest(url, graphql.CreatePodMutation())
+	createResp, statusCode, err := graphql.SendRequest(url, graphql.CreatePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
-
-	var createResp graphql.GraphQLResponse
-	err = json.Unmarshal(createRespBytes, &createResp)
-	require.NoError(suite.T(), err)
 	require.Nil(suite.T(), createResp.Errors, "GraphQL errors: %v", createResp.Errors)
 	require.Equal(suite.T(), "test-pod", createResp.Data.Core.CreatePod.Metadata.Name)
 }
@@ -47,23 +42,16 @@ func (suite *CommonTestSuite) TestCreateGetAndDeletePod() {
 	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
 
 	// Create the Pod and check results
-	createRespBytes, statusCode, err := graphql.SendRequest(url, graphql.CreatePodMutation())
+	createResp, statusCode, err := graphql.SendRequest(url, graphql.CreatePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
-
-	var createResp graphql.GraphQLResponse
-	err = json.Unmarshal(createRespBytes, &createResp)
 	require.NoError(suite.T(), err)
 	require.Nil(suite.T(), createResp.Errors, "GraphQL errors: %v", createResp.Errors)
 
 	// Get the Pod
-	getRespBytes, statusCode, err := graphql.SendRequest(url, graphql.GetPodQuery())
+	getResp, statusCode, err := graphql.SendRequest(url, graphql.GetPodQuery())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
-
-	var getResp graphql.GraphQLResponse
-	err = json.Unmarshal(getRespBytes, &getResp)
-	require.NoError(suite.T(), err)
 	require.Nil(suite.T(), getResp.Errors, "GraphQL errors: %v", getResp.Errors)
 
 	podData := getResp.Data.Core.Pod
@@ -73,23 +61,15 @@ func (suite *CommonTestSuite) TestCreateGetAndDeletePod() {
 	require.Equal(suite.T(), "nginx", podData.Spec.Containers[0].Image)
 
 	// Delete the Pod
-	deleteRespBytes, statusCode, err := graphql.SendRequest(url, graphql.DeletePodMutation())
+	deleteResp, statusCode, err := graphql.SendRequest(url, graphql.DeletePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
-
-	var deleteResp graphql.GraphQLResponse
-	err = json.Unmarshal(deleteRespBytes, &deleteResp)
-	require.NoError(suite.T(), err)
 	require.Nil(suite.T(), deleteResp.Errors, "GraphQL errors: %v", deleteResp.Errors)
 
 	// Try to get the Pod after deletion
-	getRespAfterDeleteBytes, statusCode, err := graphql.SendRequest(url, graphql.GetPodQuery())
+	getRespAfterDelete, statusCode, err := graphql.SendRequest(url, graphql.GetPodQuery())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
-
-	var getRespAfterDelete graphql.GraphQLResponse
-	err = json.Unmarshal(getRespAfterDeleteBytes, &getRespAfterDelete)
-	require.NoError(suite.T(), err)
 	require.NotNil(suite.T(), getRespAfterDelete.Errors, "Expected error when querying deleted Pod, but got none")
 }
 
@@ -103,23 +83,15 @@ func (suite *CommonTestSuite) TestSchemaUpdate() {
 	suite.writeToFile("podOnly", workspaceName)
 
 	// Create the Pod
-	createPodRespBytes, statusCode, err := graphql.SendRequest(url, graphql.CreatePodMutation())
+	createPodResp, statusCode, err := graphql.SendRequest(url, graphql.CreatePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
-
-	var createPodResp graphql.GraphQLResponse
-	err = json.Unmarshal(createPodRespBytes, &createPodResp)
-	require.NoError(suite.T(), err)
 	require.Nil(suite.T(), createPodResp.Errors, "GraphQL errors: %v", createPodResp.Errors)
 
 	// Get the Pod
-	getPodRespBytes, statusCode, err := graphql.SendRequest(url, graphql.GetPodQuery())
+	getPodResp, statusCode, err := graphql.SendRequest(url, graphql.GetPodQuery())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
-
-	var getPodResp graphql.GraphQLResponse
-	err = json.Unmarshal(getPodRespBytes, &getPodResp)
-	require.NoError(suite.T(), err)
 	require.Nil(suite.T(), getPodResp.Errors, "GraphQL errors: %v", getPodResp.Errors)
 
 	podData := getPodResp.Data.Core.Pod
@@ -130,23 +102,15 @@ func (suite *CommonTestSuite) TestSchemaUpdate() {
 	suite.writeToFile("podAndServiceOnly", workspaceName)
 
 	// Create the Service
-	createServiceRespBytes, statusCode, err := graphql.SendRequest(url, graphql.CreateServiceMutation())
+	createServiceResp, statusCode, err := graphql.SendRequest(url, graphql.CreateServiceMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
-
-	var createServiceResp graphql.GraphQLResponse
-	err = json.Unmarshal(createServiceRespBytes, &createServiceResp)
-	require.NoError(suite.T(), err)
 	require.Nil(suite.T(), createServiceResp.Errors, "GraphQL errors during creation: %v", createServiceResp.Errors)
 
 	// Get the Service
-	getServiceRespBytes, statusCode, err := graphql.SendRequest(url, graphql.GetServiceQuery())
+	getServiceResp, statusCode, err := graphql.SendRequest(url, graphql.GetServiceQuery())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
-
-	var getServiceResp graphql.GraphQLResponse
-	err = json.Unmarshal(getServiceRespBytes, &getServiceResp)
-	require.NoError(suite.T(), err)
 	require.Nil(suite.T(), getServiceResp.Errors, "GraphQL errors during query: %v", getServiceResp.Errors)
 
 	serviceData := getServiceResp.Data.Core.Service
@@ -156,23 +120,15 @@ func (suite *CommonTestSuite) TestSchemaUpdate() {
 	require.Equal(suite.T(), 80, serviceData.Spec.Ports[0].Port)
 
 	// Delete the Service
-	deleteServiceRespBytes, statusCode, err := graphql.SendRequest(url, graphql.DeleteServiceMutation())
+	deleteServiceResp, statusCode, err := graphql.SendRequest(url, graphql.DeleteServiceMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
-
-	var deleteServiceResp graphql.GraphQLResponse
-	err = json.Unmarshal(deleteServiceRespBytes, &deleteServiceResp)
-	require.NoError(suite.T(), err)
 	require.Nil(suite.T(), deleteServiceResp.Errors, "GraphQL errors during deletion: %v", deleteServiceResp.Errors)
 
 	// Try to get the Service after deletion
-	getServiceRespAfterDeleteBytes, statusCode, err := graphql.SendRequest(url, graphql.GetServiceQuery())
+	getServiceRespAfterDelete, statusCode, err := graphql.SendRequest(url, graphql.GetServiceQuery())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
-
-	var getServiceRespAfterDelete graphql.GraphQLResponse
-	err = json.Unmarshal(getServiceRespAfterDeleteBytes, &getServiceRespAfterDelete)
-	require.NoError(suite.T(), err)
 	require.NotNil(suite.T(), getServiceRespAfterDelete.Errors, "Expected error when querying deleted Service, but got none")
 }
 
@@ -200,8 +156,6 @@ func (suite *CommonTestSuite) TestWorkspaceRemove() {
 }
 
 func (suite *CommonTestSuite) TestWorkspaceRename() {
-	suite.T().Skip()
-
 	workspaceName := "myWorkspace"
 	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
 
@@ -217,9 +171,9 @@ func (suite *CommonTestSuite) TestWorkspaceRename() {
 	require.NoError(suite.T(), err)
 	time.Sleep(sleepTime) // let's give some time to the manager to process the file and create a url
 
-	// old url should not be accessible
+	// old url should not be accessible, so no error expected, but status should be NotFound
 	_, statusCode, err = graphql.SendRequest(url, graphql.CreatePodMutation())
-	require.Error(suite.T(), err)
+	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusNotFound, statusCode, "Expected StatusNotFound after workspace rename")
 
 	// now new url should be accessible

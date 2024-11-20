@@ -71,7 +71,7 @@ type GraphQLErrorLocation struct {
 	Column int `json:"column"`
 }
 
-func SendRequest(url, query string) ([]byte, int, error) {
+func SendRequest(url, query string) (*GraphQLResponse, int, error) {
 	reqBody := map[string]string{
 		"query": query,
 	}
@@ -91,5 +91,8 @@ func SendRequest(url, query string) ([]byte, int, error) {
 		return nil, 0, err
 	}
 
-	return respBytes, resp.StatusCode, nil
+	var bodyResp GraphQLResponse
+	err = json.Unmarshal(respBytes, &bodyResp)
+
+	return &bodyResp, resp.StatusCode, nil
 }
