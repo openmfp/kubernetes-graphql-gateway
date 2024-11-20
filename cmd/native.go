@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/openmfp/crd-gql-gateway/native/manager"
@@ -24,7 +26,11 @@ var nativeCmd = &cobra.Command{
 
 		cfg := controllerruntime.GetConfigOrDie()
 
-		dir := "./definitions" // You can change this to the directory you want to watch
+		if len(os.Args) < 3 {
+			fmt.Println("Usage: go run main.go native <watchedDirectory>")
+			os.Exit(1) // Exit the program with a non-zero status code to indicate an error
+		}
+		dir := os.Args[2]
 
 		managerInstance, err := manager.NewManager(log, cfg, dir)
 		if err != nil {

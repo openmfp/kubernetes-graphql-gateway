@@ -81,7 +81,7 @@ func NewManager(log *logger.Logger, cfg *rest.Config, dir string) (*Service, err
 	}
 	for _, file := range files {
 		filename := filepath.Base(file)
-		m.OnFileEvent(filename, fsnotify.Create)
+		m.OnFileChanged(filename)
 	}
 
 	return m, nil
@@ -112,11 +112,9 @@ func (s *Service) handleEvent(event fsnotify.Event) {
 	filename := filepath.Base(event.Name)
 	switch event.Op {
 	case fsnotify.Create:
-		s.log.Info().Str("file", filename).Msg("File added")
-		s.OnFileEvent(filename, event.Op)
+		s.OnFileChanged(filename)
 	case fsnotify.Write:
-		s.log.Info().Str("file", filename).Msg("File modified")
-		s.OnFileEvent(filename, event.Op)
+		s.OnFileChanged(filename)
 	case fsnotify.Rename:
 		s.OnFileDeleted(filename)
 	case fsnotify.Remove:
@@ -126,7 +124,7 @@ func (s *Service) handleEvent(event fsnotify.Event) {
 	}
 }
 
-func (s *Service) OnFileEvent(filename string, eventType fsnotify.Op) {
+func (s *Service) OnFileChanged(filename string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -138,15 +136,15 @@ func (s *Service) OnFileEvent(filename string, eventType fsnotify.Op) {
 	}
 
 	s.handlers[filename] = s.createHandler(schema)
+
 }
 
 func (s *Service) OnFileDeleted(filename string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.log.Info().Str("file", filename).Msg("File deleted")
-
 	delete(s.handlers, filename)
+
 }
 
 func (s *Service) loadSchemaFromFile(filename string) (*graphql.Schema, error) {

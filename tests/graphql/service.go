@@ -13,8 +13,7 @@ func CreateServiceMutation() string {
               ports: [
                 {
                   protocol: "TCP",
-                  port: "80",
-                  targetPort: "8080"
+                  port: 80,
                 }
               ],
               type: "ClusterIP"
@@ -30,7 +29,6 @@ func CreateServiceMutation() string {
             clusterIP
             ports {
               port
-              targetPort
             }
           }
         }

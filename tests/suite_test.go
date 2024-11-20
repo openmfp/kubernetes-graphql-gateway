@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"testing"
+	"time"
 )
 
 type CommonTestSuite struct {
@@ -54,9 +55,9 @@ func (suite *CommonTestSuite) TearDownTest() {
 	suite.server.Close()
 }
 
-// addNewFile adds a new file to the watched directory which will trigger schema generation
-func (suite *CommonTestSuite) addNewFile(sourceName, workspaceName string) {
-	specFilePath := filepath.Join(suite.watchedDir, workspaceName)
+// writeToFile adds a new file to the watched directory which will trigger schema generation
+func (suite *CommonTestSuite) writeToFile(sourceName, dest string) {
+	specFilePath := filepath.Join(suite.watchedDir, dest)
 
 	sourceSpecFilePath := filepath.Join("testdata", sourceName)
 
@@ -65,4 +66,6 @@ func (suite *CommonTestSuite) addNewFile(sourceName, workspaceName string) {
 
 	err = os.WriteFile(specFilePath, specContent, 0644)
 	require.NoError(suite.T(), err)
+
+	time.Sleep(sleepTime) // let's give some time to the manager to process the file and create a url
 }
