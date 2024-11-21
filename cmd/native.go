@@ -38,8 +38,6 @@ var nativeCmd = &cobra.Command{
 			return err
 		}
 
-		managerInstance.Start()
-
 		http.Handle("/", managerInstance)
 
 		log.Info().Float64("elapsed", time.Since(start).Seconds()).Msg("Setup took seconds")

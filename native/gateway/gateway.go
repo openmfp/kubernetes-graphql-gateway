@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/graphql"
-	"github.com/graphql-go/graphql/language/ast"
 	"github.com/openmfp/crd-gql-gateway/native/resolver"
 	"github.com/openmfp/golang-commons/logger"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -16,29 +15,6 @@ import (
 type Provider interface {
 	GetSchema() *graphql.Schema
 }
-
-var stringMapScalar = graphql.NewScalar(graphql.ScalarConfig{
-	Name:        "StringMap",
-	Description: "A map from strings to strings.",
-	Serialize: func(value interface{}) interface{} {
-		return value
-	},
-	ParseValue: func(value interface{}) interface{} {
-		return value
-	},
-	ParseLiteral: func(valueAST ast.Value) interface{} {
-		result := map[string]string{}
-		switch value := valueAST.(type) {
-		case *ast.ObjectValue:
-			for _, field := range value.Fields {
-				if strValue, ok := field.Value.GetValue().(string); ok {
-					result[field.Name.Value] = strValue
-				}
-			}
-		}
-		return result
-	},
-})
 
 type Gateway struct {
 	log           *logger.Logger
@@ -69,7 +45,7 @@ func New(log *logger.Logger, restMapper meta.RESTMapper, definitions spec.Defini
 		typeNameRegistry: make(map[string]string),
 	}
 
-	err := g.generateGraphqlSchema(definitions)
+	err := g.generateGraphqlSchema()
 
 	return g, err
 }
@@ -78,12 +54,12 @@ func (g *Gateway) GetSchema() *graphql.Schema {
 	return &g.graphqlSchema
 }
 
-func (g *Gateway) generateGraphqlSchema(filteredDefinitions spec.Definitions) error {
+func (g *Gateway) generateGraphqlSchema() error {
 	rootQueryFields := graphql.Fields{}
 	rootMutationFields := graphql.Fields{}
 	rootSubscriptionFields := graphql.Fields{}
 
-	for group, groupedResources := range g.getDefinitionsByGroup(filteredDefinitions) {
+	for group, groupedResources := range g.getDefinitionsByGroup(g.definitions) {
 		queryGroupType := graphql.NewObject(graphql.ObjectConfig{
 			Name:   group + "Query",
 			Fields: graphql.Fields{},
@@ -286,7 +262,7 @@ func (g *Gateway) generateGraphQLFields(resourceScheme *spec.Schema, typePrefix 
 		sanitizedFieldName := sanitizeFieldName(fieldName)
 		currentFieldPath := append(fieldPath, fieldName)
 
-		fieldType, inputFieldType, err := g.mapSwaggerTypeToGraphQL(fieldSpec, typePrefix, currentFieldPath, processingTypes)
+		fieldType, inputFieldType, err := g.convertSwaggerTypeToGraphQL(fieldSpec, typePrefix, currentFieldPath, processingTypes)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -304,11 +280,11 @@ func (g *Gateway) generateGraphQLFields(resourceScheme *spec.Schema, typePrefix 
 	return fields, inputFields, nil
 }
 
-func (g *Gateway) mapSwaggerTypeToGraphQL(fieldSpec spec.Schema, typePrefix string, fieldPath []string, processingTypes map[string]bool) (graphql.Output, graphql.Input, error) {
-	if len(fieldSpec.Type) == 0 {
+func (g *Gateway) convertSwaggerTypeToGraphQL(schema spec.Schema, typePrefix string, fieldPath []string, processingTypes map[string]bool) (graphql.Output, graphql.Input, error) {
+	if len(schema.Type) == 0 {
 		// Handle $ref types
-		if fieldSpec.Ref.GetURL() != nil {
-			refKey := fieldSpec.Ref.String()
+		if schema.Ref.GetURL() != nil {
+			refKey := schema.Ref.String()
 
 			// Remove the leading '#/definitions/' from the ref string
 			refKey = strings.TrimPrefix(refKey, "#/definitions/")
@@ -329,7 +305,7 @@ func (g *Gateway) mapSwaggerTypeToGraphQL(fieldSpec spec.Schema, typePrefix stri
 				processingTypes[refKey] = true
 				defer delete(processingTypes, refKey)
 
-				fieldType, inputFieldType, err := g.mapSwaggerTypeToGraphQL(refDef, refKey, fieldPath, processingTypes)
+				fieldType, inputFieldType, err := g.convertSwaggerTypeToGraphQL(refDef, refKey, fieldPath, processingTypes)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -351,7 +327,7 @@ func (g *Gateway) mapSwaggerTypeToGraphQL(fieldSpec spec.Schema, typePrefix stri
 		return graphql.String, graphql.String, nil
 	}
 
-	switch fieldSpec.Type[0] {
+	switch schema.Type[0] {
 	case "string":
 		return graphql.String, graphql.String, nil
 	case "integer":
@@ -361,8 +337,8 @@ func (g *Gateway) mapSwaggerTypeToGraphQL(fieldSpec spec.Schema, typePrefix stri
 	case "boolean":
 		return graphql.Boolean, graphql.Boolean, nil
 	case "array":
-		if fieldSpec.Items != nil && fieldSpec.Items.Schema != nil {
-			itemType, inputItemType, err := g.mapSwaggerTypeToGraphQL(*fieldSpec.Items.Schema, typePrefix, fieldPath, processingTypes)
+		if schema.Items != nil && schema.Items.Schema != nil {
+			itemType, inputItemType, err := g.convertSwaggerTypeToGraphQL(*schema.Items.Schema, typePrefix, fieldPath, processingTypes)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -370,7 +346,7 @@ func (g *Gateway) mapSwaggerTypeToGraphQL(fieldSpec spec.Schema, typePrefix stri
 		}
 		return graphql.NewList(graphql.String), graphql.NewList(graphql.String), nil
 	case "object":
-		return g.handleObjectFieldSpecType(fieldSpec, typePrefix, fieldPath, processingTypes)
+		return g.handleObjectFieldSpecType(schema, typePrefix, fieldPath, processingTypes)
 	default:
 		// Handle unexpected types or additional properties
 		return graphql.String, graphql.String, nil
@@ -383,8 +359,7 @@ func (g *Gateway) handleObjectFieldSpecType(fieldSpec spec.Schema, typePrefix st
 
 		// Check if type already generated
 		if existingType, exists := g.typesCache[typeName]; exists {
-			existingInputType := g.inputTypesCache[typeName]
-			return existingType, existingInputType, nil
+			return existingType, g.inputTypesCache[typeName], nil
 		}
 
 		// Store placeholder to prevent recursion
@@ -427,17 +402,6 @@ func (g *Gateway) generateTypeName(typePrefix string, fieldPath []string) string
 	name := typePrefix + strings.Join(fieldPath, "")
 	return name
 }
-func sanitizeTypeName(name string) string {
-	// Remove invalid characters (e.g., dots)
-	name = regexp.MustCompile(`[^a-zA-Z0-9]`).ReplaceAllString(name, "")
-
-	// Ensure the name starts with a letter
-	if !regexp.MustCompile(`^[a-zA-Z]`).MatchString(name) {
-		name = "Type" + name
-	}
-
-	return name
-}
 
 func getGroupVersionKind(resourceKey string) (schema.GroupVersionKind, error) {
 	parts := strings.Split(resourceKey, ".")
@@ -462,6 +426,18 @@ func getGroupVersionKind(resourceKey string) (schema.GroupVersionKind, error) {
 		Version: version,
 		Kind:    kind,
 	}, nil
+}
+
+func sanitizeTypeName(name string) string {
+	// Remove invalid characters (e.g., dots)
+	name = regexp.MustCompile(`[^a-zA-Z0-9]`).ReplaceAllString(name, "")
+
+	// Ensure the name starts with a letter
+	if !regexp.MustCompile(`^[a-zA-Z]`).MatchString(name) {
+		name = "Type" + name
+	}
+
+	return name
 }
 
 func sanitizeFieldName(name string) string {

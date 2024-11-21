@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -84,6 +84,8 @@ func NewManager(log *logger.Logger, cfg *rest.Config, dir string) (*Service, err
 		m.OnFileChanged(filename)
 	}
 
+	m.Start()
+
 	return m, nil
 }
 
@@ -148,10 +150,7 @@ func (s *Service) OnFileDeleted(filename string) {
 }
 
 func (s *Service) loadSchemaFromFile(filename string) (*graphql.Schema, error) {
-	// Read the file
-	filePath := filepath.Join(s.dir, filename)
-	// Read and parse the OpenAPI spec
-	definitions, err := readDefinitionFromFile(filePath)
+	definitions, err := readDefinitionFromFile(filepath.Join(s.dir, filename))
 	if err != nil {
 		return nil, err
 	}
@@ -161,19 +160,15 @@ func (s *Service) loadSchemaFromFile(filename string) (*graphql.Schema, error) {
 		return nil, err
 	}
 
-	schema := g.GetSchema()
-
-	return schema, nil
+	return g.GetSchema(), nil
 }
 
 func (s *Service) createHandler(schema *graphql.Schema) *handler.Handler {
-	h := handler.New(&handler.Config{
+	return handler.New(&handler.Config{
 		Schema:     schema,
 		Pretty:     true,
 		Playground: true,
 	})
-
-	return h
 }
 
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -202,7 +197,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func readDefinitionFromFile(filePath string) (spec.Definitions, error) {
-	data, err := ioutil.ReadFile(filePath)
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +218,12 @@ func setupK8sClients(cfg *rest.Config) (client.WithWatch, error) {
 		return nil, err
 	}
 
-	go k8sCache.Start(context.Background())
+	go func() {
+		err = k8sCache.Start(context.Background())
+		if err != nil {
+			panic(err)
+		}
+	}()
 	if !k8sCache.WaitForCacheSync(context.Background()) {
 		return nil, fmt.Errorf("failed to sync cache")
 	}

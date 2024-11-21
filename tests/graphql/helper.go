@@ -3,6 +3,7 @@ package graphql
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 )
@@ -93,6 +94,9 @@ func SendRequest(url, query string) (*GraphQLResponse, int, error) {
 
 	var bodyResp GraphQLResponse
 	err = json.Unmarshal(respBytes, &bodyResp)
+	if err != nil {
+		return nil, resp.StatusCode, fmt.Errorf("response body is not json, but %s", respBytes)
+	}
 
-	return &bodyResp, resp.StatusCode, nil
+	return &bodyResp, resp.StatusCode, err
 }

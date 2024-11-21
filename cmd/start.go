@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	accounts "github.com/openmfp/account-operator/api/v1alpha1"
 	"net/http"
 
 	"context"
@@ -19,8 +20,6 @@ import (
 	jirav1alpha1 "github.tools.sap/automaticd/automaticd/operators/jira/api/v1alpha1"
 	authzv1 "k8s.io/api/authorization/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-
-	accounts "github.com/openmfp/account-operator/api/v1alpha1"
 )
 
 var startCmd = &cobra.Command{
@@ -30,13 +29,13 @@ var startCmd = &cobra.Command{
 		cfg := controllerruntime.GetConfigOrDie()
 
 		schema := runtime.NewScheme()
-		apiextensionsv1.AddToScheme(schema)
-		authzv1.AddToScheme(schema)
+		apiextensionsv1.AddToScheme(schema) // nolint: errcheck
+		authzv1.AddToScheme(schema)         // nolint: errcheck
 
-		jirav1alpha1.AddToScheme(schema)
-		jenxv1.AddToScheme(schema)
+		jirav1alpha1.AddToScheme(schema) // nolint: errcheck
+		jenxv1.AddToScheme(schema)       // nolint: errcheck
 
-		accounts.AddToScheme(schema)
+		accounts.AddToScheme(schema) // nolint: errcheck
 
 		k8sCache, err := cache.New(cfg, cache.Options{
 			Scheme: schema,
@@ -46,7 +45,10 @@ var startCmd = &cobra.Command{
 		}
 
 		go func() {
-			k8sCache.Start(context.Background())
+			err = k8sCache.Start(context.Background())
+			if err != nil {
+				panic(err)
+			}
 		}()
 
 		if !k8sCache.WaitForCacheSync(context.Background()) {

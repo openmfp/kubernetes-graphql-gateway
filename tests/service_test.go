@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const sleepTime = 10 * time.Millisecond
+const sleepTime = 1 * time.Millisecond
 
 // TestFullSchemaGeneration checks schema generation from not edited OpenAPI spec file.
 func (suite *CommonTestSuite) TestFullSchemaGeneration() {
@@ -150,8 +150,7 @@ func (suite *CommonTestSuite) TestWorkspaceRemove() {
 	time.Sleep(sleepTime)
 
 	// Attempt to access the URL again
-	_, statusCode, err = graphql.SendRequest(url, graphql.CreatePodMutation())
-	require.NoError(suite.T(), err)
+	_, statusCode, _ = graphql.SendRequest(url, graphql.CreatePodMutation())
 	require.Equal(suite.T(), http.StatusNotFound, statusCode, "Expected StatusNotFound after handler is removed")
 }
 
@@ -171,9 +170,8 @@ func (suite *CommonTestSuite) TestWorkspaceRename() {
 	require.NoError(suite.T(), err)
 	time.Sleep(sleepTime) // let's give some time to the manager to process the file and create a url
 
-	// old url should not be accessible, so no error expected, but status should be NotFound
-	_, statusCode, err = graphql.SendRequest(url, graphql.CreatePodMutation())
-	require.NoError(suite.T(), err)
+	// old url should not be accessible, status should be NotFound
+	_, statusCode, _ = graphql.SendRequest(url, graphql.CreatePodMutation())
 	require.Equal(suite.T(), http.StatusNotFound, statusCode, "Expected StatusNotFound after workspace rename")
 
 	// now new url should be accessible
