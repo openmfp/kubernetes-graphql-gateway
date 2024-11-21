@@ -3,16 +3,10 @@ version: '3'
 dotenv: ['.taskenv', '.secret/.env', '{{.HOME}}/.env' ]
 vars:
   LOCAL_BIN: bin
-  CONTROLLER_TOOLS_VERSION: v0.14.0
   ENVTEST_K8S_VERSION: "1.29.0"
   ENVTEST_VERSION: release-0.17
-  CRD_DIRECTORY: chart/charts/crds/crds
 tasks:
   ## Setup
-  setup:controller-gen:
-    internal: true
-    cmds:
-      - test -s {{.LOCAL_BIN}}/controller-gen || GOBIN=$(pwd)/{{.LOCAL_BIN}} go install sigs.k8s.io/controller-tools/cmd/controller-gen@{{.CONTROLLER_TOOLS_VERSION}}
   setup:envtest:
     internal: true
     cmds:
@@ -23,20 +17,9 @@ tasks:
       - test -s {{.LOCAL_BIN}}/golangci-lint || GOBIN=$(pwd)/{{.LOCAL_BIN}} go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
   ## Development
-  manifests:
-    deps: [setup:controller-gen]
-    cmds:
-      - "{{.LOCAL_BIN}}/controller-gen rbac:roleName=manager-role crd paths=./... output:crd:artifacts:config={{.CRD_DIRECTORY}}"
-  generate:
-    cmds:
-      - task: manifests
-      - "{{.LOCAL_BIN}}/controller-gen object:headerFile=hack/boilerplate.go.txt paths=./..."
   build:
     cmds:
       - go build ./...
-  docker-build:
-    cmds:
-      - docker build .
   ## Testing
   fmt:
     cmds:
@@ -63,9 +46,6 @@ tasks:
       - task: envtest
         vars:
           ADDITIONAL_COMMAND_ARGS: -coverprofile=./cover.out -covermode=atomic -coverpkg=./...
-  helm-unittest:
-    cmds:
-      - helm unittest chart
   validate:
     cmds:
       - task: lint
