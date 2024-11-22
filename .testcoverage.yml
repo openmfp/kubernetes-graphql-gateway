@@ -1,0 +1,6 @@
+exclude:
+  paths:
+    - main.go
+    - cmd
+    - gateway
+    - tests

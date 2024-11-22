@@ -31,7 +31,6 @@ var stringMapScalar = graphql.NewScalar(graphql.ScalarConfig{
 	ParseValue:  func(value interface{}) interface{} { return value },
 	ParseLiteral: func(valueAST ast.Value) interface{} {
 		out := map[string]string{}
-
 		switch value := valueAST.(type) {
 		case *ast.ObjectValue:
 			for _, field := range value.Fields {

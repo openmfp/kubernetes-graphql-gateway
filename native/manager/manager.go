@@ -139,6 +139,7 @@ func (s *Service) OnFileChanged(filename string) {
 
 	s.handlers[filename] = s.createHandler(schema)
 
+	s.log.Info().Str("endpoint", fmt.Sprintf("http://localhost:3000/%s/graphql", filename)).Msg("Registered endpoint")
 }
 
 func (s *Service) OnFileDeleted(filename string) {

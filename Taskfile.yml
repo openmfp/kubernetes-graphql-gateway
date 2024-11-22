@@ -15,6 +15,10 @@ tasks:
     internal: true
     cmds:
       - test -s {{.LOCAL_BIN}}/golangci-lint || GOBIN=$(pwd)/{{.LOCAL_BIN}} go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+  setup:go-test-coverage:
+    internal: true
+    cmds:
+      - test -s {{.LOCAL_BIN}}/go-test-coverage || GOBIN=$(pwd)/{{.LOCAL_BIN}} go install github.com/vladopajic/go-test-coverage/v2@latest
 
   ## Development
   build:
@@ -40,17 +44,18 @@ tasks:
     deps: [setup:envtest]
     cmds:
       - task: envtest
-  cover:
-    deps: [setup:envtest]
-    cmds:
-      - task: envtest
         vars:
-          ADDITIONAL_COMMAND_ARGS: -coverprofile=./cover.out -covermode=atomic -coverpkg=./...
+          ADDITIONAL_COMMAND_ARGS: -coverprofile=./coverage.out -covermode=atomic -coverpkg=./...
+  cover:
+    deps:
+      - task: setup:go-test-coverage
+      - task: test
+    cmds:
+      - "{{.LOCAL_BIN}}/go-test-coverage --threshold-file 35 --threshold-package 35 --threshold-total 48 --profile coverage.out --config ./.testcoverage.yml"
   validate:
     cmds:
       - task: lint
       - task: test
   native:
     cmds:
-      - go run main.go native ./definitions
-
+      - go run main.go native --watched-dir=./definitions

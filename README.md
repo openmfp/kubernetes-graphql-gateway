@@ -22,7 +22,7 @@ task native
 ```
 OR
 ```shell
-go run main.go native ./definitions
+go run main.go native --watched-dir=./definitions
 # where ./definitions is the directory containing the OpenAPI spec files
 ```
 
