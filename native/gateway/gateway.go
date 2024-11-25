@@ -6,6 +6,8 @@ import (
 	"github.com/graphql-go/graphql"
 	"github.com/openmfp/crd-gql-gateway/native/resolver"
 	"github.com/openmfp/golang-commons/logger"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"regexp"
@@ -67,11 +69,6 @@ func (g *Gateway) generateGraphqlSchema() error {
 
 		mutationGroupType := graphql.NewObject(graphql.ObjectConfig{
 			Name:   group + "Mutation",
-			Fields: graphql.Fields{},
-		})
-
-		subscriptionGroupType := graphql.NewObject(graphql.ObjectConfig{
-			Name:   group + "Subscription",
 			Fields: graphql.Fields{},
 		})
 
@@ -137,23 +134,23 @@ func (g *Gateway) generateGraphqlSchema() error {
 				Resolve: g.resolver.DeleteItem(gvk),
 			})
 
-			subscriptionSingular := "subscribeTo" + singular
-			subscriptionGroupType.AddFieldConfig(subscriptionSingular, &graphql.Field{
+			subscriptionSingular := strings.ToLower(fmt.Sprintf("%s_%s", group, singular))
+			rootSubscriptionFields[subscriptionSingular] = &graphql.Field{
 				Type:        resourceType,
 				Args:        g.resolver.GetNameAndNamespaceArguments(),
 				Resolve:     g.resolver.CommonResolver(),
 				Subscribe:   g.resolver.SubscribeItem(gvk),
 				Description: fmt.Sprintf("Subscribe to changes of %s", singular),
-			})
+			}
 
-			subscriptionPlural := "subscribeTo" + plural
-			subscriptionGroupType.AddFieldConfig(subscriptionPlural, &graphql.Field{
+			subscriptionPlural := strings.ToLower(fmt.Sprintf("%s_%s", group, plural))
+			rootSubscriptionFields[subscriptionPlural] = &graphql.Field{
 				Type:        graphql.NewList(resourceType),
 				Args:        g.resolver.GetListItemsArguments(),
 				Resolve:     g.resolver.CommonResolver(),
 				Subscribe:   g.resolver.SubscribeItems(gvk),
 				Description: fmt.Sprintf("Subscribe to changes of %s", plural),
-			})
+			}
 		}
 
 		if len(queryGroupType.Fields()) > 0 {
@@ -166,13 +163,6 @@ func (g *Gateway) generateGraphqlSchema() error {
 		if len(mutationGroupType.Fields()) > 0 {
 			rootMutationFields[group] = &graphql.Field{
 				Type:    mutationGroupType,
-				Resolve: g.resolver.CommonResolver(),
-			}
-		}
-
-		if len(subscriptionGroupType.Fields()) > 0 {
-			rootSubscriptionFields[group] = &graphql.Field{
-				Type:    subscriptionGroupType,
 				Resolve: g.resolver.CommonResolver(),
 			}
 		}
@@ -223,8 +213,8 @@ func (g *Gateway) getNames(gvk schema.GroupVersionKind) (singular string, plural
 	if err != nil {
 		return singularName, singularName + "s"
 	}
+	pluralName := cases.Title(language.English).String(mapping.Resource.Resource)
 
-	pluralName := mapping.Resource.Resource
 	return singularName, pluralName
 }
 

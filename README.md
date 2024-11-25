@@ -48,6 +48,21 @@ Holds the logic of interaction with the cluster.
 task test
 ```
 
+## Subscriptions
+
+To subscribe events you should use SSE(Server Sent Events) protocol. 
+Since graphQL playground doesn't support it, you should use curl.
+
+For instance, to subscribe to deployments changes:
+```
+curl -H "Accept: text/event-stream" -H "Content-Type: application/json" http://localhost:3000/fullSchema/subscriptions \
+-d '{"query": "subscription { apps_deployments(namespace: \"default\") { metadata { name } spec { replicas } } }"}'
+```
+P.S. Any deployment's change will fire the event, so if you are interested in a specific field change, 
+it should be handled on a client(applicaiton) side
+
+```graphql
+
 # crd-gql-gateway
 
 The goal of this library is to provide a reusable and generic way of exposing Custom Resource Definitions from within a cluster using GraphQL. This enables UIs that need to consume these objects to do so in a developer-friendly way, leveraging a rich ecosystem.

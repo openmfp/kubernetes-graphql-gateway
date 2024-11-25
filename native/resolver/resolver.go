@@ -334,19 +334,31 @@ func (r *Service) DeleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 func (r *Service) SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 
+		// Ensure the group is correctly set
 		if gvk.Group == "core" {
 			gvk.Group = ""
 		}
 
 		ctx := p.Context
-		namespace, _ := p.Args[namespaceArg].(string)
-		name, _ := p.Args[nameArg].(string)
 
-		resultChannel := make(chan interface{}, 1)
+		// Extract required arguments
+		namespace, nsOK := p.Args[namespaceArg].(string)
+		name, nameOK := p.Args[nameArg].(string)
+
+		if !nsOK || namespace == "" {
+			return nil, errors.New("namespace argument is required")
+		}
+		if !nameOK || name == "" {
+			return nil, errors.New("name argument is required")
+		}
+
+		// Create a channel to stream results
+		resultChannel := make(chan interface{})
 
 		go func() {
 			defer close(resultChannel)
 
+			// Set up the unstructured list for watching
 			list := &unstructured.UnstructuredList{}
 			list.SetGroupVersionKind(schema.GroupVersionKind{
 				Group:   gvk.Group,
@@ -354,18 +366,23 @@ func (r *Service) SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolv
 				Kind:    gvk.Kind + "List",
 			})
 
-			opts := []client.ListOption{client.InNamespace(namespace)}
-			if name != "" {
-				opts = append(opts, client.MatchingFields{"metadata.name": name})
+			// Set up watch options
+			opts := []client.ListOption{
+				client.InNamespace(namespace),
+				client.MatchingFields{"metadata.name": name},
 			}
 
+			// Start the watch
 			watcher, err := r.runtimeClient.Watch(ctx, list, opts...)
 			if err != nil {
-				r.log.Error().Err(err).Msg("Failed to start watch")
+				r.log.Error().Err(err).
+					Str("gvk", gvk.String()).
+					Msg("Failed to start watch")
 				return
 			}
 			defer watcher.Stop()
 
+			// Process events
 			for {
 				select {
 				case event, ok := <-watcher.ResultChan():
@@ -376,18 +393,26 @@ func (r *Service) SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolv
 					if !ok {
 						continue
 					}
-					r.log.Info().
+
+					r.log.Debug().
 						Str("eventType", string(event.Type)).
 						Str("resource", obj.GetKind()).
 						Str("name", obj.GetName()).
 						Msg("Received event")
-					resultChannel <- obj
+
+					// Send the object to the result channel
+					select {
+					case <-ctx.Done():
+						return
+					case resultChannel <- obj:
+					}
 				case <-ctx.Done():
 					return
 				}
 			}
 		}()
 
+		// Return the result channel
 		return resultChannel, nil
 	}
 }
@@ -401,16 +426,17 @@ func (r *Service) SubscribeItems(gvk schema.GroupVersionKind) graphql.FieldResol
 
 		ctx := p.Context
 
-		// Optional namespace filter from GraphQL arguments
+		// Extract optional arguments
 		namespace, _ := p.Args[namespaceArg].(string)
+		labelSelector, _ := p.Args[labelSelectorArg].(string)
 
-		// Channel to send events to the subscriber
+		// Create a channel to stream results
 		resultChannel := make(chan interface{})
 
 		go func() {
 			defer close(resultChannel)
 
-			// Set up an unstructured list for the specified GVK
+			// Set up the unstructured list for watching
 			list := &unstructured.UnstructuredList{}
 			list.SetGroupVersionKind(schema.GroupVersionKind{
 				Group:   gvk.Group,
@@ -418,47 +444,73 @@ func (r *Service) SubscribeItems(gvk schema.GroupVersionKind) graphql.FieldResol
 				Kind:    gvk.Kind + "List",
 			})
 
-			// Options for watching within a specific namespace if provided
+			// Set up watch options
 			var opts []client.ListOption
 			if namespace != "" {
 				opts = append(opts, client.InNamespace(namespace))
 			}
+			if labelSelector != "" {
+				selector, err := labels.Parse(labelSelector)
+				if err != nil {
+					r.log.Error().Err(err).
+						Str("labelSelector", labelSelector).
+						Msg("Invalid label selector")
+					return
+				}
+				opts = append(opts, client.MatchingLabelsSelector{Selector: selector})
+			}
 
-			// Start the watch for the specified GVK
+			// Start the watch
 			watcher, err := r.runtimeClient.Watch(ctx, list, opts...)
 			if err != nil {
-				r.log.Error().Err(err).Str("gvk", gvk.String()).Msg("Failed to start watch")
+				r.log.Error().Err(err).
+					Str("gvk", gvk.String()).
+					Msg("Failed to start watch")
 				return
 			}
 			defer watcher.Stop()
 
-			// Process events from the watch and send them to the result channel
-			for event := range watcher.ResultChan() {
-				obj, ok := event.Object.(*unstructured.Unstructured)
-				if !ok {
-					continue
-				}
-
-				r.log.Info().
-					Str("eventType", string(event.Type)).
-					Str("resource", obj.GetKind()).
-					Str("name", obj.GetName()).
-					Msg("Received event")
-
+			// Process events
+			for {
 				select {
+				case event, ok := <-watcher.ResultChan():
+					if !ok {
+						return
+					}
+					obj, ok := event.Object.(*unstructured.Unstructured)
+					if !ok {
+						continue
+					}
+
+					r.log.Info().
+						Str("eventType", string(event.Type)).
+						Str("resource", obj.GetKind()).
+						Str("name", obj.GetName()).
+						Msg("Received event")
+
+					// Send the object wrapped in a slice to the result channel
+					select {
+					case <-ctx.Done():
+						return
+					case resultChannel <- []interface{}{obj}:
+					}
 				case <-ctx.Done():
 					return
-				case resultChannel <- obj:
 				}
 			}
 		}()
 
+		// Return the result channel
 		return resultChannel, nil
 	}
 }
 
 func (r *Service) CommonResolver() graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
+		if p.Source == nil {
+			// At the root level, return a non-nil value (e.g., an empty map)
+			return map[string]interface{}{}, nil
+		}
 		return p.Source, nil
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -36,10 +37,15 @@ type Service struct {
 	runtimeClient client.WithWatch
 	restMapper    meta.RESTMapper
 	resolver      resolver.Provider
-	handlers      map[string]*handler.Handler
+	handlers      map[string]*graphqlHandler
 	mu            sync.RWMutex
 	watcher       *fsnotify.Watcher
 	dir           string
+}
+
+type graphqlHandler struct {
+	schema  *graphql.Schema
+	handler http.Handler
 }
 
 func NewManager(log *logger.Logger, cfg *rest.Config, dir string) (*Service, error) {
@@ -63,7 +69,7 @@ func NewManager(log *logger.Logger, cfg *rest.Config, dir string) (*Service, err
 		runtimeClient: runtimeClient,
 		restMapper:    restMapper,
 		resolver:      resolver.New(log, runtimeClient),
-		handlers:      make(map[string]*handler.Handler),
+		handlers:      make(map[string]*graphqlHandler),
 		watcher:       watcher,
 		dir:           dir,
 	}
@@ -164,17 +170,21 @@ func (s *Service) loadSchemaFromFile(filename string) (*graphql.Schema, error) {
 	return g.GetSchema(), nil
 }
 
-func (s *Service) createHandler(schema *graphql.Schema) *handler.Handler {
-	return handler.New(&handler.Config{
+func (s *Service) createHandler(schema *graphql.Schema) *graphqlHandler {
+	h := handler.New(&handler.Config{
 		Schema:     schema,
 		Pretty:     true,
 		Playground: true,
 	})
+	return &graphqlHandler{
+		schema:  schema,
+		handler: h,
+	}
 }
 
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
-	// Expected path is /{filename}/graphql
+	// Expected paths: /{filename}/graphql or /{filename}/subscriptions
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	if len(parts) < 2 {
 		http.NotFound(w, r)
@@ -182,6 +192,8 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	filename := parts[0]
+	endpoint := parts[1]
+
 	s.mu.RLock()
 	h, ok := s.handlers[filename]
 	s.mu.RUnlock()
@@ -190,11 +202,81 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Adjust the URL path to pass to the handler
-	r.URL.Path = "/" + strings.Join(parts[1:], "/")
+	switch endpoint {
+	case "graphql": // Serve queries and mutations
+		r.URL.Path = "/" + strings.Join(parts[1:], "/")
+		h.handler.ServeHTTP(w, r)
+	case "subscriptions": // Handle subscriptions over SSE
+		s.handleSubscription(w, r, h.schema)
+	default:
+		http.NotFound(w, r)
+	}
+}
 
-	// Serve the request using the handler
-	h.ServeHTTP(w, r)
+func (s *Service) handleSubscription(w http.ResponseWriter, r *http.Request, schema *graphql.Schema) {
+	// Set SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Transfer-Encoding", "chunked")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+		return
+	}
+
+	// Parse the GraphQL query
+	var params struct {
+		Query         string                 `json:"query"`
+		OperationName string                 `json:"operationName"`
+		Variables     map[string]interface{} `json:"variables"`
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Error reading request body", http.StatusBadRequest)
+		return
+	}
+	if err := json.Unmarshal(body, &params); err != nil {
+		http.Error(w, "Error parsing JSON request body", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	// Execute the subscription
+	subscriptionParams := graphql.Params{
+		Schema:         *schema,
+		RequestString:  params.Query,
+		VariableValues: params.Variables,
+		OperationName:  params.OperationName,
+		Context:        ctx,
+	}
+
+	sub := graphql.Subscribe(subscriptionParams)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Error executing subscription: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	if sub == nil {
+		http.Error(w, "No subscription found", http.StatusBadRequest)
+		return
+	}
+
+	// Stream the results
+	for res := range sub {
+		if res == nil {
+			continue
+		}
+		data, err := json.Marshal(res)
+		if err != nil {
+			continue
+		}
+		fmt.Fprintf(w, "data: %s\n\n", data)
+		flusher.Flush()
+	}
 }
 
 func readDefinitionFromFile(filePath string) (spec.Definitions, error) {
