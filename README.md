@@ -25,6 +25,13 @@ OR
 go run main.go native --watched-dir=./definitions
 # where ./definitions is the directory containing the OpenAPI spec files
 ```
+### OpenAPI spec
+
+If you need to store in file OpenAPI spec from your cluster, you can run:
+```shell
+kubectl get --raw /openapi/v2 > fullSchema
+```
+
 
 ## Components overview
 
