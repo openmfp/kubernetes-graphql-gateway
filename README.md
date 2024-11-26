@@ -1,22 +1,38 @@
 > [!WARNING]
 > This repository is under construction and not yet ready for public consumption. Please check back later for updates.
 
-# Native GQL Gateway
+# Resource GQL Gateway 
 
-Native GQL Gateway adds a support of Graphql queries and mutations for native resources.
+The goal of this library is to provide a reusable and generic way of exposing k8s resources from within a cluster using GraphQL.
+This enables UIs that need to consume these objects to do so in a developer-friendly way, leveraging a rich ecosystem.
 
-It expects a directory as an input to watch for files which will contain OpenAPI spec for the resources.
+For now, it consists of two standalone services - `CRD GQL Gateway` and `Native GQL Gateway`, which will be merged into one service in the future.
 
-Each file in that directory will correspond to a KCP workspace(or API server)
+## Native GQL Gateway
 
-For each single file it will create a separate URL like `/<workspace-name>/graphql` which will be used to query the resources of that workspace.
+Native GQL Gateway adds support for GraphQL queries, mutations, and subscriptions for native resources.
 
-And it will be watching for changes in the directory and update the schema accordingly.
+It expects a directory as input to watch for files containing OpenAPI specifications with resources.
 
-## Usage
+Each file in that directory will correspond to a KCP workspace (or API server).
 
-! Note, that for now it acts a standalone cobra command, and it is not integrated with CRD gateway.
+For each file it will create a separate URL like `/<workspace-name>/graphql` which will be used to query the resources of that workspace.
 
+It will be watching for changes in the directory and update the schema accordingly.
+
+### Usage
+
+Your kubeconfig should point to a cluster you want to interact.
+
+#### OpenAPI Spec
+
+You can run the gateway using the existing generic OpenAPI spec file which is located in the `./definitions` directory.
+
+(Optional) Or you can generate a new one from your own cluster by running the following command:
+```shell
+kubectl get --raw /openapi/v2 > fullSchema
+```
+#### Start the Service 
 ```shell
 task native
 ```
@@ -25,40 +41,133 @@ OR
 go run main.go native --watched-dir=./definitions
 # where ./definitions is the directory containing the OpenAPI spec files
 ```
-### OpenAPI spec
+#### Sending queries
 
-If you need to store in file OpenAPI spec from your cluster, you can run:
+##### Create a Pod:
+
 ```shell
-kubectl get --raw /openapi/v2 > fullSchema
+mutation {
+  core {
+    createPod(
+      namespace: "default",
+      object: {
+        metadata: {
+          name: "my-new-pod",
+          labels: {
+            app: "my-app"
+          }
+        }
+        spec: {
+          containers: [
+            {
+              name: "nginx-container"
+              image: "nginx:latest"
+              ports: [
+                {
+                  containerPort: 80
+                }
+              ]
+            }
+          ]
+          restartPolicy: "Always"
+        }
+      }
+    ) {
+      metadata {
+        name
+        namespace
+        labels
+      }
+      spec {
+        containers {
+          name
+          image
+          ports {
+            containerPort
+          }
+        }
+        restartPolicy
+      }
+      status {
+        phase
+      }
+    }
+  }
+}
 ```
 
+##### Get the created Pod:
+```shell
+query {
+  core {
+    Pod(name:"my-new-pod", namespace:"default") {
+      metadata {
+        name
+      }
+      spec{
+        containers {
+          image
+          ports {
+            containerPort
+          }
+        }
+      }
+    }
+  }
+}
+```
 
-## Components overview
+##### Delete the created Pod:
+```shell
+mutation {
+  core {
+    deletePod(
+      namespace: "default",
+      name: "my-new-pod"
+    )
+  }
+}
+```
+### Components Overview
 
-### Workspace manager
+#### Workspace manager
 
-Holds the logic of watching a directory, triggers the schema generation and binds it to a http handler.
+Holds the logic for watching a directory, triggering schema generation, and binding it to an HTTP handler.
 
-P.S. We are going to have an Event Listener which will watch the KCP workspace and write the OpenAPI spec into that directory.
+*P.S. We are going to have an Event Listener that will watch the KCP workspace and write the OpenAPI spec into that directory.*
 
-### Gateway
+#### Gateway
 
-Is responsible for the conversion from OpenAPI spec into the graqphl schema.
+Is responsible for the conversion from OpenAPI spec into the GraphQL schema.
 
-### Resolver
+#### Resolver
 
 Holds the logic of interaction with the cluster.
 
-## Testing
+### Testing
 
 ```shell
 task test
 ```
 
-## Subscriptions
+You can also check the coverage:
+```shell
+task coverage
+```
+P.S. If you want to exclude some files from the coverage report, you can add them to the `.testcoverage.yml` file.
 
-To subscribe events you should use SSE(Server Sent Events) protocol. 
-Since graphQL playground doesn't support it, you should use curl.
+
+### Linting
+
+```shell
+task lint
+```
+
+### Subscriptions
+
+To subscribe to events, you should use the SSE (Server-Sent Events) protocol.
+
+Since GraphQL playground doesn't support it, you should use curl.
 
 For instance, to subscribe to deployments changes:
 ```
@@ -66,13 +175,10 @@ curl -H "Accept: text/event-stream" -H "Content-Type: application/json" http://l
 -d '{"query": "subscription { apps_deployments(namespace: \"default\") { metadata { name } spec { replicas } } }"}'
 ```
 P.S. Any deployment's change will fire the event, so if you are interested in a specific field change, 
-it should be handled on a client(applicaiton) side
+it should be handled on a client(application) side
 
-```graphql
 
-# crd-gql-gateway
-
-The goal of this library is to provide a reusable and generic way of exposing Custom Resource Definitions from within a cluster using GraphQL. This enables UIs that need to consume these objects to do so in a developer-friendly way, leveraging a rich ecosystem.
+## CRD Gateway
 
 For each registered CRD, the gateway provides the following:
 
