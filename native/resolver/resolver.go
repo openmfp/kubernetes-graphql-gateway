@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 
 	"github.com/graphql-go/graphql"
@@ -44,6 +45,8 @@ type CrudProvider interface {
 type FieldResolverProvider interface {
 	CommonResolver() graphql.FieldResolveFn
 	UnstructuredFieldResolver(fieldName string) graphql.FieldResolveFn
+	SanitizeGroupName(string) string
+	GetOriginalGroupName(string) string
 }
 
 type ArgumentsProvider interface {
@@ -55,12 +58,14 @@ type ArgumentsProvider interface {
 type Service struct {
 	log           *logger.Logger
 	runtimeClient client.WithWatch
+	groupNames    map[string]string
 }
 
 func New(log *logger.Logger, runtimeClient client.WithWatch) *Service {
 	return &Service{
 		log:           log,
 		runtimeClient: runtimeClient,
+		groupNames:    make(map[string]string),
 	}
 }
 
@@ -102,9 +107,7 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn 
 		ctx, span := otel.Tracer("").Start(p.Context, "ListItems", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
-		if gvk.Group == "core" {
-			gvk.Group = ""
-		}
+		gvk.Group = r.GetOriginalGroupName(gvk.Group)
 
 		log, err := r.log.ChildLoggerWithAttributes(
 			"operation", "list",
@@ -168,9 +171,7 @@ func (r *Service) GetItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 		ctx, span := otel.Tracer("").Start(p.Context, "GetItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
-		if gvk.Group == "core" {
-			gvk.Group = ""
-		}
+		gvk.Group = r.GetOriginalGroupName(gvk.Group)
 
 		log, err := r.log.ChildLoggerWithAttributes(
 			"operation", "get",
@@ -209,7 +210,7 @@ func (r *Service) GetItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 		}
 
 		// Get the object using the runtime client
-		if err := r.runtimeClient.Get(ctx, key, obj); err != nil {
+		if err = r.runtimeClient.Get(ctx, key, obj); err != nil {
 			log.Error().Err(err).
 				Str("name", name).
 				Str("namespace", namespace).
@@ -226,9 +227,7 @@ func (r *Service) CreateItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 		ctx, span := otel.Tracer("").Start(p.Context, "CreateItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
-		if gvk.Group == "core" {
-			gvk.Group = ""
-		}
+		gvk.Group = r.GetOriginalGroupName(gvk.Group)
 
 		log := r.log.With().Str("operation", "create").Str("kind", gvk.Kind).Logger()
 
@@ -259,9 +258,7 @@ func (r *Service) UpdateItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 		ctx, span := otel.Tracer("").Start(p.Context, "UpdateItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
-		if gvk.Group == "core" {
-			gvk.Group = ""
-		}
+		gvk.Group = r.GetOriginalGroupName(gvk.Group)
 
 		log := r.log.With().Str("operation", "update").Str("kind", gvk.Kind).Logger()
 
@@ -308,9 +305,7 @@ func (r *Service) DeleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 		ctx, span := otel.Tracer("").Start(p.Context, "DeleteItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
-		if gvk.Group == "core" {
-			gvk.Group = ""
-		}
+		gvk.Group = r.GetOriginalGroupName(gvk.Group)
 
 		log := r.log.With().Str("operation", "delete").Str("kind", gvk.Kind).Logger()
 
@@ -335,9 +330,7 @@ func (r *Service) SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolv
 	return func(p graphql.ResolveParams) (interface{}, error) {
 
 		// Ensure the group is correctly set
-		if gvk.Group == "core" {
-			gvk.Group = ""
-		}
+		gvk.Group = r.GetOriginalGroupName(gvk.Group)
 
 		ctx := p.Context
 
@@ -419,10 +412,7 @@ func (r *Service) SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolv
 
 func (r *Service) SubscribeItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-
-		if gvk.Group == "core" {
-			gvk.Group = ""
-		}
+		gvk.Group = r.GetOriginalGroupName(gvk.Group)
 
 		ctx := p.Context
 
@@ -555,4 +545,30 @@ func (r *Service) GetNameAndNamespaceArguments() graphql.FieldConfigArgument {
 			Description: "The namespace of the object",
 		},
 	}
+}
+
+func (r *Service) SanitizeGroupName(groupName string) string {
+	oldGroupName := groupName
+
+	if groupName == "" {
+		groupName = "core"
+	} else {
+		groupName = regexp.MustCompile(`[^_a-zA-Z0-9]`).ReplaceAllString(groupName, "_")
+		// If the name doesn't start with a letter or underscore, prepend '_'
+		if !regexp.MustCompile(`^[_a-zA-Z]`).MatchString(groupName) {
+			groupName = "_" + groupName
+		}
+	}
+
+	r.groupNames[groupName] = oldGroupName
+
+	return groupName
+}
+
+func (r *Service) GetOriginalGroupName(groupName string) string {
+	if originalName, ok := r.groupNames[groupName]; ok {
+		return originalName
+	}
+
+	return groupName
 }

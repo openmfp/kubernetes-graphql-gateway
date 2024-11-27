@@ -150,11 +150,23 @@ Holds the logic of interaction with the cluster.
 task test
 ```
 
+If you want to run single test, you need to export a KUBEBUILDER_ASSETS environment variable:
+```shell
+KUBEBUILDER_ASSETS=$(pwd)/bin/k8s/$DIR_WITH_ASSETS
+# where $DIR_WITH_ASSETS is the directory that contains binaries for your OS.
+```
+P.S. You can also integrate it within your IDE run configuration.
+
+Then you can run the test:
+```
+
+
 You can also check the coverage:
 ```shell
 task coverage
 ```
 P.S. If you want to exclude some files from the coverage report, you can add them to the `.testcoverage.yml` file.
+
 
 
 ### Linting

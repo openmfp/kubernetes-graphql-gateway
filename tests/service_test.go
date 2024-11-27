@@ -20,7 +20,7 @@ func (suite *CommonTestSuite) TestFullSchemaGeneration() {
 	suite.writeToFile("fullSchema", workspaceName)
 
 	// this url must be generated after new file added
-	url := fmt.Sprintf("%s/%s/g", suite.server.URL, workspaceName)
+	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
 
 	// Create the Pod and check results
 	createResp, statusCode, err := graphql.SendRequest(url, graphql.CreatePodMutation())

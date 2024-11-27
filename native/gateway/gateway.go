@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"errors"
 	"fmt"
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/graphql"
@@ -73,7 +74,7 @@ func (g *Gateway) generateGraphqlSchema() error {
 		})
 
 		for resourceUri, resourceScheme := range groupedResources {
-			gvk, err := getGroupVersionKind(resourceUri)
+			gvk, err := g.getGroupVersionKind(resourceUri)
 			if err != nil {
 				g.log.Error().Err(err).Msg("Error parsing group version kind")
 				continue
@@ -106,32 +107,32 @@ func (g *Gateway) generateGraphqlSchema() error {
 			queryGroupType.AddFieldConfig(plural, &graphql.Field{
 				Type:    graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(resourceType))),
 				Args:    g.resolver.GetListItemsArguments(),
-				Resolve: g.resolver.ListItems(gvk),
+				Resolve: g.resolver.ListItems(*gvk),
 			})
 
 			queryGroupType.AddFieldConfig(singular, &graphql.Field{
 				Type:    graphql.NewNonNull(resourceType),
 				Args:    g.resolver.GetNameAndNamespaceArguments(),
-				Resolve: g.resolver.GetItem(gvk),
+				Resolve: g.resolver.GetItem(*gvk),
 			})
 
 			// Mutation definitions
 			mutationGroupType.AddFieldConfig("create"+singular, &graphql.Field{
 				Type:    resourceType,
 				Args:    g.resolver.GetMutationArguments(resourceInputType),
-				Resolve: g.resolver.CreateItem(gvk),
+				Resolve: g.resolver.CreateItem(*gvk),
 			})
 
 			mutationGroupType.AddFieldConfig("update"+singular, &graphql.Field{
 				Type:    resourceType,
 				Args:    g.resolver.GetMutationArguments(resourceInputType),
-				Resolve: g.resolver.UpdateItem(gvk),
+				Resolve: g.resolver.UpdateItem(*gvk),
 			})
 
 			mutationGroupType.AddFieldConfig("delete"+singular, &graphql.Field{
 				Type:    graphql.Boolean,
 				Args:    g.resolver.GetNameAndNamespaceArguments(),
-				Resolve: g.resolver.DeleteItem(gvk),
+				Resolve: g.resolver.DeleteItem(*gvk),
 			})
 
 			subscriptionSingular := strings.ToLower(fmt.Sprintf("%s_%s", group, singular))
@@ -139,7 +140,7 @@ func (g *Gateway) generateGraphqlSchema() error {
 				Type:        resourceType,
 				Args:        g.resolver.GetNameAndNamespaceArguments(),
 				Resolve:     g.resolver.CommonResolver(),
-				Subscribe:   g.resolver.SubscribeItem(gvk),
+				Subscribe:   g.resolver.SubscribeItem(*gvk),
 				Description: fmt.Sprintf("Subscribe to changes of %s", singular),
 			}
 
@@ -148,7 +149,7 @@ func (g *Gateway) generateGraphqlSchema() error {
 				Type:        graphql.NewList(resourceType),
 				Args:        g.resolver.GetListItemsArguments(),
 				Resolve:     g.resolver.CommonResolver(),
-				Subscribe:   g.resolver.SubscribeItems(gvk),
+				Subscribe:   g.resolver.SubscribeItems(*gvk),
 				Description: fmt.Sprintf("Subscribe to changes of %s", plural),
 			}
 		}
@@ -193,7 +194,7 @@ func (g *Gateway) generateGraphqlSchema() error {
 	return nil
 }
 
-func (g *Gateway) getNames(gvk schema.GroupVersionKind) (singular string, plural string) {
+func (g *Gateway) getNames(gvk *schema.GroupVersionKind) (singular string, plural string) {
 	kind := gvk.Kind
 	singularName := kind
 
@@ -221,24 +222,17 @@ func (g *Gateway) getNames(gvk schema.GroupVersionKind) (singular string, plural
 func (g *Gateway) getDefinitionsByGroup(filteredDefinitions spec.Definitions) map[string]spec.Definitions {
 	groups := map[string]spec.Definitions{}
 	for key, definition := range filteredDefinitions {
-		gvk, err := getGroupVersionKind(key)
+		gvk, err := g.getGroupVersionKind(key)
 		if err != nil {
-			g.log.Error().Err(err).Str("resourceKey", key).Msg("Error parsing group version kind")
+			g.log.Debug().Err(err).Str("resourceKey", key).Msg("Failed to get group version kind")
 			continue
 		}
 
-		group := gvk.Group
-		if group == "" {
-			group = "core"
-		} else {
-			group = sanitizeTypeName(group) // Sanitize the group name
+		if _, ok := groups[gvk.Group]; !ok {
+			groups[gvk.Group] = spec.Definitions{}
 		}
 
-		if _, ok := groups[group]; !ok {
-			groups[group] = spec.Definitions{}
-		}
-
-		groups[group][key] = definition
+		groups[gvk.Group][key] = definition
 	}
 
 	return groups
@@ -362,12 +356,12 @@ func (g *Gateway) handleObjectFieldSpecType(fieldSpec spec.Schema, typePrefix st
 		}
 
 		newType := graphql.NewObject(graphql.ObjectConfig{
-			Name:   sanitizeTypeName(typeName),
+			Name:   sanitizeFieldName(typeName),
 			Fields: nestedFields,
 		})
 
 		newInputType := graphql.NewInputObject(graphql.InputObjectConfig{
-			Name:   sanitizeTypeName(typeName) + "Input",
+			Name:   sanitizeFieldName(typeName) + "Input",
 			Fields: nestedInputFields,
 		})
 
@@ -377,7 +371,7 @@ func (g *Gateway) handleObjectFieldSpecType(fieldSpec spec.Schema, typePrefix st
 
 		return newType, newInputType, nil
 	} else if fieldSpec.AdditionalProperties != nil && fieldSpec.AdditionalProperties.Schema != nil {
-		// Handle map types
+		// Hagndle map types
 		if len(fieldSpec.AdditionalProperties.Schema.Type) == 1 && fieldSpec.AdditionalProperties.Schema.Type[0] == "string" {
 			// This is a map[string]string
 			return stringMapScalar, stringMapScalar, nil
@@ -393,41 +387,39 @@ func (g *Gateway) generateTypeName(typePrefix string, fieldPath []string) string
 	return name
 }
 
-func getGroupVersionKind(resourceKey string) (schema.GroupVersionKind, error) {
-	parts := strings.Split(resourceKey, ".")
-	if len(parts) < 3 {
-		return schema.GroupVersionKind{}, fmt.Errorf("invalid resource key format")
+// io.openmfp.core.v1alpha1.Account
+
+// getGroupVersionKind retrieves the GroupVersionKind for a given resourceKey and its OpenAPI schema.
+// It first checks for the 'x-kubernetes-group-version-kind' extension and uses it if available.
+// If not, it falls back to parsing the resourceKey.
+func (g *Gateway) getGroupVersionKind(resourceKey string) (*schema.GroupVersionKind, error) {
+	// First, check if 'x-kubernetes-group-version-kind' extension is present
+	resourceSpec, ok := g.definitions[resourceKey]
+	if !ok || resourceSpec.Extensions == nil {
+		return nil, errors.New("no resource extensions")
+	}
+	xkGvk, ok := resourceSpec.Extensions["x-kubernetes-group-version-kind"]
+	if !ok {
+		return nil, errors.New("x-kubernetes-group-version-kind extension not found")
+	}
+	// xkGvk should be an array of maps
+	if gvkList, ok := xkGvk.([]interface{}); ok && len(gvkList) > 0 {
+		// Use the first item in the list
+		if gvkMap, ok := gvkList[0].(map[string]interface{}); ok {
+			group, _ := gvkMap["group"].(string)
+			version, _ := gvkMap["version"].(string)
+			kind, _ := gvkMap["kind"].(string)
+
+			// Sanitize the group and kind names
+			return &schema.GroupVersionKind{
+				Group:   g.resolver.SanitizeGroupName(group),
+				Version: version,
+				Kind:    kind,
+			}, nil
+		}
 	}
 
-	// Kind is the last item
-	kind := parts[len(parts)-1]
-
-	// Version is at index [-2]
-	version := parts[len(parts)-2]
-
-	// Group starts after "io.k8s" and ends before the Version
-	group := parts[len(parts)-3]
-	if group == "" {
-		group = "core" // Core group
-	}
-
-	return schema.GroupVersionKind{
-		Group:   group,
-		Version: version,
-		Kind:    kind,
-	}, nil
-}
-
-func sanitizeTypeName(name string) string {
-	// Remove invalid characters (e.g., dots)
-	name = regexp.MustCompile(`[^a-zA-Z0-9]`).ReplaceAllString(name, "")
-
-	// Ensure the name starts with a letter
-	if !regexp.MustCompile(`^[a-zA-Z]`).MatchString(name) {
-		name = "Type" + name
-	}
-
-	return name
+	return nil, errors.New("failed to parse x-kubernetes-group-version-kind extension")
 }
 
 func sanitizeFieldName(name string) string {

@@ -7,6 +7,13 @@
   "definitions": {
     "io.k8s.api.core.v1.Pod": {
       "type": "object",
+      "x-kubernetes-group-version-kind": [
+        {
+          "group": "",
+          "version": "v1",
+          "kind": "Pod"
+        }
+      ],
       "properties": {
         "apiVersion": {
           "type": "string"
@@ -27,6 +34,13 @@
     },
     "io.k8s.api.core.v1.Service": {
       "type": "object",
+      "x-kubernetes-group-version-kind": [
+        {
+          "group": "",
+          "version": "v1",
+          "kind": "Service"
+        }
+      ],
       "properties": {
         "apiVersion": {
           "type": "string"
