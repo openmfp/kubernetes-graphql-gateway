@@ -10,7 +10,7 @@ import (
 	"github.com/graphql-go/handler"
 	"github.com/spf13/cobra"
 
-	"github.com/openmfp/crd-gql-gateway/gateway"
+	"github.com/openmfp/crd-gql-gateway/deprecated"
 	"k8s.io/apimachinery/pkg/runtime"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"

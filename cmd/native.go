@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/openmfp/crd-gql-gateway/native/manager"
+	"github.com/openmfp/crd-gql-gateway/internal/manager"
 	"github.com/openmfp/golang-commons/logger"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"

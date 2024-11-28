@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/graphql"
-	"github.com/openmfp/crd-gql-gateway/native/resolver"
+	"github.com/openmfp/crd-gql-gateway/internal/resolver"
 	"github.com/openmfp/golang-commons/logger"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
