@@ -1,5 +1,19 @@
 package graphql
 
+type PodData struct {
+	Metadata Metadata `json:"metadata"`
+	Spec     PodSpec  `json:"spec"`
+}
+
+type PodSpec struct {
+	Containers []Container `json:"containers"`
+}
+
+type Container struct {
+	Name  string `json:"name"`
+	Image string `json:"image"`
+}
+
 func CreatePodMutation() string {
 	return `
     mutation {

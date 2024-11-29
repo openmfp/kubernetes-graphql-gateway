@@ -8,32 +8,15 @@ import (
 	"net/http"
 )
 
-type GraphQLResponse struct {
-	Data   *GraphQLData   `json:"data,omitempty"`
-	Errors []GraphQLError `json:"errors,omitempty"`
-}
-
-type GraphQLData struct {
-	Core *CoreData `json:"core,omitempty"`
-}
-
 type CoreData struct {
-	Pod           *PodData     `json:"Pod,omitempty"`
-	Service       *ServiceData `json:"Service,omitempty"`
-	CreatePod     *PodData     `json:"createPod,omitempty"`
-	CreateService *ServiceData `json:"createService,omitempty"`
-	DeleteService *bool        `json:"deleteService,omitempty"`
-}
+	Pod       *PodData `json:"Pod,omitempty"`
+	CreatePod *PodData `json:"createPod,omitempty"`
 
-type PodData struct {
-	Metadata Metadata `json:"metadata"`
-	Spec     PodSpec  `json:"spec"`
-}
+	Service *ServiceData `json:"Service,omitempty"`
 
-type ServiceData struct {
-	Metadata Metadata       `json:"metadata"`
-	Spec     ServiceSpec    `json:"spec"`
-	Status   *ServiceStatus `json:"status,omitempty"`
+	Account       *AccountData `json:"Account,omitempty"`
+	CreateAccount *AccountData `json:"createAccount,omitempty"`
+	DeleteAccount *bool        `json:"deleteAccount,omitempty"`
 }
 
 type Metadata struct {
@@ -41,25 +24,15 @@ type Metadata struct {
 	Namespace string
 }
 
-type PodSpec struct {
-	Containers []Container `json:"containers"`
+type GraphQLResponse struct {
+	Data   *GraphQLData   `json:"data,omitempty"`
+	Errors []GraphQLError `json:"errors,omitempty"`
 }
 
-type Container struct {
-	Name  string `json:"name"`
-	Image string `json:"image"`
+type GraphQLData struct {
+	Core          *CoreData `json:"core,omitempty"`
+	CoreOpenmfpIO *CoreData `json:"core_openmfp_io,omitempty"`
 }
-
-type ServiceSpec struct {
-	Type  string        `json:"type"`
-	Ports []ServicePort `json:"ports"`
-}
-
-type ServicePort struct {
-	Port int `json:"port"`
-}
-
-type ServiceStatus struct{}
 
 type GraphQLError struct {
 	Message   string                 `json:"message"`
@@ -86,6 +59,8 @@ func SendRequest(url, query string) (*GraphQLResponse, int, error) {
 		return nil, 0, err
 	}
 	defer resp.Body.Close()
+	v := resp.Body
+	fmt.Println(v)
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {

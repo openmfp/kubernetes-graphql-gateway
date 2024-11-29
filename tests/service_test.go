@@ -180,3 +180,40 @@ func (suite *CommonTestSuite) TestWorkspaceRename() {
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 }
+
+// TestCreateGetAndDeleteAccount tests the creation, retrieval, and deletion of an Account resource.
+func (suite *CommonTestSuite) TestCreateGetAndDeleteAccount() {
+	workspaceName := "myWorkspace"
+	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
+
+	suite.writeToFile("fullSchema", workspaceName)
+
+	// Create the Account and verify the response
+	createResp, statusCode, err := graphql.SendRequest(url, graphql.CreateAccountMutation())
+	require.NoError(suite.T(), err)
+	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
+	require.Nil(suite.T(), createResp.Errors, "GraphQL errors: %v", createResp.Errors)
+
+	// Retrieve the Account and verify its details
+	getResp, statusCode, err := graphql.SendRequest(url, graphql.GetAccountQuery())
+	require.NoError(suite.T(), err)
+	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
+	require.Nil(suite.T(), getResp.Errors, "GraphQL errors: %v", getResp.Errors)
+
+	accountData := getResp.Data.CoreOpenmfpIO.Account
+	require.Equal(suite.T(), "test-account", accountData.Metadata.Name)
+	require.Equal(suite.T(), "test-account-display-name", accountData.Spec.DisplayName)
+	require.Equal(suite.T(), "account", accountData.Spec.Type)
+
+	// Delete the Account and verify the response
+	deleteResp, statusCode, err := graphql.SendRequest(url, graphql.DeleteAccountMutation())
+	require.NoError(suite.T(), err)
+	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
+	require.Nil(suite.T(), deleteResp.Errors, "GraphQL errors: %v", deleteResp.Errors)
+
+	// Attempt to retrieve the Account after deletion and expect an error
+	getRespAfterDelete, statusCode, err := graphql.SendRequest(url, graphql.GetAccountQuery())
+	require.NoError(suite.T(), err)
+	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
+	require.NotNil(suite.T(), getRespAfterDelete.Errors, "Expected error when querying deleted Account, but got none")
+}

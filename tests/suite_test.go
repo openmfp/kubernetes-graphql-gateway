@@ -30,7 +30,11 @@ func TestCommonTestSuite(t *testing.T) {
 
 func (suite *CommonTestSuite) SetupTest() {
 	var err error
-	suite.testEnv = &envtest.Environment{}
+	suite.testEnv = &envtest.Environment{
+		CRDDirectoryPaths: []string{
+			filepath.Join("testdata", "crd"),
+		},
+	}
 	suite.cfg, err = suite.testEnv.Start()
 	require.NoError(suite.T(), err)
 

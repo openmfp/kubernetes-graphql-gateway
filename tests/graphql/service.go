@@ -1,5 +1,22 @@
 package graphql
 
+type ServiceData struct {
+	Metadata Metadata       `json:"metadata"`
+	Spec     ServiceSpec    `json:"spec"`
+	Status   *ServiceStatus `json:"status,omitempty"`
+}
+
+type ServiceSpec struct {
+	Type  string        `json:"type"`
+	Ports []ServicePort `json:"ports"`
+}
+
+type ServicePort struct {
+	Port int `json:"port"`
+}
+
+type ServiceStatus struct{}
+
 func CreateServiceMutation() string {
 	return `
     mutation {
