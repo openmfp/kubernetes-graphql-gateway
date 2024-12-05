@@ -185,5 +185,15 @@ For instance, to subscribe to deployments changes:
 curl -H "Accept: text/event-stream" -H "Content-Type: application/json" http://localhost:3000/fullSchema/subscriptions \
 -d '{"query": "subscription { apps_deployments(namespace: \"default\") { metadata { name } spec { replicas } } }"}'
 ```
-P.S. Any deployment's change will fire the event, so if you are interested in a specific field change, 
-it should be handled on a client(application) side
+If you want to only listen to a specific field change, you should set `emitOnlyFieldChanges` to true and point to the field you are interested in in `fieldPaths`.
+For instance, to listen to the `spec.replicas` field change in all deployments in the `default` namespace:
+```shell
+curl -H "Accept: text/event-stream" -H "Content-Type: application/json" http://localhost:3000/fullSchema/subscriptions \
+-d '{"query": "subscription { apps_deployments(namespace: \"default\", emitOnlyFieldChanges: true, fieldPaths: [\"spec.replicas\"]) { metadata { name } spec { replicas } } }"}'
+```
+If you want to listen to a specific deployment:
+```shell
+curl -H "Accept: text/event-stream" -H "Content-Type: application/json" http://localhost:3000/fullSchema/subscriptions \
+-d '{"query": "subscription { apps_deployment(namespace: \"default\", name: \"my-new-deployment\", \
+emitOnlyFieldChanges: true, fieldPaths: [\"spec.replicas\"]) { metadata { name } spec { replicas } } }"}'
+```

@@ -138,7 +138,7 @@ func (g *Gateway) generateGraphqlSchema() error {
 			subscriptionSingular := strings.ToLower(fmt.Sprintf("%s_%s", group, singular))
 			rootSubscriptionFields[subscriptionSingular] = &graphql.Field{
 				Type:        resourceType,
-				Args:        g.resolver.GetNameAndNamespaceArguments(),
+				Args:        g.resolver.GetSubscriptionArguments(true),
 				Resolve:     g.resolver.CommonResolver(),
 				Subscribe:   g.resolver.SubscribeItem(*gvk),
 				Description: fmt.Sprintf("Subscribe to changes of %s", singular),
@@ -147,7 +147,7 @@ func (g *Gateway) generateGraphqlSchema() error {
 			subscriptionPlural := strings.ToLower(fmt.Sprintf("%s_%s", group, plural))
 			rootSubscriptionFields[subscriptionPlural] = &graphql.Field{
 				Type:        graphql.NewList(resourceType),
-				Args:        g.resolver.GetListItemsArguments(),
+				Args:        g.resolver.GetSubscriptionArguments(false),
 				Resolve:     g.resolver.CommonResolver(),
 				Subscribe:   g.resolver.SubscribeItems(*gvk),
 				Description: fmt.Sprintf("Subscribe to changes of %s", plural),

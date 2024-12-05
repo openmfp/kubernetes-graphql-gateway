@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"k8s.io/apimachinery/pkg/watch"
+	"reflect"
 	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/graphql-go/graphql"
 	"go.opentelemetry.io/otel"
@@ -53,6 +56,7 @@ type ArgumentsProvider interface {
 	GetListItemsArguments() graphql.FieldConfigArgument
 	GetMutationArguments(resourceInputType *graphql.InputObject) graphql.FieldConfigArgument
 	GetNameAndNamespaceArguments() graphql.FieldConfigArgument
+	GetSubscriptionArguments(includeNameArg bool) graphql.FieldConfigArgument
 }
 
 type Service struct {
@@ -325,7 +329,6 @@ func (r *Service) DeleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 		return true, nil
 	}
 }
-
 func (r *Service) SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 
@@ -345,10 +348,22 @@ func (r *Service) SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolv
 			return nil, errors.New("name argument is required")
 		}
 
+		// Extract optional arguments
+		emitOnlyFieldChanges, _ := p.Args["emitOnlyFieldChanges"].(bool)
+
+		var fieldsToWatch []string
+		if fields, ok := p.Args["fieldPaths"].([]interface{}); ok {
+			for _, field := range fields {
+				if fieldStr, ok := field.(string); ok {
+					fieldsToWatch = append(fieldsToWatch, fieldStr)
+				}
+			}
+		}
+
 		// Create a channel to stream results
 		resultChannel := make(chan interface{})
 
-		go func() {
+		go func(emitOnlyFieldChanges bool, fieldsToWatch []string) {
 			defer close(resultChannel)
 
 			// Set up the unstructured list for watching
@@ -375,6 +390,8 @@ func (r *Service) SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolv
 			}
 			defer watcher.Stop()
 
+			var previousObj *unstructured.Unstructured
+
 			// Process events
 			for {
 				select {
@@ -393,23 +410,48 @@ func (r *Service) SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolv
 						Str("name", obj.GetName()).
 						Msg("Received event")
 
-					// Send the object to the result channel
-					select {
-					case <-ctx.Done():
-						return
-					case resultChannel <- obj:
+					var sendObject bool
+
+					switch event.Type {
+					case watch.Added:
+						previousObj = obj.DeepCopy()
+						sendObject = true
+					case watch.Modified:
+						if emitOnlyFieldChanges {
+							fieldsChanged, err := determineFieldChanged(previousObj, obj, fieldsToWatch)
+							if err != nil {
+								r.log.Error().Err(err).Msg("Failed to determine if fields have changed")
+								return
+							}
+							sendObject = fieldsChanged
+						} else {
+							sendObject = true
+						}
+						previousObj = obj.DeepCopy()
+					case watch.Deleted:
+						sendObject = true
+					default:
+						sendObject = false
+					}
+
+					if sendObject {
+						// Send the object to the result channel
+						select {
+						case <-ctx.Done():
+							return
+						case resultChannel <- obj:
+						}
 					}
 				case <-ctx.Done():
 					return
 				}
 			}
-		}()
+		}(emitOnlyFieldChanges, fieldsToWatch)
 
 		// Return the result channel
 		return resultChannel, nil
 	}
 }
-
 func (r *Service) SubscribeItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		gvk.Group = r.GetOriginalGroupName(gvk.Group)
@@ -420,10 +462,22 @@ func (r *Service) SubscribeItems(gvk schema.GroupVersionKind) graphql.FieldResol
 		namespace, _ := p.Args[namespaceArg].(string)
 		labelSelector, _ := p.Args[labelSelectorArg].(string)
 
+		// Extract optional arguments for field changes
+		emitOnlyFieldChanges, _ := p.Args["emitOnlyFieldChanges"].(bool)
+
+		var fieldsToWatch []string
+		if fields, ok := p.Args["fieldPaths"].([]interface{}); ok {
+			for _, field := range fields {
+				if fieldStr, ok := field.(string); ok {
+					fieldsToWatch = append(fieldsToWatch, fieldStr)
+				}
+			}
+		}
+
 		// Create a channel to stream results
 		resultChannel := make(chan interface{})
 
-		go func() {
+		go func(emitOnlyFieldChanges bool, fieldsToWatch []string) {
 			defer close(resultChannel)
 
 			// Set up the unstructured list for watching
@@ -460,6 +514,9 @@ func (r *Service) SubscribeItems(gvk schema.GroupVersionKind) graphql.FieldResol
 			}
 			defer watcher.Stop()
 
+			// Map to store previous objects by key
+			previousObjects := make(map[string]*unstructured.Unstructured)
+
 			// Process events
 			for {
 				select {
@@ -478,17 +535,57 @@ func (r *Service) SubscribeItems(gvk schema.GroupVersionKind) graphql.FieldResol
 						Str("name", obj.GetName()).
 						Msg("Received event")
 
-					// Send the object wrapped in a slice to the result channel
-					select {
-					case <-ctx.Done():
-						return
-					case resultChannel <- []interface{}{obj}:
+					var sendUpdate bool
+					key := obj.GetNamespace() + "/" + obj.GetName()
+
+					switch event.Type {
+					case watch.Added:
+						previousObjects[key] = obj.DeepCopy()
+						sendUpdate = true
+					case watch.Modified:
+						oldObj := previousObjects[key]
+						if emitOnlyFieldChanges {
+							fieldsChanged, err := determineFieldChanged(oldObj, obj, fieldsToWatch)
+							if err != nil {
+								r.log.Error().Err(err).Msg("Failed to determine if fields have changed")
+								return
+							}
+							sendUpdate = fieldsChanged
+						} else {
+							sendUpdate = true
+						}
+						previousObjects[key] = obj.DeepCopy()
+					case watch.Deleted:
+						delete(previousObjects, key)
+						sendUpdate = true
+					default:
+						sendUpdate = false
+					}
+
+					if sendUpdate {
+						// Collect current items
+						items := make([]unstructured.Unstructured, 0, len(previousObjects))
+						for _, item := range previousObjects {
+							items = append(items, *item)
+						}
+
+						// Sort items by name for consistency
+						sort.Slice(items, func(i, j int) bool {
+							return items[i].GetName() < items[j].GetName()
+						})
+
+						// Send the list of items to the result channel
+						select {
+						case <-ctx.Done():
+							return
+						case resultChannel <- items:
+						}
 					}
 				case <-ctx.Done():
 					return
 				}
 			}
-		}()
+		}(emitOnlyFieldChanges, fieldsToWatch)
 
 		// Return the result channel
 		return resultChannel, nil
@@ -547,6 +644,35 @@ func (r *Service) GetNameAndNamespaceArguments() graphql.FieldConfigArgument {
 	}
 }
 
+// GetNameAndNamespaceArguments returns the GraphQL arguments for delete mutations.
+func (r *Service) GetSubscriptionArguments(includeNameArg bool) graphql.FieldConfigArgument {
+	args := graphql.FieldConfigArgument{
+		namespaceArg: &graphql.ArgumentConfig{
+			Type:         graphql.String,
+			DefaultValue: "default",
+			Description:  "The namespace of the object",
+		},
+		"emitOnlyFieldChanges": &graphql.ArgumentConfig{
+			Type:         graphql.Boolean,
+			DefaultValue: false,
+			Description:  "If true, only emit events when specified fields change",
+		},
+		"fieldPaths": &graphql.ArgumentConfig{
+			Type:        graphql.NewList(graphql.String),
+			Description: "List of field paths to watch for changes",
+		},
+	}
+
+	if includeNameArg {
+		args[nameArg] = &graphql.ArgumentConfig{
+			Type:        graphql.NewNonNull(graphql.String),
+			Description: "The name of the object",
+		}
+	}
+
+	return args
+}
+
 func (r *Service) SanitizeGroupName(groupName string) string {
 	oldGroupName := groupName
 
@@ -571,4 +697,43 @@ func (r *Service) GetOriginalGroupName(groupName string) string {
 	}
 
 	return groupName
+}
+
+func determineFieldChanged(oldObj, newObj *unstructured.Unstructured, fields []string) (bool, error) {
+	if oldObj == nil {
+		// No previous object, so treat as changed
+		return true, nil
+	}
+
+	for _, fieldPath := range fields {
+		oldValue, foundOld, err := getFieldValue(oldObj, fieldPath)
+		if err != nil {
+			return false, err
+		}
+		newValue, foundNew, err := getFieldValue(newObj, fieldPath)
+		if err != nil {
+			return false, err
+		}
+		if !foundOld && !foundNew {
+			// Field not present in both, consider no change
+			continue
+		}
+		if !foundOld || !foundNew {
+			// Field present in one but not the other, so changed
+			return true, nil
+		}
+		if !reflect.DeepEqual(oldValue, newValue) {
+			// Field value has changed
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// Helper function to get the value of a field from an unstructured object
+func getFieldValue(obj *unstructured.Unstructured, fieldPath string) (interface{}, bool, error) {
+	fields := strings.Split(fieldPath, ".")
+	value, found, err := unstructured.NestedFieldNoCopy(obj.Object, fields...)
+	return value, found, err
 }
