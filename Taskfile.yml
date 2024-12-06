@@ -56,6 +56,6 @@ tasks:
     cmds:
       - task: lint
       - task: test
-  native:
+  start:
     cmds:
-      - go run main.go native --watched-dir=./definitions
+      - go run main.go start --watched-dir=./definitions

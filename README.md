@@ -33,11 +33,11 @@ kubectl get --raw /openapi/v2 > fullSchema
 ```
 #### Start the Service 
 ```shell
-task native
+task start
 ```
 OR
 ```shell
-go run main.go native --watched-dir=./definitions
+go run main.go start --watched-dir=./definitions
 # where ./definitions is the directory containing the OpenAPI spec files
 ```
 #### Sending queries

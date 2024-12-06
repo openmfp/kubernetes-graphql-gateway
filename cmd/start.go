@@ -2,90 +2,82 @@ package cmd
 
 import (
 	"fmt"
-	accounts "github.com/openmfp/account-operator/api/v1alpha1"
 	"net/http"
+	"time"
 
-	"context"
-
-	"github.com/graphql-go/handler"
+	"github.com/openmfp/crd-gql-gateway/internal/manager"
+	"github.com/openmfp/golang-commons/logger"
 	"github.com/spf13/cobra"
-
-	"github.com/openmfp/crd-gql-gateway/deprecated"
-	"k8s.io/apimachinery/pkg/runtime"
-	controllerruntime "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	jenxv1 "github.tools.sap/automaticd/automaticd/operators/jenx/api/v1"
-	jirav1alpha1 "github.tools.sap/automaticd/automaticd/operators/jira/api/v1alpha1"
-	authzv1 "k8s.io/api/authorization/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
+// Variable to hold the watched directory flag
+var watchedDir string
+
 var startCmd = &cobra.Command{
-	Use: "start",
+	Use:     "start",
+	Short:   "Run the GQL Gateway",
+	Example: "go run main.go start --watched-dir=./definitions",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		start := time.Now()
 
-		cfg := controllerruntime.GetConfigOrDie()
+		// watchedDir is already required by MarkFlagRequired, additional check is redundant
+		// But if you want to ensure it's not empty, you can keep it
+		if watchedDir == "" {
+			return fmt.Errorf("the --watched-dir flag is required")
+		}
 
-		schema := runtime.NewScheme()
-		apiextensionsv1.AddToScheme(schema) // nolint: errcheck
-		authzv1.AddToScheme(schema)         // nolint: errcheck
-
-		jirav1alpha1.AddToScheme(schema) // nolint: errcheck
-		jenxv1.AddToScheme(schema)       // nolint: errcheck
-
-		accounts.AddToScheme(schema) // nolint: errcheck
-
-		k8sCache, err := cache.New(cfg, cache.Options{
-			Scheme: schema,
-		})
+		// Setup Logger
+		log, err := setupLogger("INFO")
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to setup logger: %w", err)
 		}
 
-		go func() {
-			err = k8sCache.Start(context.Background())
-			if err != nil {
-				panic(err)
-			}
-		}()
+		log.Info().Str("LogLevel", log.GetLevel().String()).Msg("Starting server...")
 
-		if !k8sCache.WaitForCacheSync(context.Background()) {
-			panic("no cache sync")
-		}
+		// Get Kubernetes config
+		cfg := config.GetConfigOrDie()
 
-		cfg.Wrap(gateway.NewImpersonationTransport)
-
-		cl, err := client.NewWithWatch(cfg, client.Options{
-			Scheme: schema,
-			Cache: &client.CacheOptions{
-				Reader: k8sCache,
-			},
-		})
+		// Initialize Manager
+		managerInstance, err := manager.NewManager(log, cfg, watchedDir)
 		if err != nil {
-			return err
+			log.Error().Err(err).Msg("Error creating manager")
+			return fmt.Errorf("failed to create manager: %w", err)
 		}
 
-		gqlSchema, err := gateway.New(cmd.Context(), gateway.Config{
-			Client: cl,
-		})
+		// Set up HTTP handler
+		http.Handle("/", managerInstance)
+
+		// Start HTTP server
+		err = http.ListenAndServe(":3000", nil)
 		if err != nil {
-			return err
+			log.Error().Err(err).Msg("Error starting server")
+			return fmt.Errorf("failed to start server: %w", err)
 		}
 
-		fmt.Println("Server is running on http://localhost:3000/graphql")
+		log.Info().Float64("elapsed_seconds", time.Since(start).Seconds()).Msg("Setup completed")
 
-		http.Handle("/graphql", gateway.Handler(gateway.HandlerConfig{
-			Config: &handler.Config{
-				Schema:     &gqlSchema,
-				Pretty:     true,
-				Playground: true,
-			},
-			UserClaim:   "mail",
-			GroupsClaim: "groups",
-		}))
-
-		return http.ListenAndServe(":3000", nil)
+		return nil
 	},
+}
+
+func init() {
+	// Assuming rootCmd is defined in another file within the cmd package
+	// Add startCmd as a subcommand to rootCmd
+	rootCmd.AddCommand(startCmd)
+
+	// Define the --watched-dir flag for startCmd
+	startCmd.Flags().StringVar(&watchedDir, "watched-dir", "",
+		"The directory to watch for changes.")
+
+	// Mark the --watched-dir flag as required
+	startCmd.MarkFlagRequired("watched-dir") // nolint:errcheck
+}
+
+// setupLogger initializes the logger with the given log level
+func setupLogger(logLevel string) (*logger.Logger, error) {
+	loggerCfg := logger.DefaultConfig()
+	loggerCfg.Name = "crdGateway"
+	loggerCfg.Level = logLevel
+	return logger.New(loggerCfg)
 }
