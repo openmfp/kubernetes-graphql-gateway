@@ -25,8 +25,8 @@ var startCmd = &cobra.Command{
 		cfg := controllerruntime.GetConfigOrDie()
 
 		schema := runtime.NewScheme()
-		apiextensionsv1.AddToScheme(schema)
-		authzv1.AddToScheme(schema)
+		apiextensionsv1.AddToScheme(schema) // nolint: errcheck
+		authzv1.AddToScheme(schema)         // nolint: errcheck
 
 		k8sCache, err := cache.New(cfg, cache.Options{
 			Scheme: schema,
@@ -36,7 +36,7 @@ var startCmd = &cobra.Command{
 		}
 
 		go func() {
-			k8sCache.Start(context.Background())
+			k8sCache.Start(context.Background()) // nolint: errcheck
 		}()
 
 		if !k8sCache.WaitForCacheSync(context.Background()) {
