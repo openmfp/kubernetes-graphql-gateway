@@ -248,9 +248,13 @@ func (r *resolver) createItem(crd apiextensionsv1.CustomResourceDefinition, type
 			return nil, errors.New("either name or generateName must be set")
 		}
 
-		unstructured.SetNestedField(us.Object, p.Args["spec"], "spec") // nolint: errcheck
+		err := unstructured.SetNestedField(us.Object, p.Args["spec"], "spec")
+		if err != nil {
+			logger.Error("unable to set spec field", slog.Any("error", err))
+			return nil, err
+		}
 
-		err := r.conf.Client.Create(ctx, us)
+		err = r.conf.Client.Create(ctx, us)
 		if err != nil {
 			logger.Error("unable to create object", slog.Any("error", err))
 			return nil, err
@@ -290,7 +294,11 @@ func (r *resolver) updateItem(crd apiextensionsv1.CustomResourceDefinition, type
 			return nil, err
 		}
 
-		unstructured.SetNestedField(us.Object, p.Args["spec"], "spec") // nolint: errcheck
+		err = unstructured.SetNestedField(us.Object, p.Args["spec"], "spec")
+		if err != nil {
+			logger.Error("unable to set spec field", slog.Any("error", err))
+			return nil, err
+		}
 
 		err = r.conf.Client.Update(ctx, us)
 		if err != nil {
