@@ -6,10 +6,9 @@ jobs:
     concurrency:
       group: ${{ github.ref }}
       cancel-in-progress: true
-    uses: openmfp/gha/.github/workflows/pipeline-golang-app.yml@main
+    uses: openmfp/gha/.github/workflows/pipeline-golang-module.yml@main
     secrets: inherit
     with:
-      imageTagName: ghcr.io/openmfp/gql-gateway
       useLocalCoverageConfig: true
       coverageThreasholdFile: 0
       coverageThreasholdPackage: 0
