@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/golang-jwt/jwt/v5"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,14 +35,14 @@ type Provider interface {
 }
 
 type Service struct {
-	log           *logger.Logger
-	runtimeClient client.WithWatch
-	restMapper    meta.RESTMapper
-	resolver      resolver.Provider
-	handlers      map[string]*graphqlHandler
-	mu            sync.RWMutex
-	watcher       *fsnotify.Watcher
-	dir           string
+	cfg        *rest.Config
+	log        *logger.Logger
+	restMapper meta.RESTMapper
+	resolver   resolver.Provider
+	handlers   map[string]*graphqlHandler
+	mu         sync.RWMutex
+	watcher    *fsnotify.Watcher
+	dir        string
 }
 
 type graphqlHandler struct {
@@ -49,11 +51,6 @@ type graphqlHandler struct {
 }
 
 func NewManager(log *logger.Logger, cfg *rest.Config, dir string) (*Service, error) {
-	runtimeClient, err := setupK8sClients(cfg)
-	if err != nil {
-		return nil, err
-	}
-
 	restMapper, err := getRestMapper(cfg)
 	if err != nil {
 		return nil, err
@@ -65,13 +62,13 @@ func NewManager(log *logger.Logger, cfg *rest.Config, dir string) (*Service, err
 	}
 
 	m := &Service{
-		log:           log,
-		runtimeClient: runtimeClient,
-		restMapper:    restMapper,
-		resolver:      resolver.New(log, runtimeClient),
-		handlers:      make(map[string]*graphqlHandler),
-		watcher:       watcher,
-		dir:           dir,
+		cfg:        cfg,
+		log:        log,
+		restMapper: restMapper,
+		resolver:   resolver.New(log),
+		handlers:   make(map[string]*graphqlHandler),
+		watcher:    watcher,
+		dir:        dir,
 	}
 
 	// Start watching the directory
@@ -182,35 +179,138 @@ func (s *Service) createHandler(schema *graphql.Schema) *graphqlHandler {
 	}
 }
 
+var sharedSecret = []byte("my-secret") // Replace with a secure key
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Path
-	// Expected paths: /{filename}/graphql or /{filename}/subscriptions
-	parts := strings.Split(strings.Trim(path, "/"), "/")
-	if len(parts) < 2 {
+	// Parse and validate request path
+	filename, endpoint, err := s.parsePath(r.URL.Path)
+	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
 
-	filename := parts[0]
-	endpoint := parts[1]
-
-	s.mu.RLock()
-	h, ok := s.handlers[filename]
-	s.mu.RUnlock()
+	// Retrieve handler based on filename
+	h, ok := s.getHandler(filename)
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
 
-	switch endpoint {
-	case "graphql": // Serve queries and mutations
-		r.URL.Path = "/" + strings.Join(parts[1:], "/")
+	// If GET request on /graphql endpoint, serve Playground without token
+	if endpoint == "graphql" && r.Method == http.MethodGet {
 		h.handler.ServeHTTP(w, r)
-	case "subscriptions": // Handle subscriptions over SSE
+		return
+	}
+
+	// For all other cases (POST queries/mutations/subscriptions), validate token
+	claims, err := s.validateToken(r.Header.Get("Authorization"))
+	if err != nil {
+		writeJSONError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	ws, err := s.getWorkspaceFromClaims(claims)
+	if err != nil {
+		writeJSONError(w, http.StatusUnauthorized, err.Error())
+		return
+	}
+
+	// Setup runtime client with the target server
+	runtimeClient, err := s.setupRuntimeClient(ws)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "Error setting up Kubernetes client")
+		return
+	}
+
+	// Inject runtimeClient into request context
+	r = r.WithContext(context.WithValue(r.Context(), resolver.RuntimeClientKey, runtimeClient))
+
+	switch endpoint {
+	case "graphql":
+		r.URL.Path = "/" + endpoint
+		h.handler.ServeHTTP(w, r)
+	case "subscriptions":
 		s.handleSubscription(w, r, h.schema)
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+func writeJSONError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"errors": []map[string]string{
+			{"message": message},
+		},
+	})
+}
+
+// parsePath extracts filename and endpoint from the requested URL path.
+func (s *Service) parsePath(path string) (filename, endpoint string, err error) {
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) < 2 {
+		return "", "", fmt.Errorf("invalid path")
+	}
+	return parts[0], parts[1], nil
+}
+
+// getHandler retrieves the graphqlHandler associated with the given filename.
+func (s *Service) getHandler(filename string) (*graphqlHandler, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	h, ok := s.handlers[filename]
+	return h, ok
+}
+
+// validateToken parses and validates the JWT token from the Authorization header.
+func (s *Service) validateToken(authHeader string) (jwt.MapClaims, error) {
+	if authHeader == "" {
+		return nil, fmt.Errorf("Missing Authorization header")
+	}
+
+	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+		// Check signing method
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return sharedSecret, nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("Invalid token")
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("Invalid token claims")
+	}
+
+	return claims, nil
+}
+
+// getWorkspaceFromClaims extracts the kubeconfig.host from JWT claims.
+func (s *Service) getWorkspaceFromClaims(claims jwt.MapClaims) (string, error) {
+	workspace, ok := claims["workspace"].(string)
+	if !ok {
+		return "", fmt.Errorf("workspace not found in token")
+	}
+
+	return workspace, nil
+}
+
+// setupRuntimeClient initializes a runtime client for the given server address.
+func (s *Service) setupRuntimeClient(workspace string) (client.WithWatch, error) {
+	requestConfig := rest.CopyConfig(s.cfg)
+	u, err := url.Parse(s.cfg.Host)
+	if err != nil {
+		return nil, err
+	}
+
+	base := fmt.Sprintf("%s://%s", u.Scheme, u.Host)
+
+	requestConfig.Host = fmt.Sprintf("%s/clusters/%s", base, workspace)
+	return setupK8sClients(requestConfig)
 }
 
 func (s *Service) handleSubscription(w http.ResponseWriter, r *http.Request, schema *graphql.Schema) {
