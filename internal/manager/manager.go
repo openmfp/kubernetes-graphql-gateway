@@ -222,7 +222,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Inject runtimeClient into request context
-	r = r.WithContext(context.WithValue(r.Context(), resolver.RuntimeClientKey, runtimeClient))
+	r = r.WithContext(context.WithValue(r.Context(), resolver.RuntimeClientKey, runtimeClient)) // nolint: staticcheck
 
 	switch endpoint {
 	case "graphql":
@@ -238,11 +238,14 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func writeJSONError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"errors": []map[string]string{
 			{"message": message},
 		},
 	})
+	if err != nil {
+		http.Error(w, "Error writing JSON response", http.StatusInternalServerError)
+	}
 }
 
 // parsePath extracts filename and endpoint from the requested URL path.

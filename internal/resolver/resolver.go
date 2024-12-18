@@ -354,6 +354,7 @@ func (r *Service) DeleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 		return true, nil
 	}
 }
+
 func (r *Service) SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		runtimeClient, ok := p.Context.Value(RuntimeClientKey).(client.WithWatch)
