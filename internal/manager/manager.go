@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/golang-jwt/jwt/v5"
 	"io"
 	"net/http"
 	"net/url"
@@ -138,10 +137,10 @@ func (s *Service) OnFileChanged(filename string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Read the file and generate fullSchema
+	// Read the file and generate root:alpha
 	schema, err := s.loadSchemaFromFile(filename)
 	if err != nil {
-		s.log.Error().Err(err).Str("file", filename).Msg("Error loading fullSchema from file")
+		s.log.Error().Err(err).Str("file", filename).Msg("Error loading root:alpha from file")
 		return
 	}
 
@@ -184,17 +183,16 @@ func (s *Service) createHandler(schema *graphql.Schema) *graphqlHandler {
 	}
 }
 
-var sharedSecret = []byte("my-secret") // Replace with a secure key
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Parse and validate request path
-	filename, endpoint, err := s.parsePath(r.URL.Path)
+	workspace, endpoint, err := s.parsePath(r.URL.Path)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
 
-	// Retrieve handler based on filename
-	h, ok := s.getHandler(filename)
+	// Retrieve handler based on workspace
+	h, ok := s.getHandler(workspace)
 	if !ok {
 		http.NotFound(w, r)
 		return
@@ -206,24 +204,14 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var ws string
-	if !s.useCurrentContext {
-		// For all other cases (POST queries/mutations/subscriptions), validate token
-		claims, err := s.validateToken(r.Header.Get("Authorization"))
-		if err != nil {
-			writeJSONError(w, http.StatusUnauthorized, err.Error())
-			return
-		}
-
-		ws, err = s.getWorkspaceFromClaims(claims)
-		if err != nil {
-			writeJSONError(w, http.StatusUnauthorized, err.Error())
-			return
-		}
+	// Setup runtime client with the target server
+	cfg, err := s.getConfigForRuntimeClient(workspace, r.Header.Get("Authorization"))
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "Error getting a runtime client's config")
+		return
 	}
 
-	// Setup runtime client with the target server
-	runtimeClient, err := s.setupRuntimeClient(ws)
+	runtimeClient, err := setupK8sClients(cfg)
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "Error setting up Kubernetes client")
 		return
@@ -257,7 +245,7 @@ func writeJSONError(w http.ResponseWriter, status int, message string) {
 }
 
 // parsePath extracts filename and endpoint from the requested URL path.
-func (s *Service) parsePath(path string) (filename, endpoint string, err error) {
+func (s *Service) parsePath(path string) (workspace, endpoint string, err error) {
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	if len(parts) < 2 {
 		return "", "", fmt.Errorf("invalid path")
@@ -273,50 +261,15 @@ func (s *Service) getHandler(filename string) (*graphqlHandler, bool) {
 	return h, ok
 }
 
-// validateToken parses and validates the JWT token from the Authorization header.
-func (s *Service) validateToken(authHeader string) (jwt.MapClaims, error) {
-	if authHeader == "" {
-		return nil, fmt.Errorf("missing Authorization header")
-	}
-
-	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
-		// Check signing method
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return sharedSecret, nil
-	})
-
-	if err != nil {
-		return nil, fmt.Errorf("Invalid token")
-	}
-
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok || !token.Valid {
-		return nil, fmt.Errorf("Invalid token claims")
-	}
-
-	return claims, nil
-}
-
-// getWorkspaceFromClaims extracts the kubeconfig.host from JWT claims.
-func (s *Service) getWorkspaceFromClaims(claims jwt.MapClaims) (string, error) {
-	workspace, ok := claims["workspace"].(string)
-	if !ok {
-		return "", fmt.Errorf("workspace not found in token")
-	}
-
-	return workspace, nil
-}
-
-// setupRuntimeClient initializes a runtime client for the given server address.
-func (s *Service) setupRuntimeClient(workspace string) (client.WithWatch, error) {
+// getConfigForRuntimeClient initializes a runtime client for the given server address.
+func (s *Service) getConfigForRuntimeClient(workspace, token string) (*rest.Config, error) {
 	if s.useCurrentContext {
-		return setupK8sClients(s.cfg)
+		return s.cfg, nil
 	}
 
 	requestConfig := rest.CopyConfig(s.cfg)
+	requestConfig.BearerToken = token
+
 	u, err := url.Parse(s.cfg.Host)
 	if err != nil {
 		return nil, err
@@ -325,7 +278,8 @@ func (s *Service) setupRuntimeClient(workspace string) (client.WithWatch, error)
 	base := fmt.Sprintf("%s://%s", u.Scheme, u.Host)
 
 	requestConfig.Host = fmt.Sprintf("%s/clusters/%s", base, workspace)
-	return setupK8sClients(requestConfig)
+
+	return requestConfig, nil
 }
 
 func (s *Service) handleSubscription(w http.ResponseWriter, r *http.Request, schema *graphql.Schema) {

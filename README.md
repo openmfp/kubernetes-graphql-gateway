@@ -29,7 +29,7 @@ You can run the gateway using the existing generic OpenAPI spec file which is lo
 
 (Optional) Or you can generate a new one from your own cluster by running the following command:
 ```shell
-kubectl get --raw /openapi/v2 > fullSchema
+kubectl get --raw /openapi/v2 > root:alpha
 ```
 #### Start the Service 
 ```shell

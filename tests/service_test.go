@@ -17,7 +17,7 @@ func (suite *CommonTestSuite) TestFullSchemaGeneration() {
 	workspaceName := "myWorkspace"
 
 	// Trigger schema generation and URL creation
-	suite.writeToFile("fullSchema", workspaceName)
+	suite.writeToFile("root:alpha", workspaceName)
 
 	// this url must be generated after new file added
 	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
@@ -186,7 +186,7 @@ func (suite *CommonTestSuite) TestCreateGetAndDeleteAccount() {
 	workspaceName := "myWorkspace"
 	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
 
-	suite.writeToFile("fullSchema", workspaceName)
+	suite.writeToFile("root:alpha", workspaceName)
 
 	// Create the Account and verify the response
 	createResp, statusCode, err := graphql.SendRequest(url, graphql.CreateAccountMutation())
