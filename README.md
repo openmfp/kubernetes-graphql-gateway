@@ -180,20 +180,20 @@ To subscribe to events, you should use the SSE (Server-Sent Events) protocol.
 
 Since GraphQL playground doesn't support it, you should use curl.
 
-For instance, to subscribe to deployments changes:
-```
+For instance, to subscribe to a change of a specific fields of the deployment, you can run the following command:
+```shell
 curl -H "Accept: text/event-stream" -H "Content-Type: application/json" http://localhost:3000/fullSchema/subscriptions \
 -d '{"query": "subscription { apps_deployments(namespace: \"default\") { metadata { name } spec { replicas } } }"}'
 ```
-If you want to only listen to a specific field change, you should set `emitOnlyFieldChanges` to true and point to the field you are interested in in `fieldPaths`.
-For instance, to listen to the `spec.replicas` field change in all deployments in the `default` namespace:
+Fields that will be listened are defined in the graphql query within the `{}` brackets.
+
+If you want to listen to all fields, you can set `subscribeToAll` to `true`:
 ```shell
 curl -H "Accept: text/event-stream" -H "Content-Type: application/json" http://localhost:3000/fullSchema/subscriptions \
--d '{"query": "subscription { apps_deployments(namespace: \"default\", emitOnlyFieldChanges: true, fieldPaths: [\"spec.replicas\"]) { metadata { name } spec { replicas } } }"}'
+-d '{"query": "subscription { apps_deployments(namespace: \"default\", subscribeToAll: true) { metadata { name } spec { replicas } } }"}'
 ```
 If you want to listen to a specific deployment:
 ```shell
 curl -H "Accept: text/event-stream" -H "Content-Type: application/json" http://localhost:3000/fullSchema/subscriptions \
--d '{"query": "subscription { apps_deployment(namespace: \"default\", name: \"my-new-deployment\", \
-emitOnlyFieldChanges: true, fieldPaths: [\"spec.replicas\"]) { metadata { name } spec { replicas } } }"}'
+-d '{"query": "subscription { apps_deployment(namespace: \"default\", name: \"my-new-deployment\") { metadata { name } spec { replicas } } }"}'
 ```

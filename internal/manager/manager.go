@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+
 	"strings"
 	"sync"
 
@@ -25,8 +26,10 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
 type Provider interface {
@@ -35,14 +38,15 @@ type Provider interface {
 }
 
 type Service struct {
-	cfg        *rest.Config
-	log        *logger.Logger
-	restMapper meta.RESTMapper
-	resolver   resolver.Provider
-	handlers   map[string]*graphqlHandler
-	mu         sync.RWMutex
-	watcher    *fsnotify.Watcher
-	dir        string
+	cfg               *rest.Config
+	log               *logger.Logger
+	restMapper        meta.RESTMapper
+	resolver          resolver.Provider
+	handlers          map[string]*graphqlHandler
+	mu                sync.RWMutex
+	watcher           *fsnotify.Watcher
+	dir               string // TODO: move to a config struct
+	useCurrentContext bool   // TODO: move to a config struct
 }
 
 type graphqlHandler struct {
@@ -50,7 +54,7 @@ type graphqlHandler struct {
 	handler http.Handler
 }
 
-func NewManager(log *logger.Logger, cfg *rest.Config, dir string) (*Service, error) {
+func NewManager(log *logger.Logger, cfg *rest.Config, dir string, useCurrentContext bool) (*Service, error) {
 	restMapper, err := getRestMapper(cfg)
 	if err != nil {
 		return nil, err
@@ -62,13 +66,14 @@ func NewManager(log *logger.Logger, cfg *rest.Config, dir string) (*Service, err
 	}
 
 	m := &Service{
-		cfg:        cfg,
-		log:        log,
-		restMapper: restMapper,
-		resolver:   resolver.New(log),
-		handlers:   make(map[string]*graphqlHandler),
-		watcher:    watcher,
-		dir:        dir,
+		cfg:               cfg,
+		log:               log,
+		restMapper:        restMapper,
+		resolver:          resolver.New(log),
+		handlers:          make(map[string]*graphqlHandler),
+		watcher:           watcher,
+		dir:               dir,
+		useCurrentContext: useCurrentContext,
 	}
 
 	// Start watching the directory
@@ -201,17 +206,20 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For all other cases (POST queries/mutations/subscriptions), validate token
-	claims, err := s.validateToken(r.Header.Get("Authorization"))
-	if err != nil {
-		writeJSONError(w, http.StatusUnauthorized, err.Error())
-		return
-	}
+	var ws string
+	if !s.useCurrentContext {
+		// For all other cases (POST queries/mutations/subscriptions), validate token
+		claims, err := s.validateToken(r.Header.Get("Authorization"))
+		if err != nil {
+			writeJSONError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
 
-	ws, err := s.getWorkspaceFromClaims(claims)
-	if err != nil {
-		writeJSONError(w, http.StatusUnauthorized, err.Error())
-		return
+		ws, err = s.getWorkspaceFromClaims(claims)
+		if err != nil {
+			writeJSONError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
 	}
 
 	// Setup runtime client with the target server
@@ -268,7 +276,7 @@ func (s *Service) getHandler(filename string) (*graphqlHandler, bool) {
 // validateToken parses and validates the JWT token from the Authorization header.
 func (s *Service) validateToken(authHeader string) (jwt.MapClaims, error) {
 	if authHeader == "" {
-		return nil, fmt.Errorf("Missing Authorization header")
+		return nil, fmt.Errorf("missing Authorization header")
 	}
 
 	tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
@@ -304,6 +312,10 @@ func (s *Service) getWorkspaceFromClaims(claims jwt.MapClaims) (string, error) {
 
 // setupRuntimeClient initializes a runtime client for the given server address.
 func (s *Service) setupRuntimeClient(workspace string) (client.WithWatch, error) {
+	if s.useCurrentContext {
+		return setupK8sClients(s.cfg)
+	}
+
 	requestConfig := rest.CopyConfig(s.cfg)
 	u, err := url.Parse(s.cfg.Host)
 	if err != nil {
@@ -399,6 +411,8 @@ func readDefinitionFromFile(filePath string) (spec.Definitions, error) {
 
 // setupK8sClients initializes and returns the runtime client for Kubernetes.
 func setupK8sClients(cfg *rest.Config) (client.WithWatch, error) {
+	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+
 	k8sCache, err := cache.New(cfg, cache.Options{Scheme: scheme.Scheme})
 	if err != nil {
 		return nil, err

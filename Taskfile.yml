@@ -56,6 +56,9 @@ tasks:
     cmds:
       - task: lint
       - task: test
+  dev:
+    cmds:
+      - go run main.go start --watched-dir=./definitions --use-current-context
   start:
     cmds:
       - go run main.go start --watched-dir=./definitions
