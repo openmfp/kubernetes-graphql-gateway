@@ -46,7 +46,7 @@ func (suite *CommonTestSuite) SetupTest() {
 	suite.log, err = logger.New(logCfg)
 	require.NoError(suite.T(), err)
 
-	suite.manager, err = manager.NewManager(suite.log, suite.cfg, suite.watchedDir, true)
+	suite.manager, err = manager.NewManager(suite.log, suite.cfg, suite.watchedDir)
 	require.NoError(suite.T(), err)
 
 	suite.server = httptest.NewServer(suite.manager)

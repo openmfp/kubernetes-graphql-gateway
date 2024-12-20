@@ -15,23 +15,17 @@ For each file it will create a separate URL like `/<workspace-name>/graphql` whi
 
 It will be watching for changes in the directory and update the schema accordingly.
 
-## Custom Resource support
+## Usage
 
-As long as CR is registered in cluster and has 
-
-### Usage
-
-Your kubeconfig should point to a cluster you want to interact.
-
-#### OpenAPI Spec
+### OpenAPI Spec
 
 You can run the gateway using the existing generic OpenAPI spec file which is located in the `./definitions` directory.
 
 (Optional) Or you can generate a new one from your own cluster by running the following command:
 ```shell
-kubectl get --raw /openapi/v2 > root:alpha
+kubectl get --raw /openapi/v2 > filename
 ```
-#### Start the Service 
+### Start the Service 
 ```shell
 task start
 ```
@@ -40,6 +34,31 @@ OR
 go run main.go start --watched-dir=./definitions
 # where ./definitions is the directory containing the OpenAPI spec files
 ```
+
+After service start you can access the GraphQL playground. 
+All addresses correspond the content of the watched directory and can be found in the terminal output.
+
+For example, we have two KCP workspaces: `root` and `root:alpha`, for each of them we have a separate spec file in the `./definitions` directory.
+
+Then we will have two URLs:
+- `http://localhost:3000/root/graphql`
+- `http://localhost:3000/root:alpha/graphql`
+
+Open the URL in the browser and you will see the GraphQL playground. 
+
+### Authorization
+
+To send the request, you can attach the `Authorization` header with the token from kubeconfig `users.user.token`:
+```shell
+{
+  "Authorization": "5f89bc76-c5b8-4d6f-b575-9ca7a6240bca"
+}
+```
+
+**If you skip that header, service will try to use a runtime client with current context.(`kubectl config current-context`)**
+
+P.S. Skipping the header works with both API server and KCP workspace.
+
 #### Sending queries
 
 ##### Create a Pod:

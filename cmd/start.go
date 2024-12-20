@@ -13,8 +13,7 @@ import (
 
 // Variable to hold the watched directory flag
 var (
-	watchedDir        string
-	useCurrentContext bool
+	watchedDir string
 )
 
 var startCmd = &cobra.Command{
@@ -42,7 +41,7 @@ var startCmd = &cobra.Command{
 		cfg := config.GetConfigOrDie()
 
 		// Initialize Manager
-		managerInstance, err := manager.NewManager(log, cfg, watchedDir, useCurrentContext)
+		managerInstance, err := manager.NewManager(log, cfg, watchedDir)
 		if err != nil {
 			log.Error().Err(err).Msg("Error creating manager")
 			return fmt.Errorf("failed to create manager: %w", err)
@@ -72,10 +71,6 @@ func init() {
 	// Define the --watched-dir flag for startCmd
 	startCmd.Flags().StringVar(&watchedDir, "watched-dir", "",
 		"The directory to watch for changes.")
-
-	// New flag for --dev
-	startCmd.Flags().BoolVar(&useCurrentContext, "use-current-context", false,
-		"Enable development mode.")
 
 	// Mark the --watched-dir flag as required
 	startCmd.MarkFlagRequired("watched-dir") // nolint:errcheck

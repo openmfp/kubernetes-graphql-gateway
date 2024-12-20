@@ -36,16 +36,20 @@ type Provider interface {
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
 }
 
+type FileWatcher interface {
+	OnFileChanged(filename string)
+	OnFileDeleted(filename string)
+}
+
 type Service struct {
-	cfg               *rest.Config
-	log               *logger.Logger
-	restMapper        meta.RESTMapper
-	resolver          resolver.Provider
-	handlers          map[string]*graphqlHandler
-	mu                sync.RWMutex
-	watcher           *fsnotify.Watcher
-	dir               string // TODO: move to a config struct
-	useCurrentContext bool   // TODO: move to a config struct
+	cfg        *rest.Config
+	log        *logger.Logger
+	restMapper meta.RESTMapper
+	resolver   resolver.Provider
+	handlers   map[string]*graphqlHandler
+	mu         sync.RWMutex
+	watcher    *fsnotify.Watcher
+	dir        string
 }
 
 type graphqlHandler struct {
@@ -53,7 +57,7 @@ type graphqlHandler struct {
 	handler http.Handler
 }
 
-func NewManager(log *logger.Logger, cfg *rest.Config, dir string, useCurrentContext bool) (*Service, error) {
+func NewManager(log *logger.Logger, cfg *rest.Config, dir string) (*Service, error) {
 	restMapper, err := getRestMapper(cfg)
 	if err != nil {
 		return nil, err
@@ -65,14 +69,13 @@ func NewManager(log *logger.Logger, cfg *rest.Config, dir string, useCurrentCont
 	}
 
 	m := &Service{
-		cfg:               cfg,
-		log:               log,
-		restMapper:        restMapper,
-		resolver:          resolver.New(log),
-		handlers:          make(map[string]*graphqlHandler),
-		watcher:           watcher,
-		dir:               dir,
-		useCurrentContext: useCurrentContext,
+		cfg:        cfg,
+		log:        log,
+		restMapper: restMapper,
+		resolver:   resolver.New(log),
+		handlers:   make(map[string]*graphqlHandler),
+		watcher:    watcher,
+		dir:        dir,
 	}
 
 	// Start watching the directory
@@ -263,7 +266,7 @@ func (s *Service) getHandler(filename string) (*graphqlHandler, bool) {
 
 // getConfigForRuntimeClient initializes a runtime client for the given server address.
 func (s *Service) getConfigForRuntimeClient(workspace, token string) (*rest.Config, error) {
-	if s.useCurrentContext {
+	if token == "" {
 		return s.cfg, nil
 	}
 
