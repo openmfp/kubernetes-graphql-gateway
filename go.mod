@@ -5,7 +5,6 @@ go 1.23.2
 require (
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-openapi/spec v0.21.0
-	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/graphql-go/graphql v0.8.1
 	github.com/graphql-go/handler v0.2.4
 	github.com/openmfp/golang-commons v0.77.0

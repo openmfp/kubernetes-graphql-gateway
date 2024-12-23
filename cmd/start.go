@@ -38,7 +38,10 @@ var startCmd = &cobra.Command{
 		log.Info().Str("LogLevel", log.GetLevel().String()).Msg("Starting server...")
 
 		// Get Kubernetes config
-		cfg := config.GetConfigOrDie()
+		cfg, err := config.GetConfig()
+		if err != nil {
+			log.Fatal().Err(err).Msg("Error getting Kubernetes config, exiting")
+		}
 
 		// Initialize Manager
 		managerInstance, err := manager.NewManager(log, cfg, watchedDir)

@@ -24,6 +24,9 @@ tasks:
   build:
     cmds:
       - go build ./...
+  docker:
+    cmds:
+      - docker build -t gql-gateway .
   ## Testing
   fmt:
     cmds:
