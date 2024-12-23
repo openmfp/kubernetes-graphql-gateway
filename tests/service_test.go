@@ -155,7 +155,6 @@ func (suite *CommonTestSuite) TestWorkspaceRemove() {
 }
 
 func (suite *CommonTestSuite) TestWorkspaceRename() {
-	suite.T().Skip()
 	workspaceName := "myWorkspace"
 	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
 
@@ -173,8 +172,6 @@ func (suite *CommonTestSuite) TestWorkspaceRename() {
 
 	// old url should not be accessible, status should be NotFound
 	_, statusCode, err = graphql.SendRequest(url, graphql.CreatePodMutation())
-	fmt.Println("### error: ", err)
-	time.Sleep(2000 * time.Millisecond)
 	require.Equal(suite.T(), http.StatusNotFound, statusCode, "Expected StatusNotFound after workspace rename")
 
 	// now new url should be accessible
