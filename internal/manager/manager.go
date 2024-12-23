@@ -4,13 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	appConfig "github.com/openmfp/crd-gql-gateway/internal/config"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
-
 	"strings"
 	"sync"
 
@@ -18,9 +16,6 @@ import (
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/handler"
-	"github.com/openmfp/crd-gql-gateway/internal/gateway"
-	"github.com/openmfp/crd-gql-gateway/internal/resolver"
-	"github.com/openmfp/golang-commons/logger"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -30,6 +25,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	appConfig "github.com/openmfp/crd-gql-gateway/internal/config"
+	"github.com/openmfp/crd-gql-gateway/internal/gateway"
+	"github.com/openmfp/crd-gql-gateway/internal/resolver"
+	"github.com/openmfp/golang-commons/logger"
 )
 
 type Provider interface {
@@ -79,13 +79,11 @@ func NewManager(log *logger.Logger, cfg *rest.Config, appCfg appConfig.Config) (
 		watcher:    watcher,
 	}
 
-	// Start watching the directory
 	err = m.watcher.Add(appCfg.WatchedDir)
 	if err != nil {
 		return nil, err
 	}
 
-	// Load existing files
 	files, err := filepath.Glob(filepath.Join(appCfg.WatchedDir, "*"))
 	if err != nil {
 		return nil, err
@@ -141,7 +139,6 @@ func (s *Service) OnFileChanged(filename string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Read the file and generate root:alpha
 	schema, err := s.loadSchemaFromFile(filename)
 	if err != nil {
 		s.log.Error().Err(err).Str("file", filename).Msg("Error loading root:alpha from file")
@@ -188,27 +185,23 @@ func (s *Service) createHandler(schema *graphql.Schema) *graphqlHandler {
 }
 
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Parse and validate request path
 	workspace, endpoint, err := s.parsePath(r.URL.Path)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
 
-	// Retrieve handler based on workspace
 	h, ok := s.getHandler(workspace)
 	if !ok {
 		http.NotFound(w, r)
 		return
 	}
 
-	// If GET request on /graphql endpoint, serve Playground without token
 	if endpoint == "graphql" && r.Method == http.MethodGet {
 		h.handler.ServeHTTP(w, r)
 		return
 	}
 
-	// Setup runtime client with the target server
 	cfg, err := s.getConfigForRuntimeClient(workspace, r.Header.Get("Authorization"))
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "Error getting a runtime client's config")
@@ -221,7 +214,6 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Inject runtimeClient into request context
 	r = r.WithContext(context.WithValue(r.Context(), resolver.RuntimeClientKey, runtimeClient)) // nolint: staticcheck
 
 	switch endpoint {
@@ -299,7 +291,6 @@ func (s *Service) handleSubscription(w http.ResponseWriter, r *http.Request, sch
 		return
 	}
 
-	// Parse the GraphQL query
 	var params struct {
 		Query         string                 `json:"query"`
 		OperationName string                 `json:"operationName"`
@@ -318,7 +309,6 @@ func (s *Service) handleSubscription(w http.ResponseWriter, r *http.Request, sch
 
 	ctx := r.Context()
 
-	// Execute the subscription
 	subscriptionParams := graphql.Params{
 		Schema:         *schema,
 		RequestString:  params.Query,
@@ -338,7 +328,6 @@ func (s *Service) handleSubscription(w http.ResponseWriter, r *http.Request, sch
 		return
 	}
 
-	// Stream the results
 	for res := range sub {
 		if res == nil {
 			continue
