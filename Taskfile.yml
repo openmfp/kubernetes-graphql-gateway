@@ -35,7 +35,7 @@ tasks:
     deps: [setup:golangci-lint]
     cmds:
       - task: fmt
-      - "{{.LOCAL_BIN}}/golangci-lint run --timeout 1m ./..."
+      - "{{.LOCAL_BIN}}/golangci-lint run --timeout 10m ./..."
   envtest:
     env:
       KUBEBUILDER_ASSETS:
