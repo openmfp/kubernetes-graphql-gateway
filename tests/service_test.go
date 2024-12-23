@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const sleepTime = 1 * time.Millisecond
+const sleepTime = 1000 * time.Millisecond
 
 // TestFullSchemaGeneration checks schema generation from not edited OpenAPI spec file.
 func (suite *CommonTestSuite) TestFullSchemaGeneration() {
