@@ -143,7 +143,7 @@ func (suite *CommonTestSuite) TestWorkspaceRemove() {
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 
-	err = os.Remove(filepath.Join(suite.watchedDir, workspaceName))
+	err = os.Remove(filepath.Join(suite.appCfg.WatchedDir, workspaceName))
 	require.NoError(suite.T(), err)
 
 	// Wait until the handler is removed
@@ -166,7 +166,7 @@ func (suite *CommonTestSuite) TestWorkspaceRename() {
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 
 	newWorkspaceName := "myNewWorkspace"
-	err = os.Rename(filepath.Join(suite.watchedDir, workspaceName), filepath.Join(suite.watchedDir, newWorkspaceName))
+	err = os.Rename(filepath.Join(suite.appCfg.WatchedDir, workspaceName), filepath.Join(suite.appCfg.WatchedDir, newWorkspaceName))
 	require.NoError(suite.T(), err)
 	time.Sleep(sleepTime) // let's give some time to the manager to process the file and create a url
 

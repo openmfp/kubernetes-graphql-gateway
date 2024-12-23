@@ -1,6 +1,7 @@
 package tests
 
 import (
+	appConfig "github.com/openmfp/crd-gql-gateway/internal/config"
 	"github.com/openmfp/crd-gql-gateway/internal/manager"
 	"github.com/openmfp/golang-commons/logger"
 	"github.com/stretchr/testify/require"
@@ -16,12 +17,12 @@ import (
 
 type CommonTestSuite struct {
 	suite.Suite
-	testEnv    *envtest.Environment
-	log        *logger.Logger
-	cfg        *rest.Config
-	watchedDir string
-	manager    manager.Provider
-	server     *httptest.Server
+	testEnv *envtest.Environment
+	log     *logger.Logger
+	cfg     *rest.Config
+	appCfg  appConfig.Config
+	manager manager.Provider
+	server  *httptest.Server
 }
 
 func TestCommonTestSuite(t *testing.T) {
@@ -38,7 +39,7 @@ func (suite *CommonTestSuite) SetupTest() {
 	suite.cfg, err = suite.testEnv.Start()
 	require.NoError(suite.T(), err)
 
-	suite.watchedDir, err = os.MkdirTemp("", "watchedDir")
+	suite.appCfg.WatchedDir, err = os.MkdirTemp("", "watchedDir")
 	require.NoError(suite.T(), err)
 
 	logCfg := logger.DefaultConfig()
@@ -46,21 +47,21 @@ func (suite *CommonTestSuite) SetupTest() {
 	suite.log, err = logger.New(logCfg)
 	require.NoError(suite.T(), err)
 
-	suite.manager, err = manager.NewManager(suite.log, suite.cfg, suite.watchedDir)
+	suite.manager, err = manager.NewManager(suite.log, suite.cfg, suite.appCfg)
 	require.NoError(suite.T(), err)
 
 	suite.server = httptest.NewServer(suite.manager)
 }
 
 func (suite *CommonTestSuite) TearDownTest() {
-	require.NoError(suite.T(), os.RemoveAll(suite.watchedDir))
+	require.NoError(suite.T(), os.RemoveAll(suite.appCfg.WatchedDir))
 	require.NoError(suite.T(), suite.testEnv.Stop())
 	suite.server.Close()
 }
 
 // writeToFile adds a new file to the watched directory which will trigger schema generation
 func (suite *CommonTestSuite) writeToFile(sourceName, dest string) {
-	specFilePath := filepath.Join(suite.watchedDir, dest)
+	specFilePath := filepath.Join(suite.appCfg.WatchedDir, dest)
 
 	sourceSpecFilePath := filepath.Join("testdata", sourceName)
 

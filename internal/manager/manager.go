@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	appConfig "github.com/openmfp/crd-gql-gateway/internal/config"
 	"io"
 	"net/http"
 	"net/url"
@@ -42,6 +43,7 @@ type FileWatcher interface {
 }
 
 type Service struct {
+	appCfg     appConfig.Config
 	cfg        *rest.Config
 	log        *logger.Logger
 	restMapper meta.RESTMapper
@@ -49,7 +51,6 @@ type Service struct {
 	handlers   map[string]*graphqlHandler
 	mu         sync.RWMutex
 	watcher    *fsnotify.Watcher
-	dir        string
 }
 
 type graphqlHandler struct {
@@ -57,7 +58,7 @@ type graphqlHandler struct {
 	handler http.Handler
 }
 
-func NewManager(log *logger.Logger, cfg *rest.Config, dir string) (*Service, error) {
+func NewManager(log *logger.Logger, cfg *rest.Config, appCfg appConfig.Config) (*Service, error) {
 	restMapper, err := getRestMapper(cfg)
 	if err != nil {
 		return nil, err
@@ -69,23 +70,23 @@ func NewManager(log *logger.Logger, cfg *rest.Config, dir string) (*Service, err
 	}
 
 	m := &Service{
+		appCfg:     appCfg,
 		cfg:        cfg,
 		log:        log,
 		restMapper: restMapper,
 		resolver:   resolver.New(log),
 		handlers:   make(map[string]*graphqlHandler),
 		watcher:    watcher,
-		dir:        dir,
 	}
 
 	// Start watching the directory
-	err = m.watcher.Add(dir)
+	err = m.watcher.Add(appCfg.WatchedDir)
 	if err != nil {
 		return nil, err
 	}
 
 	// Load existing files
-	files, err := filepath.Glob(filepath.Join(dir, "*"))
+	files, err := filepath.Glob(filepath.Join(appCfg.WatchedDir, "*"))
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +150,7 @@ func (s *Service) OnFileChanged(filename string) {
 
 	s.handlers[filename] = s.createHandler(schema)
 
-	s.log.Info().Str("endpoint", fmt.Sprintf("http://localhost:3000/%s/graphql", filename)).Msg("Registered endpoint")
+	s.log.Info().Str("endpoint", fmt.Sprintf("http://localhost:%s/%s/graphql", s.appCfg.Port, filename)).Msg("Registered endpoint")
 }
 
 func (s *Service) OnFileDeleted(filename string) {
@@ -161,7 +162,7 @@ func (s *Service) OnFileDeleted(filename string) {
 }
 
 func (s *Service) loadSchemaFromFile(filename string) (*graphql.Schema, error) {
-	definitions, err := readDefinitionFromFile(filepath.Join(s.dir, filename))
+	definitions, err := readDefinitionFromFile(filepath.Join(s.appCfg.WatchedDir, filename))
 	if err != nil {
 		return nil, err
 	}

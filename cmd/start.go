@@ -2,18 +2,16 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/rs/zerolog/log"
 	"net/http"
 	"time"
 
 	"github.com/openmfp/crd-gql-gateway/internal/manager"
 	"github.com/openmfp/golang-commons/logger"
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
-)
+	restCfg "sigs.k8s.io/controller-runtime/pkg/client/config"
 
-// Variable to hold the watched directory flag
-var (
-	watchedDir string
+	appCfg "github.com/openmfp/crd-gql-gateway/internal/config"
 )
 
 var startCmd = &cobra.Command{
@@ -23,28 +21,26 @@ var startCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		start := time.Now()
 
-		// watchedDir is already required by MarkFlagRequired, additional check is redundant
-		// But if you want to ensure it's not empty, you can keep it
-		if watchedDir == "" {
-			return fmt.Errorf("the --watched-dir flag is required")
+		appCfg, err := appCfg.NewFromEnv()
+		if err != nil {
+			log.Fatal().Err(err).Msg("Error getting app restCfg, exiting")
 		}
 
-		// Setup Logger
-		log, err := setupLogger("INFO")
+		log, err := setupLogger(appCfg.LogLevel)
 		if err != nil {
 			return fmt.Errorf("failed to setup logger: %w", err)
 		}
 
 		log.Info().Str("LogLevel", log.GetLevel().String()).Msg("Starting server...")
 
-		// Get Kubernetes config
-		cfg, err := config.GetConfig()
+		// Get Kubernetes restCfg
+		restCfg, err := restCfg.GetConfig()
 		if err != nil {
-			log.Fatal().Err(err).Msg("Error getting Kubernetes config, exiting")
+			log.Fatal().Err(err).Msg("Error getting Kubernetes restCfg, exiting")
 		}
 
 		// Initialize Manager
-		managerInstance, err := manager.NewManager(log, cfg, watchedDir)
+		managerInstance, err := manager.NewManager(log, restCfg, appCfg)
 		if err != nil {
 			log.Error().Err(err).Msg("Error creating manager")
 			return fmt.Errorf("failed to create manager: %w", err)
@@ -54,7 +50,7 @@ var startCmd = &cobra.Command{
 		http.Handle("/", managerInstance)
 
 		// Start HTTP server
-		err = http.ListenAndServe(":3000", nil)
+		err = http.ListenAndServe(fmt.Sprintf(":%s", appCfg.Port), nil)
 		if err != nil {
 			log.Error().Err(err).Msg("Error starting server")
 			return fmt.Errorf("failed to start server: %w", err)
@@ -70,13 +66,6 @@ func init() {
 	// Assuming rootCmd is defined in another file within the cmd package
 	// Add startCmd as a subcommand to rootCmd
 	rootCmd.AddCommand(startCmd)
-
-	// Define the --watched-dir flag for startCmd
-	startCmd.Flags().StringVar(&watchedDir, "watched-dir", "",
-		"The directory to watch for changes.")
-
-	// Mark the --watched-dir flag as required
-	startCmd.MarkFlagRequired("watched-dir") // nolint:errcheck
 }
 
 // setupLogger initializes the logger with the given log level
