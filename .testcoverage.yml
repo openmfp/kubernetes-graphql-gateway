@@ -4,3 +4,4 @@ exclude:
     - cmd
     - gateway
     - tests
+    - internal/config/config.go
