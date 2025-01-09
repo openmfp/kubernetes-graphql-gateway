@@ -1,0 +1,10 @@
+go 1.23.2
+
+toolchain go1.23.3
+
+use (
+	.
+	./kcp-listener
+)
+
+replace sigs.k8s.io/controller-runtime v0.19.0 => github.com/kcp-dev/controller-runtime v0.19.0-kcp.1

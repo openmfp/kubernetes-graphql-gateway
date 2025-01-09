@@ -1,0 +1,29 @@
+with-expecter: true
+packages:
+  fourthisle.xyz/kube-graph-gtw/kcp-listener/internal/apischema:
+    config:
+      dir: internal/apischema/mocks
+      outpkg: mocks
+    interfaces:
+      Resolver:
+
+  fourthisle.xyz/kube-graph-gtw/kcp-listener/internal/discoveryclient:
+    config:
+      dir: internal/discoveryclient/mocks
+      outpkg: mocks
+    interfaces:
+      Factory:
+
+  fourthisle.xyz/kube-graph-gtw/kcp-listener/internal/workspacefile:
+    config:
+      dir: internal/workspacefile/mocks
+      outpkg: mocks
+    interfaces:
+      IOHandler:
+
+  sigs.k8s.io/controller-runtime/pkg/client:
+    config:
+      dir: internal/controller/mocks
+      outpkg: mocks
+    interfaces:
+      Client:
