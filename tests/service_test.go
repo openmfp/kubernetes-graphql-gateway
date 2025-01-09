@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"github.com/openmfp/crd-gql-gateway/tests/graphql"
 	"github.com/stretchr/testify/require"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 )
 
@@ -216,4 +218,43 @@ func (suite *CommonTestSuite) TestCreateGetAndDeleteAccount() {
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.NotNil(suite.T(), getRespAfterDelete.Errors, "Expected error when querying deleted Account, but got none")
+}
+
+func (suite *CommonTestSuite) TestSubscribeToDeployments() {
+	workspaceName := "myWorkspace"
+
+	// Trigger schema generation and URL creation
+	suite.writeToFile("fullSchema", workspaceName)
+
+	// this graphqlUrl must be generated after new file added
+	graphqlUrl := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
+
+	// Subscribe to the GraphQL subscription
+	subscriptionUrl := fmt.Sprintf("%s/%s/subscriptions", suite.server.URL, workspaceName)
+	msgChan, cancelSubscription, err := graphql.SubscribeToGraphQL(subscriptionUrl, graphql.SubscribeDeploymentsQuery())
+	if err != nil {
+		log.Fatalf("Failed to subscribe: %v", err)
+	}
+	defer cancelSubscription()
+	defer close(msgChan)
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		for msg := range msgChan {
+			deployments := msg["data"].(map[string]interface{})["apps_deployments"].([]interface{})
+			first := deployments[0].(map[string]interface{})
+			replicas := first["spec"].(map[string]interface{})["replicas"].(float64)
+			require.Equal(suite.T(), float64(3), replicas)
+			wg.Done()
+		}
+	}()
+
+	createResp, statusCode, err := graphql.SendRequest(graphqlUrl, graphql.CreateDeploymentMutation())
+	require.NoError(suite.T(), err)
+	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
+	require.NoError(suite.T(), err)
+	require.Nil(suite.T(), createResp.Errors, "GraphQL errors: %v", createResp.Errors)
+
+	wg.Wait()
 }

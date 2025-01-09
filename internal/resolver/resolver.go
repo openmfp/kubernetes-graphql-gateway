@@ -355,7 +355,7 @@ func (r *Service) DeleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 func (r *Service) CommonResolver() graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		if p.Source == nil {
-			// At the root level, return a non-nil value (e.g., an empty map)
+			// At the example level, return a non-nil value (e.g., an empty map)
 			return map[string]interface{}{}, nil
 		}
 		return p.Source, nil

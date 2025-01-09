@@ -185,7 +185,7 @@ func (g *Gateway) generateGraphqlSchema() error {
 	})
 
 	if err != nil {
-		g.log.Error().Err(err).Msg("Error creating GraphQL root:alpha")
+		g.log.Error().Err(err).Msg("Error creating GraphQL example:alpha")
 		return err
 	}
 

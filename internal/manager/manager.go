@@ -141,7 +141,7 @@ func (s *Service) OnFileChanged(filename string) {
 
 	schema, err := s.loadSchemaFromFile(filename)
 	if err != nil {
-		s.log.Error().Err(err).Str("file", filename).Msg("Error loading root:alpha from file")
+		s.log.Error().Err(err).Str("file", filename).Msg("Error loading example:alpha from file")
 		return
 	}
 
@@ -259,7 +259,7 @@ func (s *Service) getHandler(filename string) (*graphqlHandler, bool) {
 
 // getConfigForRuntimeClient initializes a runtime client for the given server address.
 func (s *Service) getConfigForRuntimeClient(workspace, token string) (*rest.Config, error) {
-	if token == "" {
+	if token == "" { // if no token, use current-context
 		return s.cfg, nil
 	}
 
@@ -274,6 +274,8 @@ func (s *Service) getConfigForRuntimeClient(workspace, token string) (*rest.Conf
 	base := fmt.Sprintf("%s://%s", u.Scheme, u.Host)
 
 	requestConfig.Host = fmt.Sprintf("%s/clusters/%s", base, workspace)
+
+	requestConfig.TLSClientConfig.Insecure = true // TODO: remove me!
 
 	return requestConfig, nil
 }

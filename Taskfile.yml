@@ -54,7 +54,7 @@ tasks:
       - task: setup:go-test-coverage
       - task: test
     cmds:
-      - "{{.LOCAL_BIN}}/go-test-coverage --threshold-file 4 --threshold-package 29 --threshold-total 37 --profile cover.out --config ./.testcoverage.yml"
+      - "{{.LOCAL_BIN}}/go-test-coverage --threshold-file 50 --threshold-package 50 --threshold-total 56 --profile cover.out --config ./.testcoverage.yml"
   validate:
     cmds:
       - task: lint

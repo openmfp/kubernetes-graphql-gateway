@@ -199,7 +199,7 @@ To subscribe to events, you should use the SSE (Server-Sent Events) protocol.
 
 Since GraphQL playground doesn't support it, you should use curl.
 
-For instance, to subscribe to a change of a specific fields of the deployment, you can run the following command:
+For instance, to subscribe to a change of a specific fields of the deployments, you can run the following command:
 ```shell
 curl -H "Accept: text/event-stream" -H "Content-Type: application/json" http://localhost:3000/fullSchema/subscriptions \
 -d '{"query": "subscription { apps_deployments(namespace: \"default\") { metadata { name } spec { replicas } } }"}'
