@@ -2,16 +2,20 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/rs/zerolog/log"
 	"net/http"
 	"time"
 
-	"github.com/openmfp/crd-gql-gateway/internal/manager"
-	"github.com/openmfp/golang-commons/logger"
+	"github.com/rs/zerolog/log"
+
 	"github.com/spf13/cobra"
+	ctrl "sigs.k8s.io/controller-runtime"
 	restCfg "sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	"github.com/openmfp/golang-commons/logger"
 
 	appCfg "github.com/openmfp/crd-gql-gateway/internal/config"
+	"github.com/openmfp/crd-gql-gateway/internal/manager"
 )
 
 var startCmd = &cobra.Command{
@@ -32,6 +36,8 @@ var startCmd = &cobra.Command{
 		}
 
 		log.Info().Str("LogLevel", log.GetLevel().String()).Msg("Starting server...")
+
+		ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
 		// Get Kubernetes restCfg
 		restCfg, err := restCfg.GetConfig()

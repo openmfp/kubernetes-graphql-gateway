@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,20 +15,17 @@ import (
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/handler"
+	appConfig "github.com/openmfp/crd-gql-gateway/internal/config"
+	"github.com/openmfp/crd-gql-gateway/internal/gateway"
+	"github.com/openmfp/crd-gql-gateway/internal/resolver"
+	"github.com/openmfp/golang-commons/logger"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-
-	appConfig "github.com/openmfp/crd-gql-gateway/internal/config"
-	"github.com/openmfp/crd-gql-gateway/internal/gateway"
-	"github.com/openmfp/crd-gql-gateway/internal/resolver"
-	"github.com/openmfp/golang-commons/logger"
 )
 
 type Provider interface {
@@ -44,7 +40,7 @@ type FileWatcher interface {
 
 type Service struct {
 	appCfg     appConfig.Config
-	cfg        *rest.Config
+	restCfg    *rest.Config
 	log        *logger.Logger
 	restMapper meta.RESTMapper
 	resolver   resolver.Provider
@@ -71,7 +67,7 @@ func NewManager(log *logger.Logger, cfg *rest.Config, appCfg appConfig.Config) (
 
 	m := &Service{
 		appCfg:     appCfg,
-		cfg:        cfg,
+		restCfg:    cfg,
 		log:        log,
 		restMapper: restMapper,
 		resolver:   resolver.New(log),
@@ -136,16 +132,15 @@ func (s *Service) handleEvent(event fsnotify.Event) {
 }
 
 func (s *Service) OnFileChanged(filename string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	schema, err := s.loadSchemaFromFile(filename)
 	if err != nil {
 		s.log.Error().Err(err).Str("file", filename).Msg("Error loading example:alpha from file")
 		return
 	}
 
+	s.mu.Lock()
 	s.handlers[filename] = s.createHandler(schema)
+	s.mu.Unlock()
 
 	s.log.Info().Str("endpoint", fmt.Sprintf("http://localhost:%s/%s/graphql", s.appCfg.Port, filename)).Msg("Registered endpoint")
 }
@@ -175,8 +170,8 @@ func (s *Service) loadSchemaFromFile(filename string) (*graphql.Schema, error) {
 func (s *Service) createHandler(schema *graphql.Schema) *graphqlHandler {
 	h := handler.New(&handler.Config{
 		Schema:     schema,
-		Pretty:     true,
-		Playground: true,
+		Pretty:     s.appCfg.Handler.Pretty,
+		Playground: s.appCfg.Handler.Playground,
 	})
 	return &graphqlHandler{
 		schema:  schema,
@@ -208,13 +203,13 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	runtimeClient, err := setupK8sClients(cfg)
+	runtimeClient, err := setupK8sClients(r.Context(), cfg)
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "Error setting up Kubernetes client")
 		return
 	}
 
-	r = r.WithContext(context.WithValue(r.Context(), resolver.RuntimeClientKey, runtimeClient)) // nolint: staticcheck
+	r = r.WithContext(context.WithValue(r.Context(), resolver.RuntimeClientKey{}, runtimeClient))
 
 	switch endpoint {
 	case "graphql":
@@ -243,7 +238,7 @@ func writeJSONError(w http.ResponseWriter, status int, message string) {
 // parsePath extracts filename and endpoint from the requested URL path.
 func (s *Service) parsePath(path string) (workspace, endpoint string, err error) {
 	parts := strings.Split(strings.Trim(path, "/"), "/")
-	if len(parts) < 2 {
+	if len(parts) != 2 {
 		return "", "", fmt.Errorf("invalid path")
 	}
 	return parts[0], parts[1], nil
@@ -260,22 +255,18 @@ func (s *Service) getHandler(filename string) (*graphqlHandler, bool) {
 // getConfigForRuntimeClient initializes a runtime client for the given server address.
 func (s *Service) getConfigForRuntimeClient(workspace, token string) (*rest.Config, error) {
 	if token == "" { // if no token, use current-context
-		return s.cfg, nil
+		return s.restCfg, nil
 	}
 
-	requestConfig := rest.CopyConfig(s.cfg)
+	requestConfig := rest.CopyConfig(s.restCfg)
 	requestConfig.BearerToken = token
-
-	u, err := url.Parse(s.cfg.Host)
+	u, err := url.Parse(s.restCfg.Host)
 	if err != nil {
 		return nil, err
 	}
 
 	base := fmt.Sprintf("%s://%s", u.Scheme, u.Host)
-
 	requestConfig.Host = fmt.Sprintf("%s/clusters/%s", base, workspace)
-
-	requestConfig.TLSClientConfig.Insecure = true // TODO: remove me!
 
 	return requestConfig, nil
 }
@@ -287,11 +278,7 @@ func (s *Service) handleSubscription(w http.ResponseWriter, r *http.Request, sch
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Transfer-Encoding", "chunked")
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
-		return
-	}
+	flusher := http.NewResponseController(w)
 
 	var params struct {
 		Query         string                 `json:"query"`
@@ -299,41 +286,25 @@ func (s *Service) handleSubscription(w http.ResponseWriter, r *http.Request, sch
 		Variables     map[string]interface{} `json:"variables"`
 	}
 
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Error reading request body", http.StatusBadRequest)
-		return
-	}
-	if err := json.Unmarshal(body, &params); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 		http.Error(w, "Error parsing JSON request body", http.StatusBadRequest)
 		return
 	}
-
-	ctx := r.Context()
 
 	subscriptionParams := graphql.Params{
 		Schema:         *schema,
 		RequestString:  params.Query,
 		VariableValues: params.Variables,
 		OperationName:  params.OperationName,
-		Context:        ctx,
+		Context:        r.Context(),
 	}
 
 	sub := graphql.Subscribe(subscriptionParams)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error executing subscription: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	if sub == nil {
-		http.Error(w, "No subscription found", http.StatusBadRequest)
-		return
-	}
-
 	for res := range sub {
 		if res == nil {
 			continue
 		}
+
 		data, err := json.Marshal(res)
 		if err != nil {
 			continue
@@ -359,28 +330,27 @@ func readDefinitionFromFile(filePath string) (spec.Definitions, error) {
 }
 
 // setupK8sClients initializes and returns the runtime client for Kubernetes.
-func setupK8sClients(cfg *rest.Config) (client.WithWatch, error) {
-	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
-
+func setupK8sClients(ctx context.Context, cfg *rest.Config) (client.WithWatch, error) {
 	k8sCache, err := cache.New(cfg, cache.Options{Scheme: scheme.Scheme})
 	if err != nil {
 		return nil, err
 	}
 
 	go func() {
-		err = k8sCache.Start(context.Background())
+		err = k8sCache.Start(ctx)
 		if err != nil {
 			panic(err)
 		}
 	}()
-	if !k8sCache.WaitForCacheSync(context.Background()) {
+	if !k8sCache.WaitForCacheSync(ctx) {
 		return nil, fmt.Errorf("failed to sync cache")
 	}
 
 	runtimeClient, err := client.NewWithWatch(cfg, client.Options{
 		Scheme: scheme.Scheme,
 		Cache: &client.CacheOptions{
-			Reader: k8sCache,
+			Reader:       k8sCache,
+			Unstructured: true,
 		},
 	})
 

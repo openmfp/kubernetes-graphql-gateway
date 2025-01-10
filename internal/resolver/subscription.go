@@ -18,7 +18,7 @@ import (
 
 func (r *Service) SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		runtimeClient, ok := p.Context.Value(RuntimeClientKey).(client.WithWatch)
+		runtimeClient, ok := p.Context.Value(RuntimeClientKey{}).(client.WithWatch)
 		if !ok {
 			return nil, errors.New("no runtime client in context")
 		}
@@ -41,7 +41,7 @@ func (r *Service) SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolv
 
 func (r *Service) SubscribeItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		runtimeClient, ok := p.Context.Value(RuntimeClientKey).(client.WithWatch)
+		runtimeClient, ok := p.Context.Value(RuntimeClientKey{}).(client.WithWatch)
 		if !ok {
 			return nil, errors.New("no runtime client in context")
 		}

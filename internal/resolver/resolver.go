@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"sort"
+
 	"github.com/graphql-go/graphql"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -12,16 +15,14 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"regexp"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sort"
 
 	"github.com/openmfp/golang-commons/logger"
 )
 
-const (
-	RuntimeClientKey = "runtimeClient"
+type RuntimeClientKey struct{}
 
+const (
 	labelSelectorArg  = "labelselector"
 	nameArg           = "name"
 	namespaceArg      = "namespace"
@@ -108,7 +109,7 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn 
 		ctx, span := otel.Tracer("").Start(p.Context, "ListItems", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
-		runtimeClient, ok := p.Context.Value(RuntimeClientKey).(client.WithWatch)
+		runtimeClient, ok := p.Context.Value(RuntimeClientKey{}).(client.WithWatch)
 		if !ok {
 			return nil, errors.New("no runtime client in context")
 		}
@@ -177,7 +178,7 @@ func (r *Service) GetItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 		ctx, span := otel.Tracer("").Start(p.Context, "GetItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
-		runtimeClient, ok := p.Context.Value(RuntimeClientKey).(client.WithWatch)
+		runtimeClient, ok := p.Context.Value(RuntimeClientKey{}).(client.WithWatch)
 		if !ok {
 			return nil, errors.New("no runtime client in context")
 		}
@@ -238,7 +239,7 @@ func (r *Service) CreateItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 		ctx, span := otel.Tracer("").Start(p.Context, "CreateItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
-		runtimeClient, ok := p.Context.Value(RuntimeClientKey).(client.WithWatch)
+		runtimeClient, ok := p.Context.Value(RuntimeClientKey{}).(client.WithWatch)
 		if !ok {
 			return nil, errors.New("no runtime client in context")
 		}
@@ -274,7 +275,7 @@ func (r *Service) UpdateItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 		ctx, span := otel.Tracer("").Start(p.Context, "UpdateItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
-		runtimeClient, ok := p.Context.Value(RuntimeClientKey).(client.WithWatch)
+		runtimeClient, ok := p.Context.Value(RuntimeClientKey{}).(client.WithWatch)
 		if !ok {
 			return nil, errors.New("no runtime client in context")
 		}
@@ -326,7 +327,7 @@ func (r *Service) DeleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 		ctx, span := otel.Tracer("").Start(p.Context, "DeleteItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
-		runtimeClient, ok := p.Context.Value(RuntimeClientKey).(client.WithWatch)
+		runtimeClient, ok := p.Context.Value(RuntimeClientKey{}).(client.WithWatch)
 		if !ok {
 			return nil, errors.New("no runtime client in context")
 		}
