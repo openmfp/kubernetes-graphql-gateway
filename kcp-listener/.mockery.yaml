@@ -1,20 +1,20 @@
 with-expecter: true
 packages:
-  fourthisle.xyz/kube-graph-gtw/kcp-listener/internal/apischema:
+  github.com/openmfp/crd-gql-gateway/kcp-listener/internal/apischema:
     config:
       dir: internal/apischema/mocks
       outpkg: mocks
     interfaces:
       Resolver:
 
-  fourthisle.xyz/kube-graph-gtw/kcp-listener/internal/discoveryclient:
+  github.com/openmfp/crd-gql-gateway/kcp-listener/internal/discoveryclient:
     config:
       dir: internal/discoveryclient/mocks
       outpkg: mocks
     interfaces:
       Factory:
 
-  fourthisle.xyz/kube-graph-gtw/kcp-listener/internal/workspacefile:
+  github.com/openmfp/crd-gql-gateway/kcp-listener/internal/workspacefile:
     config:
       dir: internal/workspacefile/mocks
       outpkg: mocks

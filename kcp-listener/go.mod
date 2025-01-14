@@ -2,7 +2,7 @@ module github.com/openmfp/crd-gql-gateway/kcp-listener
 
 go 1.23.0
 
-replace sigs.k8s.io/controller-runtime v0.19.0 => github.com/kcp-dev/controller-runtime v0.19.0-kcp.1
+replace sigs.k8s.io/controller-runtime => github.com/kcp-dev/controller-runtime v0.19.0-kcp.1
 
 require (
 	github.com/kcp-dev/logicalcluster/v3 v3.0.5 // indirect
@@ -21,7 +21,9 @@ require (
 require (
 	cel.dev/expr v0.18.0 // indirect
 	github.com/evanphx/json-patch v5.8.0+incompatible // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/invopop/yaml v0.3.1 // indirect
+	github.com/kcp-dev/apimachinery/v2 v2.0.1-0.20240817110845-a9eb9752bfeb // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect

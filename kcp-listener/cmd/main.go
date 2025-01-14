@@ -141,8 +141,6 @@ func main() {
 		os.Exit(1)
 	}
 	virtualWorkspaceCfg := rest.CopyConfig(cfg)
-	// w/o cluster aware manager implementation
-	//virtualWorkspaceCfg.Host = fmt.Sprintf("%s/clusters/*/", virtualWorkspaces[0].URL)
 	virtualWorkspaceCfg.Host = virtualWorkspaces[0].URL
 
 	mgr, err := kcpctrl.NewClusterAwareManager(virtualWorkspaceCfg, ctrl.Options{
@@ -171,7 +169,6 @@ func main() {
 	}
 
 	reconciler := controller.NewAPIBindingReconciler(
-		//mgr.GetClient(),
 		ioHandler, df, apischema.NewResolver(),
 	)
 

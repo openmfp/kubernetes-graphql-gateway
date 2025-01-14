@@ -6,7 +6,7 @@ domain: openmfp.io
 layout:
 - go.kubebuilder.io/v4
 projectName: kcp-listener
-repo: fourthisle.xyz/kube-graph-gtw/kcp-listener
+repo: github.com/openmfp/crd-gql-gateway/kcp-listener
 resources:
 - controller: true
   external: true

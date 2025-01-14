@@ -2,7 +2,9 @@ package controller_test
 
 import (
 	"context"
+	"errors"
 	"os"
+	"path"
 	"testing"
 
 	schemamocks "github.com/openmfp/crd-gql-gateway/kcp-listener/internal/apischema/mocks"
@@ -14,6 +16,12 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	ctrl "sigs.k8s.io/controller-runtime"
+)
+
+const (
+	mockSchemaPath = "../apischema/mocks/schemas"
+	mockSchema1    = "root_schema_mock_1.json"
+	mockSchema2    = "root_schema_mock_2.json"
 )
 
 type testCase struct {
@@ -49,9 +57,179 @@ func TestReconcile(t *testing.T) {
 			schemaMocks: func(mr *schemamocks.MockResolver) {
 				mr.EXPECT().Resolve(mock.Anything).RunAndReturn(
 					func(_ discovery.DiscoveryInterface) ([]byte, error) {
-						return os.ReadFile("../apischema/mocks/schemas/root_api_mock.json")
+						return os.ReadFile(path.Join(mockSchemaPath, mockSchema1))
 					},
 				)
+			},
+		},
+		{
+			name: "should skip reconciliation when a system workspace has been created",
+			req: ctrl.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: "",
+					Name:      "tenancy.kcp.io",
+				},
+				ClusterName: "system:shard",
+			},
+			expectError:   false,
+			expectRequeue: false,
+			ioMocks: func(mh *iomocks.MockIOHandler) {
+				mh.AssertNotCalled(t, "Read")
+				mh.AssertNotCalled(t, "Write")
+			},
+			dfMocks: func(mf *discoverymocks.MockFactory) {
+				mf.AssertNotCalled(t, "ClientForCluster")
+			},
+			schemaMocks: func(mr *schemamocks.MockResolver) {
+				mr.AssertNotCalled(t, "Resolve")
+			},
+		},
+		{
+			name: "should return error when Discovery Client creation fails",
+			req: ctrl.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: "",
+					Name:      "tenancy.kcp.io",
+				},
+				ClusterName: "0dv4pi71hgxq5jcm",
+			},
+			expectError:   true,
+			expectRequeue: false,
+			dfMocks: func(mf *discoverymocks.MockFactory) {
+				mf.EXPECT().ClientForCluster(mock.Anything).Return(nil, errors.New("failed to parse rest config")).Once()
+			},
+			ioMocks: func(mh *iomocks.MockIOHandler) {
+				mh.AssertNotCalled(t, "Read")
+				mh.AssertNotCalled(t, "Write")
+			},
+			schemaMocks: func(mr *schemamocks.MockResolver) {
+				mr.AssertNotCalled(t, "Resolve")
+			},
+		},
+		{
+			name: "should return error when schema resolution fails for a non-existing schema file",
+			req: ctrl.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: "",
+					Name:      "tenancy.kcp.io",
+				},
+				ClusterName: "0dv4pi71hgxq5jcm",
+			},
+			expectError:   true,
+			expectRequeue: false,
+			dfMocks: func(mf *discoverymocks.MockFactory) {
+				mf.EXPECT().ClientForCluster(mock.Anything).Return(nil, nil).Once()
+			},
+			ioMocks: func(mh *iomocks.MockIOHandler) {
+				mh.EXPECT().Read(mock.Anything).Return(nil, os.ErrNotExist).Once()
+				mh.AssertNotCalled(t, "Write")
+			},
+			schemaMocks: func(mr *schemamocks.MockResolver) {
+				mr.EXPECT().Resolve(mock.Anything).Return(nil, errors.New("failed to get server preferred resources: unknown"))
+			},
+		},
+		{
+			name: "should return error when schema writing fails for a non-existing schema file",
+			req: ctrl.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: "",
+					Name:      "tenancy.kcp.io",
+				},
+				ClusterName: "root:sap:openmfp",
+			},
+			expectError:   true,
+			expectRequeue: false,
+			dfMocks: func(mf *discoverymocks.MockFactory) {
+				mf.EXPECT().ClientForCluster(mock.Anything).Return(nil, nil).Once()
+			},
+			ioMocks: func(mh *iomocks.MockIOHandler) {
+				mh.EXPECT().Read(mock.Anything).Return(nil, os.ErrNotExist).Once()
+				mh.EXPECT().Write(mock.Anything, mock.Anything).Return(os.ErrPermission)
+			},
+			schemaMocks: func(mr *schemamocks.MockResolver) {
+				mr.EXPECT().Resolve(mock.Anything).RunAndReturn(
+					func(_ discovery.DiscoveryInterface) ([]byte, error) {
+						return os.ReadFile(path.Join(mockSchemaPath, mockSchema1))
+					},
+				).Once()
+			},
+		},
+		{
+			name: "should return error when schema resolution fails for an existing schema file",
+			req: ctrl.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: "",
+					Name:      "tenancy.kcp.io",
+				},
+				ClusterName: "0dv4pi71hgxq5jcm",
+			},
+			expectError:   true,
+			expectRequeue: false,
+			dfMocks: func(mf *discoverymocks.MockFactory) {
+				mf.EXPECT().ClientForCluster(mock.Anything).Return(nil, nil).Once()
+			},
+			ioMocks: func(mh *iomocks.MockIOHandler) {
+				mh.EXPECT().Read(mock.Anything).RunAndReturn(
+					func(_ string) ([]byte, error) {
+						return os.ReadFile(path.Join(mockSchemaPath, mockSchema2))
+					},
+				).Once()
+				mh.AssertNotCalled(t, "Write")
+			},
+			schemaMocks: func(mr *schemamocks.MockResolver) {
+				mr.EXPECT().Resolve(mock.Anything).Return(nil, errors.New("failed to get server preferred resources: unknown"))
+			},
+		},
+		{
+			name: "should return error when schema writing fails for an existing schema file",
+			req: ctrl.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: "",
+					Name:      "tenancy.kcp.io",
+				},
+				ClusterName: "root:sap:openmfp",
+			},
+			expectError:   true,
+			expectRequeue: false,
+			dfMocks: func(mf *discoverymocks.MockFactory) {
+				mf.EXPECT().ClientForCluster(mock.Anything).Return(nil, nil).Once()
+			},
+			schemaMocks: func(mr *schemamocks.MockResolver) {
+				mr.EXPECT().Resolve(mock.Anything).RunAndReturn(
+					func(_ discovery.DiscoveryInterface) ([]byte, error) {
+						return os.ReadFile(path.Join(mockSchemaPath, mockSchema1))
+					},
+				).Once()
+			},
+			ioMocks: func(mh *iomocks.MockIOHandler) {
+				mh.EXPECT().Read(mock.Anything).RunAndReturn(
+					func(_ string) ([]byte, error) {
+						return os.ReadFile(path.Join(mockSchemaPath, mockSchema2))
+					},
+				).Once()
+				mh.EXPECT().Write(mock.Anything, mock.Anything).Return(os.ErrPermission)
+			},
+		},
+		{
+			name: "should return error when schema reading fails with a random error for an existing schema file",
+			req: ctrl.Request{
+				NamespacedName: types.NamespacedName{
+					Namespace: "",
+					Name:      "tenancy.kcp.io",
+				},
+				ClusterName: "root:sap:openmfp",
+			},
+			expectError:   true,
+			expectRequeue: false,
+			dfMocks: func(mf *discoverymocks.MockFactory) {
+				mf.EXPECT().ClientForCluster(mock.Anything).Return(nil, nil).Once()
+			},
+			schemaMocks: func(mr *schemamocks.MockResolver) {
+				mr.AssertNotCalled(t, "Resolve")
+			},
+			ioMocks: func(mh *iomocks.MockIOHandler) {
+				mh.EXPECT().Read(mock.Anything).Return(nil, os.ErrPermission).Once()
+				mh.AssertNotCalled(t, "Write")
 			},
 		},
 	}

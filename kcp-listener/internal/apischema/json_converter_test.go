@@ -13,6 +13,7 @@ const (
 	testDataDir = "./testdata"
 )
 
+// TODO: refactor
 func TestConvertJSON(t *testing.T) {
 	v3JSON, inErr := os.ReadFile(v3JSONPath)
 	assert.NoError(t, inErr)

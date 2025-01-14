@@ -25,3 +25,6 @@ Dockerfile.cross
 
 # MacOS
 **/.DS_Store
+
+# KCP local files
+**/.kcp/

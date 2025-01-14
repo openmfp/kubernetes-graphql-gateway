@@ -14,7 +14,10 @@ import (
 const (
 	kubeconfigPath   = "../../.kcp/admin.kubeconfig"
 	kubeconfigEnvVar = "KUBECONFIG"
+	testDataDir      = "./testdata"
 )
+
+//TODO: refactor
 
 func TestResolve(t *testing.T) {
 	envErr := os.Setenv(kubeconfigEnvVar, kubeconfigPath)
