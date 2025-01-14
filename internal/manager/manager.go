@@ -19,11 +19,8 @@ import (
 	"github.com/openmfp/crd-gql-gateway/internal/gateway"
 	"github.com/openmfp/crd-gql-gateway/internal/resolver"
 	"github.com/openmfp/golang-commons/logger"
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/restmapper"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -39,14 +36,13 @@ type FileWatcher interface {
 }
 
 type Service struct {
-	appCfg     appConfig.Config
-	restCfg    *rest.Config
-	log        *logger.Logger
-	restMapper meta.RESTMapper
-	resolver   resolver.Provider
-	handlers   map[string]*graphqlHandler
-	mu         sync.RWMutex
-	watcher    *fsnotify.Watcher
+	appCfg   appConfig.Config
+	restCfg  *rest.Config
+	log      *logger.Logger
+	resolver resolver.Provider
+	handlers map[string]*graphqlHandler
+	mu       sync.RWMutex
+	watcher  *fsnotify.Watcher
 }
 
 type graphqlHandler struct {
@@ -55,24 +51,18 @@ type graphqlHandler struct {
 }
 
 func NewManager(log *logger.Logger, cfg *rest.Config, appCfg appConfig.Config) (*Service, error) {
-	restMapper, err := getRestMapper(cfg)
-	if err != nil {
-		return nil, err
-	}
-
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
 	}
 
 	m := &Service{
-		appCfg:     appCfg,
-		restCfg:    cfg,
-		log:        log,
-		restMapper: restMapper,
-		resolver:   resolver.New(log),
-		handlers:   make(map[string]*graphqlHandler),
-		watcher:    watcher,
+		appCfg:   appCfg,
+		restCfg:  cfg,
+		log:      log,
+		resolver: resolver.New(log),
+		handlers: make(map[string]*graphqlHandler),
+		watcher:  watcher,
 	}
 
 	err = m.watcher.Add(appCfg.WatchedDir)
@@ -159,7 +149,7 @@ func (s *Service) loadSchemaFromFile(filename string) (*graphql.Schema, error) {
 		return nil, err
 	}
 
-	g, err := gateway.New(s.log, s.restMapper, definitions, s.resolver)
+	g, err := gateway.New(s.log, definitions, s.resolver)
 	if err != nil {
 		return nil, err
 	}
@@ -355,19 +345,4 @@ func setupK8sClients(ctx context.Context, cfg *rest.Config) (client.WithWatch, e
 	})
 
 	return runtimeClient, err
-}
-
-// restMapper is needed to derive plural names for resources.
-func getRestMapper(cfg *rest.Config) (meta.RESTMapper, error) {
-	discoveryClient, err := discovery.NewDiscoveryClientForConfig(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("error starting discovery client: %w", err)
-	}
-
-	groupResources, err := restmapper.GetAPIGroupResources(discoveryClient)
-	if err != nil {
-		return nil, err
-	}
-
-	return restmapper.NewDiscoveryRESTMapper(groupResources), nil
 }

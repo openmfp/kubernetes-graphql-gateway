@@ -7,9 +7,6 @@ import (
 	"github.com/graphql-go/graphql"
 	"github.com/openmfp/crd-gql-gateway/internal/resolver"
 	"github.com/openmfp/golang-commons/logger"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"regexp"
 	"strings"
@@ -26,7 +23,6 @@ type Gateway struct {
 
 	definitions   spec.Definitions
 	subscriptions graphql.Fields
-	restMapper    meta.RESTMapper
 
 	// typesCache stores generated GraphQL object types(fields) to prevent redundant repeated generation.
 	typesCache map[string]*graphql.Object
@@ -36,13 +32,12 @@ type Gateway struct {
 	typeNameRegistry map[string]string
 }
 
-func New(log *logger.Logger, restMapper meta.RESTMapper, definitions spec.Definitions, resolver resolver.Provider) (*Gateway, error) {
+func New(log *logger.Logger, definitions spec.Definitions, resolver resolver.Provider) (*Gateway, error) {
 	g := &Gateway{
 		log:              log,
 		resolver:         resolver,
 		definitions:      definitions,
 		subscriptions:    graphql.Fields{},
-		restMapper:       restMapper,
 		typesCache:       make(map[string]*graphql.Object),
 		inputTypesCache:  make(map[string]*graphql.InputObject),
 		typeNameRegistry: make(map[string]string),
@@ -210,11 +205,12 @@ func (g *Gateway) getNames(gvk *schema.GroupVersionKind) (singular string, plura
 		g.typeNameRegistry[kind] = gvk.GroupVersion().String()
 	}
 
-	mapping, err := g.restMapper.RESTMapping(gvk.GroupKind(), gvk.Version)
-	if err != nil {
-		return singularName, singularName + "s"
+	var pluralName string
+	if singularName[len(singularName)-1] == 's' {
+		pluralName = singularName + "es"
+	} else {
+		pluralName = singularName + "s"
 	}
-	pluralName := cases.Title(language.English).String(mapping.Resource.Resource)
 
 	return singularName, pluralName
 }
