@@ -92,8 +92,30 @@ func (r *resolver) listItems(crd apiextensionsv1.CustomResourceDefinition, typeI
 			return strings.Compare(a.(client.Object).GetName(), b.(client.Object).GetName())
 		})
 
-		return items, nil
+		out := transformIfResourceIsAutomaticd(items)
+
+		return out, nil
 	}
+}
+
+func transformIfResourceIsAutomaticd[T runtime.Object](items []T) any {
+	if len(items) == 0 {
+		return items
+	}
+
+	sample := items[0]
+
+	if strings.Contains(sample.GetObjectKind().GroupVersionKind().Group, "automaticd") {
+		out := make([]map[string]interface{}, len(items))
+
+		for i := range items {
+			out[i], _ = runtime.DefaultUnstructuredConverter.ToUnstructured(items[i])
+		}
+
+		return out
+	}
+
+	return items
 }
 
 func (r *resolver) getItemArguments() graphql.FieldConfigArgument {
@@ -531,10 +553,12 @@ func (r *resolver) subscribeItems(crd apiextensionsv1.CustomResourceDefinition, 
 						continue
 					}
 
+					out := transformIfResourceIsAutomaticd(items)
+
 					if val, ok := p.Args["emitOnlyFieldChanges"].(bool); ok && val && changed {
-						resultChannel <- items
+						resultChannel <- out
 					} else if !ok || !val {
-						resultChannel <- items
+						resultChannel <- out
 					}
 				}
 			}
