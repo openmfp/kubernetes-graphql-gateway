@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"flag"
+	"net/url"
 	"os"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
@@ -121,27 +122,38 @@ func main() {
 	}
 
 	cfg := ctrl.GetConfigOrDie()
+	cfgURL, err := url.Parse(cfg.Host)
+	if err != nil {
+		setupLog.Error(err, "failed to parse config Host")
+		os.Exit(1)
+	}
 	clt, err := client.New(cfg, client.Options{
 		Scheme: scheme,
 	})
 	if err != nil {
-		setupLog.Error(err, "")
+		setupLog.Error(err, "failed to create client from config")
 		os.Exit(1)
 	}
 	tenancyAPIExport := &kcpapis.APIExport{}
 	err = clt.Get(context.TODO(), client.ObjectKey{Name: kcptenancy.SchemeGroupVersion.Group}, tenancyAPIExport)
 	if err != nil {
-		setupLog.Error(err, "")
+		setupLog.Error(err, "failed to get tenancy APIExport")
 		os.Exit(1)
 	}
 	virtualWorkspaces := tenancyAPIExport.Status.VirtualWorkspaces
 	if len(virtualWorkspaces) == 0 {
-		err := errors.New("")
-		setupLog.Error(err, "")
+		err := errors.New("empty virtual workspace list")
+		setupLog.Error(err, "failed to get at least one virtual workspace")
 		os.Exit(1)
 	}
+	vwCFGURL, err := url.Parse(virtualWorkspaces[0].URL)
+	if err != nil {
+		setupLog.Error(err, "failed to parse virtual workspace config URL")
+		os.Exit(1)
+	}
+	cfgURL.Path = vwCFGURL.Path
 	virtualWorkspaceCfg := rest.CopyConfig(cfg)
-	virtualWorkspaceCfg.Host = virtualWorkspaces[0].URL
+	virtualWorkspaceCfg.Host = cfgURL.String()
 
 	mgr, err := kcpctrl.NewClusterAwareManager(virtualWorkspaceCfg, ctrl.Options{
 		Scheme:                 scheme,
