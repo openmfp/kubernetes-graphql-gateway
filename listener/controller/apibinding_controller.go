@@ -8,9 +8,9 @@ import (
 
 	"io/fs"
 
-	"github.com/openmfp/crd-gql-gateway/kcp-listener/internal/apischema"
-	"github.com/openmfp/crd-gql-gateway/kcp-listener/internal/discoveryclient"
-	"github.com/openmfp/crd-gql-gateway/kcp-listener/internal/workspacefile"
+	"github.com/openmfp/crd-gql-gateway/listener/apischema"
+	"github.com/openmfp/crd-gql-gateway/listener/discoveryclient"
+	"github.com/openmfp/crd-gql-gateway/listener/workspacefile"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
 	kcptenancy "github.com/kcp-dev/kcp/sdk/apis/tenancy/v1alpha1"

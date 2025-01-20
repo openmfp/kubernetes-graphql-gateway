@@ -5,7 +5,7 @@ import (
 	"path"
 	"testing"
 
-	"github.com/openmfp/crd-gql-gateway/kcp-listener/internal/apischema"
+	"github.com/openmfp/crd-gql-gateway/listener/apischema"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/client-go/discovery"
 	ctrl "sigs.k8s.io/controller-runtime"
