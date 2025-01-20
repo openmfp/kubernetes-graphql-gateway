@@ -1,13 +1,20 @@
 FROM golang:1.23-alpine AS builder
 WORKDIR /app
 COPY . .
-RUN go build -o main .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags '-w -s' main.go
 
-FROM alpine:3.18
+FROM scratch
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
 WORKDIR /app
-COPY --from=builder /app/main .
 
-USER 1001:1001
+
+ENV USER_UID=1001
+ENV GROUP_UID=1001
+
+COPY --from=builder --chown=${USER_UID}:${GROUP_UID} /app/main .
+
+USER ${USER_UID}:${GROUP_UID}
 
 ENTRYPOINT ["./main"]
-CMD ["start"]
+CMD ["gql-gateway"]

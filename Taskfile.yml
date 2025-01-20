@@ -62,3 +62,7 @@ tasks:
   start:
     cmds:
       - go run main.go start
+
+  gql-gateway:
+    cmds:
+      - go run main.go gql-gateway

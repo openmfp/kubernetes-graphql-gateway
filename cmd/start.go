@@ -1,83 +1,81 @@
 package cmd
 
 import (
-	"fmt"
 	"net/http"
-	"time"
 
-	"github.com/rs/zerolog/log"
+	"context"
 
+	"github.com/graphql-go/handler"
 	"github.com/spf13/cobra"
-	ctrl "sigs.k8s.io/controller-runtime"
-	restCfg "sigs.k8s.io/controller-runtime/pkg/client/config"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"github.com/openmfp/golang-commons/logger"
+	"github.com/openmfp/crd-gql-gateway/gateway"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	controllerruntime "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	appCfg "github.com/openmfp/crd-gql-gateway/internal/config"
-	"github.com/openmfp/crd-gql-gateway/internal/manager"
+	authzv1 "k8s.io/api/authorization/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
 var startCmd = &cobra.Command{
-	Use:     "start",
-	Short:   "Run the GQL Gateway",
-	Example: "go run main.go start --watched-dir=./definitions",
+	Use: "start",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		start := time.Now()
 
-		appCfg, err := appCfg.NewFromEnv()
+		cfg := controllerruntime.GetConfigOrDie()
+
+		schema := runtime.NewScheme()
+		utilruntime.Must(apiextensionsv1.AddToScheme(schema))
+		utilruntime.Must(authzv1.AddToScheme(schema))
+
+		k8sCache, err := cache.New(cfg, cache.Options{
+			Scheme: schema,
+		})
 		if err != nil {
-			log.Fatal().Err(err).Msg("Error getting app restCfg, exiting")
+			return err
 		}
 
-		log, err := setupLogger(appCfg.LogLevel)
-		if err != nil {
-			return fmt.Errorf("failed to setup logger: %w", err)
+		go func() {
+			err := k8sCache.Start(context.Background())
+			if err != nil {
+				panic(err)
+			}
+		}()
+
+		if !k8sCache.WaitForCacheSync(context.Background()) {
+			panic("no cache sync")
 		}
 
-		log.Info().Str("LogLevel", log.GetLevel().String()).Msg("Starting server...")
+		cfg.Wrap(gateway.NewImpersonationTransport)
 
-		ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
-
-		// Get Kubernetes restCfg
-		restCfg, err := restCfg.GetConfig()
+		cl, err := client.NewWithWatch(cfg, client.Options{
+			Scheme: schema,
+			Cache: &client.CacheOptions{
+				Reader: k8sCache,
+			},
+		})
 		if err != nil {
-			log.Fatal().Err(err).Msg("Error getting Kubernetes restCfg, exiting")
+			return err
 		}
 
-		// Initialize Manager
-		managerInstance, err := manager.NewManager(log, restCfg, appCfg)
+		gqlSchema, err := gateway.New(cmd.Context(), gateway.Config{
+			Client: cl,
+		})
 		if err != nil {
-			log.Error().Err(err).Msg("Error creating manager")
-			return fmt.Errorf("failed to create manager: %w", err)
+			return err
 		}
 
-		// Set up HTTP handler
-		http.Handle("/", managerInstance)
+		http.Handle("/graphql", gateway.Handler(gateway.HandlerConfig{
+			Config: &handler.Config{
+				Schema:     &gqlSchema,
+				Pretty:     true,
+				Playground: true,
+			},
+			UserClaim:   "mail",
+			GroupsClaim: "groups",
+		}))
 
-		// Start HTTP server
-		err = http.ListenAndServe(fmt.Sprintf(":%s", appCfg.Port), nil)
-		if err != nil {
-			log.Error().Err(err).Msg("Error starting server")
-			return fmt.Errorf("failed to start server: %w", err)
-		}
-
-		log.Info().Float64("elapsed_seconds", time.Since(start).Seconds()).Msg("Setup completed")
-
-		return nil
+		return http.ListenAndServe(":3000", nil)
 	},
-}
-
-func init() {
-	// Assuming rootCmd is defined in another file within the cmd package
-	// Add startCmd as a subcommand to rootCmd
-	rootCmd.AddCommand(startCmd)
-}
-
-// setupLogger initializes the logger with the given log level
-func setupLogger(logLevel string) (*logger.Logger, error) {
-	loggerCfg := logger.DefaultConfig()
-	loggerCfg.Name = "crdGateway"
-	loggerCfg.Level = logLevel
-	return logger.New(loggerCfg)
 }
