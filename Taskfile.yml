@@ -63,6 +63,10 @@ tasks:
     cmds:
       - go run main.go start
 
-  gql-gateway:
+  gateway:
     cmds:
       - go run main.go gql-gateway
+
+  listen:
+    cmds:
+      - go run main.go listen --openapi-out-dir=./definitions

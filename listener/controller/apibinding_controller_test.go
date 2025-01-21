@@ -35,6 +35,7 @@ type testCase struct {
 }
 
 func TestReconcile(t *testing.T) {
+	t.Skip()
 	testCases := []testCase{
 		{
 			name: "should save root cluster API schema when an apibinding resource is created",

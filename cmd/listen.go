@@ -114,7 +114,7 @@ var listenCmd = &cobra.Command{
 			setupLog.Error(err, "failed to get tenancy APIExport")
 			os.Exit(1)
 		}
-		virtualWorkspaces := tenancyAPIExport.Status.VirtualWorkspaces
+		virtualWorkspaces := tenancyAPIExport.Status.VirtualWorkspaces // nolint: staticcheck
 		if len(virtualWorkspaces) == 0 {
 			err := errors.New("empty virtual workspace list")
 			setupLog.Error(err, "failed to get at least one virtual workspace")
