@@ -342,22 +342,27 @@ func setupK8sClients(ctx context.Context, cfg *rest.Config) (client.WithWatch, e
 		return nil, fmt.Errorf("failed to sync cache")
 	}
 
-	httpClient, err := kcp.NewClusterAwareHTTPClient(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	runtimeClient, err := client.NewWithWatch(cfg, client.Options{
-		HTTPClient: httpClient,
-		Scheme:     scheme.Scheme,
+	opts := client.Options{
+		Scheme: scheme.Scheme,
 		Cache: &client.CacheOptions{
 			Reader:       k8sCache,
 			Unstructured: true,
 		},
-		MapperWithContext: func(ctx context.Context) (meta.RESTMapper, error) {
+	}
+
+	if _, ok := kontext.ClusterFrom(ctx); ok {
+		httpClient, err := kcp.NewClusterAwareHTTPClient(cfg)
+		if err != nil {
+			return nil, err
+		}
+
+		opts.HTTPClient = httpClient
+		opts.MapperWithContext = func(ctx context.Context) (meta.RESTMapper, error) {
 			return kcp.NewClusterAwareMapperProvider(cfg, httpClient)(ctx)
-		},
-	})
+		}
+	}
+
+	runtimeClient, err := client.NewWithWatch(cfg, opts)
 
 	return runtimeClient, err
 }
