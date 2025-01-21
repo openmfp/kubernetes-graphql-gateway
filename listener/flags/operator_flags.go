@@ -1,7 +1,6 @@
 package flags
 
 import (
-	"fmt"
 	"github.com/vrischmann/envconfig"
 )
 
@@ -18,6 +17,5 @@ func NewFromEnv() (*Flags, error) {
 	opFlags := &Flags{}
 	err := envconfig.Init(opFlags)
 
-	fmt.Println("### OpenAPIdefinitionsPath", opFlags.OpenAPIdefinitionsPath)
 	return opFlags, err
 }
