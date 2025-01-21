@@ -249,7 +249,16 @@ func (s *Service) getConfigForRuntimeClient(workspace, token string) (*rest.Conf
 	}
 
 	requestConfig := rest.CopyConfig(s.restCfg)
+
+	// remove any existing auth
+	requestConfig.CertData = nil
+	requestConfig.KeyData = nil
+	requestConfig.CertFile = ""
+	requestConfig.KeyFile = ""
+
+	// set bearer token from request
 	requestConfig.BearerToken = token
+
 	u, err := url.Parse(s.restCfg.Host)
 	if err != nil {
 		return nil, err
