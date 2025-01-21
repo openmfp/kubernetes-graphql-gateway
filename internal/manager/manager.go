@@ -350,7 +350,7 @@ func setupK8sClients(ctx context.Context, cfg *rest.Config) (client.WithWatch, e
 		},
 	}
 
-	if _, ok := kontext.ClusterFrom(ctx); ok {
+	if cluster, ok := kontext.ClusterFrom(ctx); ok && !cluster.Empty() {
 		httpClient, err := kcp.NewClusterAwareHTTPClient(cfg)
 		if err != nil {
 			return nil, err
