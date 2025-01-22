@@ -23,7 +23,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
 	"sigs.k8s.io/controller-runtime/pkg/kontext"
@@ -197,6 +196,8 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r = r.WithContext(kontext.WithCluster(r.Context(), logicalcluster.Name(workspace)))
+
 	runtimeClient, err := setupK8sClients(r.Context(), cfg)
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "Error setting up Kubernetes client")
@@ -204,16 +205,11 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	r = r.WithContext(context.WithValue(r.Context(), resolver.RuntimeClientKey{}, runtimeClient))
-	r = r.WithContext(kontext.WithCluster(r.Context(), logicalcluster.Name(workspace)))
 
-	switch endpoint {
-	case "graphql":
-		r.URL.Path = "/" + endpoint
-		h.handler.ServeHTTP(w, r)
-	case "subscriptions":
+	if r.Header.Get("Accept") == "text/event-stream" {
 		s.handleSubscription(w, r, h.schema)
-	default:
-		http.NotFound(w, r)
+	} else {
+		h.handler.ServeHTTP(w, r)
 	}
 }
 
@@ -272,7 +268,6 @@ func (s *Service) handleSubscription(w http.ResponseWriter, r *http.Request, sch
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Transfer-Encoding", "chunked")
 
 	flusher := http.NewResponseController(w)
 
@@ -295,8 +290,8 @@ func (s *Service) handleSubscription(w http.ResponseWriter, r *http.Request, sch
 		Context:        r.Context(),
 	}
 
-	sub := graphql.Subscribe(subscriptionParams)
-	for res := range sub {
+	subscriptionChannel := graphql.Subscribe(subscriptionParams)
+	for res := range subscriptionChannel {
 		if res == nil {
 			continue
 		}
@@ -305,9 +300,11 @@ func (s *Service) handleSubscription(w http.ResponseWriter, r *http.Request, sch
 		if err != nil {
 			continue
 		}
-		fmt.Fprintf(w, "data: %s\n\n", data)
+		fmt.Fprintf(w, "event: next\ndata: %s\n\n", data)
 		flusher.Flush()
 	}
+
+	fmt.Fprint(w, "event: complete\n\n")
 }
 
 func readDefinitionFromFile(filePath string) (spec.Definitions, error) {
@@ -327,27 +324,8 @@ func readDefinitionFromFile(filePath string) (spec.Definitions, error) {
 
 // setupK8sClients initializes and returns the runtime client for Kubernetes.
 func setupK8sClients(ctx context.Context, cfg *rest.Config) (client.WithWatch, error) {
-	k8sCache, err := cache.New(cfg, cache.Options{Scheme: scheme.Scheme})
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		err = k8sCache.Start(ctx)
-		if err != nil {
-			panic(err)
-		}
-	}()
-	if !k8sCache.WaitForCacheSync(ctx) {
-		return nil, fmt.Errorf("failed to sync cache")
-	}
-
 	opts := client.Options{
 		Scheme: scheme.Scheme,
-		Cache: &client.CacheOptions{
-			Reader:       k8sCache,
-			Unstructured: true,
-		},
 	}
 
 	if cluster, ok := kontext.ClusterFrom(ctx); ok && !cluster.Empty() {
