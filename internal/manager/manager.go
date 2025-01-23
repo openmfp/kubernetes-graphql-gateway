@@ -165,7 +165,6 @@ func (s *Service) createHandler(schema *graphql.Schema) *graphqlHandler {
 		Schema:     schema,
 		Pretty:     s.appCfg.HandlerCfg.Pretty,
 		Playground: s.appCfg.HandlerCfg.Playground,
-		GraphiQL:   s.appCfg.HandlerCfg.GraphiQL,
 	})
 	return &graphqlHandler{
 		schema:  schema,

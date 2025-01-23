@@ -14,7 +14,6 @@ type Config struct {
 type HandlerConfig struct {
 	Pretty     bool `envconfig:"default=true,optional"`
 	Playground bool `envconfig:"default=true,optional"`
-	GraphiQL   bool `envconfig:"default=true,optional"`
 }
 
 // NewFromEnv creates a Config from environment values
