@@ -145,7 +145,7 @@ var listenCmd = &cobra.Command{
 
 		ioHandler, err := workspacefile.NewIOHandler(opFlags.OpenAPIdefinitionsPath)
 		if err != nil {
-			setupLog.Error(err, "failed to create IO HandlerCfg")
+			setupLog.Error(err, "failed to create IO Handler")
 			os.Exit(1)
 		}
 
