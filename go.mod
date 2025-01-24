@@ -4,6 +4,10 @@ go 1.23.2
 
 replace sigs.k8s.io/controller-runtime => github.com/kcp-dev/controller-runtime v0.19.0-kcp.1
 
+// this PR introduces newer version of graphiQL that supports headers
+// https://github.com/graphql-go/handler/pull/88
+replace github.com/graphql-go/handler => github.com/berviantoleo/handler v0.2.4-0.20240919142057-1e1c012a8531
+
 require (
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/go-openapi/spec v0.21.0
