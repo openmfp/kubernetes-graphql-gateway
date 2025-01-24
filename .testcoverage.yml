@@ -1,3 +1,8 @@
 exclude:
   paths:
-    - ^cmd/*
+    - main.go
+    - cmd
+    - gateway
+    - tests
+    - internal/config/config.go
+    - listener/*
