@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -36,14 +37,13 @@ type FileWatcher interface {
 }
 
 type Service struct {
-	appCfg        appConfig.Config
-	restCfg       *rest.Config
-	log           *logger.Logger
-	resolver      resolver.Provider
-	handlers      map[string]*graphqlHandler
-	mu            sync.RWMutex
-	watcher       *fsnotify.Watcher
-	runtimeClient client.Client
+	appCfg   appConfig.Config
+	handlers map[string]*graphqlHandler
+	log      *logger.Logger
+	mu       sync.RWMutex
+	resolver resolver.Provider
+	restCfg  *rest.Config
+	watcher  *fsnotify.Watcher
 }
 
 type graphqlHandler struct {
@@ -64,6 +64,10 @@ func NewManager(log *logger.Logger, cfg *rest.Config, appCfg appConfig.Config) (
 	}
 	cfg.Host = fmt.Sprintf("%s://%s", u.Scheme, u.Host)
 
+	cfg.WrapTransport = func(rt http.RoundTripper) http.RoundTripper {
+		return NewRoundTripper(log, rt)
+	}
+
 	runtimeClient, err := kcp.NewClusterAwareClientWithWatch(cfg, client.Options{})
 	if err != nil {
 		return nil, err
@@ -71,10 +75,10 @@ func NewManager(log *logger.Logger, cfg *rest.Config, appCfg appConfig.Config) (
 
 	m := &Service{
 		appCfg:   appCfg,
-		restCfg:  cfg,
+		handlers: make(map[string]*graphqlHandler),
 		log:      log,
 		resolver: resolver.New(log, runtimeClient),
-		handlers: make(map[string]*graphqlHandler),
+		restCfg:  cfg,
 		watcher:  watcher,
 	}
 
@@ -205,25 +209,21 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	token := r.Header.Get("Authorization")
+	if token == "" {
+		http.Error(w, "Authorization header is required", http.StatusUnauthorized)
+		return
+	}
+
+	// let's store the token in the context for further use in the roundTripper
+	r = r.WithContext(context.WithValue(r.Context(), TokenKey{}, token))
+	// let's store the workspace in the context for cluster aware client
 	r = r.WithContext(kontext.WithCluster(r.Context(), logicalcluster.Name(workspace)))
 
 	if r.Header.Get("Accept") == "text/event-stream" {
 		s.handleSubscription(w, r, h.schema)
 	} else {
 		h.handler.ServeHTTP(w, r)
-	}
-}
-
-func writeJSONError(w http.ResponseWriter, status int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	err := json.NewEncoder(w).Encode(map[string]interface{}{
-		"errors": []map[string]string{
-			{"message": message},
-		},
-	})
-	if err != nil {
-		http.Error(w, "Error writing JSON response", http.StatusInternalServerError)
 	}
 }
 
