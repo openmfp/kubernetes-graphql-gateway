@@ -2,6 +2,7 @@ package manager
 
 import (
 	"github.com/openmfp/golang-commons/logger"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"net/http"
 )
 
@@ -27,6 +28,8 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	rt.log.Debug().Str("requestURI", req.RequestURI).Msg("Adding token to request")
+
+	req = utilnet.CloneRequest(req)
 	req.Header.Set("Authorization", "Bearer "+token)
 
 	return rt.base.RoundTrip(req)
