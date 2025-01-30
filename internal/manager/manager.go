@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sigs.k8s.io/controller-runtime/pkg/kcp"
 	"strings"
 	"sync"
 
@@ -22,7 +23,6 @@ import (
 	"github.com/openmfp/golang-commons/logger"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/kcp"
 	"sigs.k8s.io/controller-runtime/pkg/kontext"
 )
 
@@ -57,18 +57,7 @@ func NewManager(log *logger.Logger, cfg *rest.Config, appCfg appConfig.Config) (
 		return nil, err
 	}
 
-	// lets ensure that kcp url points directly to kcp domain
-	u, err := url.Parse(cfg.Host)
-	if err != nil {
-		return nil, err
-	}
-	cfg.Host = fmt.Sprintf("%s://%s", u.Scheme, u.Host)
-
-	cfg.WrapTransport = func(rt http.RoundTripper) http.RoundTripper {
-		return NewRoundTripper(log, rt)
-	}
-
-	runtimeClient, err := kcp.NewClusterAwareClientWithWatch(cfg, client.Options{})
+	runtimeClient, err := getRuntimeClient(log, cfg, appCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +88,32 @@ func NewManager(log *logger.Logger, cfg *rest.Config, appCfg appConfig.Config) (
 	m.Start()
 
 	return m, nil
+}
+
+func getRuntimeClient(log *logger.Logger, restCfg *rest.Config, appCfg appConfig.Config) (client.WithWatch, error) {
+	restCfg.WrapTransport = func(rt http.RoundTripper) http.RoundTripper {
+		return NewRoundTripper(log, rt)
+	}
+
+	if appCfg.KcpEnabled {
+		//lets ensure that kcp url points directly to kcp domain
+		u, err := url.Parse(restCfg.Host)
+		if err != nil {
+			return nil, err
+		}
+		restCfg.Host = fmt.Sprintf("%s://%s", u.Scheme, u.Host)
+
+		return kcp.NewClusterAwareClientWithWatch(restCfg, client.Options{})
+	}
+
+	if appCfg.ResetCertificates {
+		restCfg.CertData = nil
+		restCfg.KeyData = nil
+		restCfg.CertFile = ""
+		restCfg.KeyFile = ""
+	}
+
+	return client.NewWithWatch(restCfg, client.Options{})
 }
 
 func (s *Service) Start() {
@@ -215,9 +230,9 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// let's store the token in the context for further use in the roundTripper
+	//let's store the token in the context for further use in the roundTripper
 	r = r.WithContext(context.WithValue(r.Context(), TokenKey{}, token))
-	// let's store the workspace in the context for cluster aware client
+	//let's store the workspace in the context for cluster aware client
 	r = r.WithContext(kontext.WithCluster(r.Context(), logicalcluster.Name(workspace)))
 
 	if r.Header.Get("Accept") == "text/event-stream" {
