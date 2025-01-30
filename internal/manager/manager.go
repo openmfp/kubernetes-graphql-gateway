@@ -106,7 +106,7 @@ func getRuntimeClient(log *logger.Logger, restCfg *rest.Config, appCfg appConfig
 		return kcp.NewClusterAwareClientWithWatch(restCfg, client.Options{})
 	}
 
-	if appCfg.ResetCertificates {
+	if !appCfg.LocalDevelopment {
 		restCfg.CertData = nil
 		restCfg.KeyData = nil
 		restCfg.CertFile = ""
@@ -225,7 +225,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := r.Header.Get("Authorization")
-	if token == "" {
+	if !s.appCfg.LocalDevelopment && token == "" {
 		http.Error(w, "Authorization header is required", http.StatusUnauthorized)
 		return
 	}
@@ -234,6 +234,13 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(context.WithValue(r.Context(), TokenKey{}, token))
 	//let's store the workspace in the context for cluster aware client
 	r = r.WithContext(kontext.WithCluster(r.Context(), logicalcluster.Name(workspace)))
+
+	split := strings.Split(token, " ")
+	if len(split) == 1 {
+		r = r.WithContext(context.WithValue(r.Context(), TokenKey{}, token))
+	} else {
+		r = r.WithContext(context.WithValue(r.Context(), TokenKey{}, split[1]))
+	}
 
 	if r.Header.Get("Accept") == "text/event-stream" {
 		s.handleSubscription(w, r, h.schema)

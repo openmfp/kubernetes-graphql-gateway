@@ -5,12 +5,12 @@ import (
 )
 
 type Config struct {
-	Port              string `envconfig:"default=8080,optional"`
-	LogLevel          string `envconfig:"default=INFO,optional"`
-	WatchedDir        string `envconfig:"default=definitions,required"`
-	KcpEnabled        bool   `envconfig:"default=false,optional"`
-	ResetCertificates bool   `envconfig:"default=false,optional"`
-	HandlerCfg        HandlerConfig
+	Port             string `envconfig:"default=8080,optional"`
+	LogLevel         string `envconfig:"default=INFO,optional"`
+	WatchedDir       string `envconfig:"default=definitions,required"`
+	KcpEnabled       bool   `envconfig:"default=false,optional"`
+	LocalDevelopment bool   `envconfig:"default=false,optional"`
+	HandlerCfg       HandlerConfig
 }
 
 type HandlerConfig struct {
