@@ -91,9 +91,9 @@ func NewManager(log *logger.Logger, cfg *rest.Config, appCfg appConfig.Config) (
 }
 
 func getRuntimeClient(log *logger.Logger, restCfg *rest.Config, appCfg appConfig.Config) (client.WithWatch, error) {
-	restCfg.WrapTransport = func(rt http.RoundTripper) http.RoundTripper {
+	restCfg.Wrap(func(rt http.RoundTripper) http.RoundTripper {
 		return NewRoundTripper(log, rt)
-	}
+	})
 
 	if appCfg.KcpEnabled {
 		//lets ensure that kcp url points directly to kcp domain
@@ -230,8 +230,6 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//let's store the token in the context for further use in the roundTripper
-	r = r.WithContext(context.WithValue(r.Context(), TokenKey{}, token))
 	//let's store the workspace in the context for cluster aware client
 	r = r.WithContext(kontext.WithCluster(r.Context(), logicalcluster.Name(workspace)))
 
