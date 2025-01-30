@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"time"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
 	kcptenancy "github.com/kcp-dev/kcp/sdk/apis/tenancy/v1alpha1"
@@ -24,9 +25,12 @@ func virtualWorkspaceConfigFromCfg(cfg *rest.Config, scheme *runtime.Scheme) (*r
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client from config: %w", err)
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	tenancyAPIExport := &kcpapis.APIExport{}
-	err = clt.Get(context.TODO(), client.ObjectKey{Name: kcptenancy.SchemeGroupVersion.Group}, tenancyAPIExport)
-	if err != nil {
+	if err := clt.Get(ctx, client.ObjectKey{
+		Name: kcptenancy.SchemeGroupVersion.Group,
+	}, tenancyAPIExport); err != nil {
 		return nil, fmt.Errorf("failed to get tenancy APIExport: %w", err)
 	}
 	virtualWorkspaces := tenancyAPIExport.Status.VirtualWorkspaces // nolint: staticcheck
