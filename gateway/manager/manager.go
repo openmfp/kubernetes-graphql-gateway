@@ -17,8 +17,8 @@ import (
 	"github.com/graphql-go/handler"
 	"github.com/kcp-dev/logicalcluster/v3"
 	appConfig "github.com/openmfp/crd-gql-gateway/gateway/config"
-	"github.com/openmfp/crd-gql-gateway/gateway/gateway"
 	"github.com/openmfp/crd-gql-gateway/gateway/resolver"
+	"github.com/openmfp/crd-gql-gateway/gateway/schema"
 	"github.com/openmfp/golang-commons/logger"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -165,7 +165,7 @@ func (s *Service) loadSchemaFromFile(filename string) (*graphql.Schema, error) {
 		return nil, err
 	}
 
-	g, err := gateway.New(s.log, definitions, s.resolver)
+	g, err := schema.New(s.log, definitions, s.resolver)
 	if err != nil {
 		return nil, err
 	}
