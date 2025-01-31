@@ -165,15 +165,15 @@ func (g *Gateway) generateGraphqlSchema() error {
 
 	newSchema, err := graphql.NewSchema(graphql.SchemaConfig{
 		Query: graphql.NewObject(graphql.ObjectConfig{
-			Name:   "PrivateNameQuery",
+			Name:   "PrivateNameForQuery", // we must keep those name unique to avoid collision with objects having the same names
 			Fields: rootQueryFields,
 		}),
 		Mutation: graphql.NewObject(graphql.ObjectConfig{
-			Name:   "PrivateNameMutation",
+			Name:   "PrivateNameForMutation",
 			Fields: rootMutationFields,
 		}),
 		Subscription: graphql.NewObject(graphql.ObjectConfig{
-			Name:   "PrivateNameSubscription",
+			Name:   "PrivateNameForSubscription",
 			Fields: rootSubscriptionFields,
 		}),
 	})
