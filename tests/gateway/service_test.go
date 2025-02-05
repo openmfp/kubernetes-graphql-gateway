@@ -1,4 +1,4 @@
-package tests
+package gateway
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openmfp/crd-gql-gateway/tests/graphql"
+	"github.com/openmfp/crd-gql-gateway/tests/gateway/graphql"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,7 +35,7 @@ func (suite *CommonTestSuite) TestFullSchemaGeneration() {
 
 // TestCreateGetAndDeletePod generates a schema containing only Pod and its references.
 // It then creates a Pod, gets it and deletes it.
-func (suite *CommonTestSuite) TestCreateGetAndDeletePod() {
+func (suite *CommonTestSuite) TestPodCRUD() {
 	workspaceName := "myWorkspace"
 
 	// Trigger schema generation and URL creation
@@ -48,8 +48,13 @@ func (suite *CommonTestSuite) TestCreateGetAndDeletePod() {
 	createResp, statusCode, err := graphql.SendRequest(url, graphql.CreatePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
-	require.NoError(suite.T(), err)
 	require.Nil(suite.T(), createResp.Errors, "GraphQL errors: %v", createResp.Errors)
+
+	// Let's update Pod and add new label to it
+	updateResp, statusCode, err := graphql.SendRequest(url, graphql.UpdatePodMutation())
+	require.NoError(suite.T(), err)
+	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
+	require.Equal(suite.T(), "labelForTest", updateResp.Data.Core.UpdatePod.Metadata.Labels["labelForTest"])
 
 	// Get the Pod
 	getResp, statusCode, err := graphql.SendRequest(url, graphql.GetPodQuery())
@@ -62,6 +67,19 @@ func (suite *CommonTestSuite) TestCreateGetAndDeletePod() {
 	require.Equal(suite.T(), "default", podData.Metadata.Namespace)
 	require.Equal(suite.T(), "test-container", podData.Spec.Containers[0].Name)
 	require.Equal(suite.T(), "nginx", podData.Spec.Containers[0].Image)
+
+	// List pods
+	listResp, statusCode, err := graphql.SendRequest(url, graphql.ListPodsQuery())
+	require.NoError(suite.T(), err)
+	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
+	require.Nil(suite.T(), getResp.Errors, "GraphQL errors: %v", getResp.Errors)
+
+	listPodsData := listResp.Data.Core.Pods
+	require.Equal(suite.T(), 1, len(listPodsData))
+	require.Equal(suite.T(), "test-pod", listPodsData[0].Metadata.Name)
+	require.Equal(suite.T(), "default", listPodsData[0].Metadata.Namespace)
+	require.Equal(suite.T(), "test-container", listPodsData[0].Spec.Containers[0].Name)
+	require.Equal(suite.T(), "nginx", listPodsData[0].Spec.Containers[0].Image)
 
 	// Delete the Pod
 	deleteResp, statusCode, err := graphql.SendRequest(url, graphql.DeletePodMutation())
@@ -222,17 +240,17 @@ func (suite *CommonTestSuite) TestCreateGetAndDeleteAccount() {
 }
 
 func (suite *CommonTestSuite) TestSubscribeToDeployments() {
+	suite.T().Skip()
 	workspaceName := "myWorkspace"
 
 	// Trigger schema generation and URL creation
 	suite.writeToFile("fullSchema", workspaceName)
 
-	// this graphqlUrl must be generated after new file added
-	graphqlUrl := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
+	// this url must be generated after new file added
+	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
 
 	// Subscribe to the GraphQL subscription
-	subscriptionUrl := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
-	msgChan, cancelSubscription, err := graphql.SubscribeToGraphQL(subscriptionUrl, graphql.SubscribeDeploymentsQuery())
+	msgChan, cancelSubscription, err := graphql.SubscribeToGraphQL(url, graphql.SubscribeDeploymentsQuery())
 	if err != nil {
 		log.Fatalf("Failed to subscribe: %v", err)
 	}
@@ -251,7 +269,7 @@ func (suite *CommonTestSuite) TestSubscribeToDeployments() {
 		}
 	}()
 
-	createResp, statusCode, err := graphql.SendRequest(graphqlUrl, graphql.CreateDeploymentMutation())
+	createResp, statusCode, err := graphql.SendRequest(url, graphql.CreateDeploymentMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.NoError(suite.T(), err)

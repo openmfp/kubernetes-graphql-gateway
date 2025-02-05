@@ -1,8 +1,11 @@
 exclude:
   paths:
+    # no need to cover it with tests
     - main.go
     - cmd
-    - gateway
+    - deprecated
     - tests
-    - internal/config/config.go
+    - gateway/config/config.go
+    # To be covered later
     - listener/*
+    - gateway/resolver/subscription.go

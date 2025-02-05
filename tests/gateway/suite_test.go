@@ -1,4 +1,4 @@
-package tests
+package gateway
 
 import (
 	"net/http/httptest"
@@ -27,7 +27,7 @@ type CommonTestSuite struct {
 }
 
 func TestCommonTestSuite(t *testing.T) {
-	// suite.Run(t, new(CommonTestSuite))
+	suite.Run(t, new(CommonTestSuite))
 }
 
 func (suite *CommonTestSuite) SetupTest() {
@@ -41,6 +41,7 @@ func (suite *CommonTestSuite) SetupTest() {
 	require.NoError(suite.T(), err)
 
 	suite.appCfg.OpenApiDefinitionsPath, err = os.MkdirTemp("", "watchedDir")
+	suite.appCfg.LocalDevelopment = true
 	require.NoError(suite.T(), err)
 
 	logCfg := logger.DefaultConfig()

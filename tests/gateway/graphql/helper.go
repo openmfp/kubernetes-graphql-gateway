@@ -11,8 +11,10 @@ import (
 )
 
 type CoreData struct {
-	Pod       *PodData `json:"Pod,omitempty"`
-	CreatePod *PodData `json:"createPod,omitempty"`
+	CreatePod *PodData   `json:"createPod,omitempty"`
+	Pod       *PodData   `json:"Pod,omitempty"`
+	Pods      []*PodData `json:"Pods,omitempty"`
+	UpdatePod *PodData   `json:"updatePod,omitempty"`
 
 	Service *ServiceData `json:"Service,omitempty"`
 
@@ -24,6 +26,7 @@ type CoreData struct {
 type Metadata struct {
 	Name      string
 	Namespace string
+	Labels    map[string]string
 }
 
 type GraphQLResponse struct {

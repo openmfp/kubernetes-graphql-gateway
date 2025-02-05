@@ -69,12 +69,55 @@ func GetPodQuery() string {
     `
 }
 
-func DeletePodMutation() string {
+func ListPodsQuery() string {
 	return `
-    mutation {
+    query {
       core {
-        deletePod(name: "test-pod", namespace: "default")
+        Pods(namespace: "default") {
+          metadata {
+            name
+            namespace
+          }
+          spec {
+            containers {
+              name
+              image
+            }
+          }
+        }
       }
     }
     `
+}
+
+func UpdatePodMutation() string {
+	return `
+mutation {
+  core {
+    updatePod(
+      namespace: "default"
+      object: {metadata: {
+		name: "test-pod", 
+		labels: {
+			labelForTest: "labelForTest"
+		}
+	}
+}) {
+      metadata {
+        labels
+      }
+    }
+  }
+}
+`
+}
+
+func DeletePodMutation() string {
+	return `
+		mutation {
+		  core {
+			deletePod(name: "test-pod", namespace: "default")
+		  }
+		}
+		`
 }
