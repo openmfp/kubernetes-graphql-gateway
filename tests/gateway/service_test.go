@@ -1,8 +1,6 @@
 package gateway
 
 import (
-	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,36 +11,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const sleepTime = 2000 * time.Millisecond
+const (
+	sleepTime     = 2000 * time.Millisecond
+	workspaceName = "myWorkspace"
+)
 
-// TestFullSchemaGeneration checks schema generation from not edited OpenAPI spec file.
+// TestFullSchemaGeneration checks schema generation
 func (suite *CommonTestSuite) TestFullSchemaGeneration() {
-	workspaceName := "myWorkspace"
-
-	// Trigger schema generation and URL creation
 	suite.writeToFile("fullSchema", workspaceName)
 
-	// this url must be generated after new file added
-	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
-
 	// Create the Pod and check results
-	createResp, statusCode, err := graphql.SendRequest(url, graphql.CreatePodMutation())
+	createResp, statusCode, err := graphql.SendRequest(suite.getUrl(workspaceName), graphql.CreatePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), createResp.Errors, "GraphQL errors: %v", createResp.Errors)
 	require.Equal(suite.T(), "test-pod", createResp.Data.Core.CreatePod.Metadata.Name)
 }
 
-// TestCreateGetAndDeletePod generates a schema containing only Pod and its references.
-// It then creates a Pod, gets it and deletes it.
+// TestPodCRUD tests schema generation and then CRUD operations on Pod resource.
 func (suite *CommonTestSuite) TestPodCRUD() {
-	workspaceName := "myWorkspace"
-
-	// Trigger schema generation and URL creation
 	suite.writeToFile("podOnly", workspaceName)
-
-	// this url must be generated after new file added
-	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
+	url := suite.getUrl(workspaceName)
 
 	// Create the Pod and check results
 	createResp, statusCode, err := graphql.SendRequest(url, graphql.CreatePodMutation())
@@ -95,13 +84,10 @@ func (suite *CommonTestSuite) TestPodCRUD() {
 }
 
 // TestSchemaUpdate checks if Graphql schema is updated after the file is changed.
-// We load schema with Pod only at first, then we update the workspace file to include Service
+// Initial spec contains only Pod, and then we update that file to include Service
 func (suite *CommonTestSuite) TestSchemaUpdate() {
-	workspaceName := "myWorkspace"
-	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
-
-	// Add "podOnly" spec to the workspace
 	suite.writeToFile("podOnly", workspaceName)
+	url := suite.getUrl(workspaceName)
 
 	// Create the Pod
 	createPodResp, statusCode, err := graphql.SendRequest(url, graphql.CreatePodMutation())
@@ -153,11 +139,10 @@ func (suite *CommonTestSuite) TestSchemaUpdate() {
 	require.NotNil(suite.T(), getServiceRespAfterDelete.Errors, "Expected error when querying deleted Service, but got none")
 }
 
-func (suite *CommonTestSuite) TestWorkspaceRemove() {
-	workspaceName := "myWorkspace"
-	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
-
+// TestWorkspaceRemove checks if graphql handler is removed after the spec file is deleted.
+func (suite *CommonTestSuite) TestSpecFileRemove() {
 	suite.writeToFile("podOnly", workspaceName)
+	url := suite.getUrl(workspaceName)
 
 	// Create the Pod
 	_, statusCode, err := graphql.SendRequest(url, graphql.CreatePodMutation())
@@ -175,17 +160,17 @@ func (suite *CommonTestSuite) TestWorkspaceRemove() {
 	require.Equal(suite.T(), http.StatusNotFound, statusCode, "Expected StatusNotFound after handler is removed")
 }
 
-func (suite *CommonTestSuite) TestWorkspaceRename() {
-	workspaceName := "myWorkspace"
-	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
-
+// TestWorkspaceRename checks if graphql handler is updated after the spec file is renamed.
+func (suite *CommonTestSuite) TestSpecFileRename() {
 	suite.writeToFile("podOnly", workspaceName)
+	url := suite.getUrl(workspaceName)
 
-	// Create the Pod
+	// Check if the handler is accessible
 	_, statusCode, err := graphql.SendRequest(url, graphql.CreatePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 
+	// rename workspace
 	newWorkspaceName := "myNewWorkspace"
 	err = os.Rename(filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName), filepath.Join(suite.appCfg.OpenApiDefinitionsPath, newWorkspaceName))
 	require.NoError(suite.T(), err)
@@ -196,18 +181,15 @@ func (suite *CommonTestSuite) TestWorkspaceRename() {
 	require.Equal(suite.T(), http.StatusNotFound, statusCode, "Expected StatusNotFound after workspace rename")
 
 	// now new url should be accessible
-	newUrl := fmt.Sprintf("%s/%s/graphql", suite.server.URL, newWorkspaceName)
-	_, statusCode, err = graphql.SendRequest(newUrl, graphql.CreatePodMutation())
+	_, statusCode, err = graphql.SendRequest(suite.getUrl(newWorkspaceName), graphql.CreatePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 }
 
 // TestCreateGetAndDeleteAccount tests the creation, retrieval, and deletion of an Account resource.
 func (suite *CommonTestSuite) TestCreateGetAndDeleteAccount() {
-	workspaceName := "myWorkspace"
-	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
-
 	suite.writeToFile("fullSchema", workspaceName)
+	url := suite.getUrl(workspaceName)
 
 	// Create the Account and verify the response
 	createResp, statusCode, err := graphql.SendRequest(url, graphql.CreateAccountMutation())
@@ -239,41 +221,72 @@ func (suite *CommonTestSuite) TestCreateGetAndDeleteAccount() {
 	require.NotNil(suite.T(), getRespAfterDelete.Errors, "Expected error when querying deleted Account, but got none")
 }
 
-func (suite *CommonTestSuite) TestSubscribeToDeployments() {
-	suite.T().Skip()
-	workspaceName := "myWorkspace"
-
-	// Trigger schema generation and URL creation
+// TestSubscribeToSingleAccount tests subscription to Account resource.
+// We create an account, subscribe to it and then change it.
+func (suite *CommonTestSuite) TestSubscribeToSingleAccount() {
 	suite.writeToFile("fullSchema", workspaceName)
+	url := suite.getUrl(workspaceName)
 
-	// this url must be generated after new file added
-	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
-
-	// Subscribe to the GraphQL subscription
-	msgChan, cancelSubscription, err := graphql.SubscribeToGraphQL(url, graphql.SubscribeDeploymentsQuery())
+	events, cancel, err := graphql.Subscribe(url, graphql.SubscribeToSingleAccount(), suite.log)
 	if err != nil {
-		log.Fatalf("Failed to subscribe: %v", err)
+		suite.log.Error().Err(err).Msg("Failed to subscribe to events")
+		return
 	}
-	defer cancelSubscription()
-	defer close(msgChan)
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		for msg := range msgChan {
-			deployments := msg["data"].(map[string]interface{})["apps_deployments"].([]interface{})
-			first := deployments[0].(map[string]interface{})
-			replicas := first["spec"].(map[string]interface{})["replicas"].(float64)
-			require.Equal(suite.T(), float64(3), replicas)
+		for msg := range events {
+			// let's skip the first event triggered by the account creation.
+			if msg.Data.Account.Spec.DisplayName == "test-account-display-name" {
+				continue
+			}
+			require.Equal(suite.T(), "new display name", msg.Data.Account.Spec.DisplayName)
 			wg.Done()
 		}
 	}()
 
-	createResp, statusCode, err := graphql.SendRequest(url, graphql.CreateDeploymentMutation())
+	// Create the Account and verify the response
+	_, statusCode, err := graphql.SendRequest(url, graphql.CreateAccountMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
+
+	// Update the Account and verify the response
+	updateResp, statusCode, err := graphql.SendRequest(url, graphql.UpdateAccountMutation())
 	require.NoError(suite.T(), err)
-	require.Nil(suite.T(), createResp.Errors, "GraphQL errors: %v", createResp.Errors)
+	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
+	require.Equal(suite.T(), "new display name", updateResp.Data.CoreOpenmfpIO.UpdateAccount.Spec.DisplayName)
 
 	wg.Wait()
+	cancel()
+}
+
+// TestSubscribeToAccounts tests subscription to Account resource.
+// We subscribe first, then create an Account and verify that subscription returns it.
+func (suite *CommonTestSuite) TestSubscribeToAccounts() {
+	suite.writeToFile("fullSchema", workspaceName)
+	url := suite.getUrl(workspaceName)
+
+	events, cancel, err := graphql.Subscribe(url, graphql.SubscribeToAccounts(), suite.log)
+	if err != nil {
+		suite.log.Error().Err(err).Msg("Failed to subscribe to events")
+		return
+	}
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		for msg := range events {
+			require.Equal(suite.T(), "test-account-display-name", msg.Data.Accounts[0].Spec.DisplayName)
+			wg.Done()
+		}
+	}()
+
+	// Create the Account and verify the response
+	_, statusCode, err := graphql.SendRequest(url, graphql.CreateAccountMutation())
+	require.NoError(suite.T(), err)
+	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
+
+	wg.Wait()
+	cancel()
 }

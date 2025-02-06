@@ -1,7 +1,7 @@
 package graphql
 
-// AccountData represents the Account resource with its metadata and specification.
-type AccountData struct {
+// Account represents the Account resource with its metadata and specification.
+type Account struct {
 	Metadata Metadata    `json:"metadata"`
 	Spec     AccountSpec `json:"spec"`
 }
@@ -41,6 +41,26 @@ mutation {
     `
 }
 
+func UpdateAccountMutation() string {
+	return `
+mutation {
+  core_openmfp_io {
+    updateAccount(
+      namespace: "default"
+      object: {metadata: {name: "test-account"}, spec: {displayName: "new display name"}}
+    ) {
+      metadata {
+        name
+      }
+      spec {
+        displayName
+      }
+    }
+  }
+}
+`
+}
+
 func GetAccountQuery() string {
 	return `
         query {
@@ -67,4 +87,12 @@ func DeleteAccountMutation() string {
 		  }
 		}
     `
+}
+
+func SubscribeToSingleAccount() string {
+	return `subscription { core_openmfp_io_account(namespace: "default", name: "test-account") { spec { displayName }}}`
+}
+
+func SubscribeToAccounts() string {
+	return `subscription { core_openmfp_io_accounts(namespace: "default") { spec { displayName }}}`
 }

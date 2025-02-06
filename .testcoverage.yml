@@ -8,4 +8,4 @@ exclude:
     - gateway/config/config.go
     # To be covered later
     - listener/*
-    - gateway/resolver/subscription.go
+    - gateway/manager/roundtripper.go

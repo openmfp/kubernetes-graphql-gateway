@@ -1,6 +1,6 @@
 package graphql
 
-type PodData struct {
+type Pod struct {
 	Metadata Metadata `json:"metadata"`
 	Spec     PodSpec  `json:"spec"`
 }

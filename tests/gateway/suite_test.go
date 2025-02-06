@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"fmt"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -74,4 +75,10 @@ func (suite *CommonTestSuite) writeToFile(sourceName, dest string) {
 	require.NoError(suite.T(), err)
 
 	time.Sleep(sleepTime) // let's give some time to the manager to process the file and create a url
+}
+
+// getUrl returns the url of the graphql endpoint
+// this url must be generated after new file added to the watched directory
+func (suite *CommonTestSuite) getUrl(workspaceName string) string {
+	return fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
 }

@@ -6,21 +6,31 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/openmfp/golang-commons/logger"
 	"io"
 	"net/http"
+	"strings"
 )
 
 type CoreData struct {
-	CreatePod *PodData   `json:"createPod,omitempty"`
-	Pod       *PodData   `json:"Pod,omitempty"`
-	Pods      []*PodData `json:"Pods,omitempty"`
-	UpdatePod *PodData   `json:"updatePod,omitempty"`
+	CreatePod *Pod   `json:"createPod,omitempty"`
+	Pod       *Pod   `json:"Pod,omitempty"`
+	Pods      []*Pod `json:"Pods,omitempty"`
+	UpdatePod *Pod   `json:"updatePod,omitempty"`
 
 	Service *ServiceData `json:"Service,omitempty"`
 
-	Account       *AccountData `json:"Account,omitempty"`
-	CreateAccount *AccountData `json:"createAccount,omitempty"`
-	DeleteAccount *bool        `json:"deleteAccount,omitempty"`
+	CreateAccount *Account `json:"createAccount,omitempty"`
+	Account       *Account `json:"Account,omitempty"`
+	UpdateAccount *Account `json:"updateAccount,omitempty"`
+	DeleteAccount *bool    `json:"deleteAccount,omitempty"`
+}
+
+type SubscriptionResponse struct {
+	Data struct {
+		Accounts []Account `json:"core_openmfp_io_accounts"`
+		Account  Account   `json:"core_openmfp_io_account"`
+	} `json:"data"`
 }
 
 type Metadata struct {
@@ -81,68 +91,64 @@ func SendRequest(url, query string) (*GraphQLResponse, int, error) {
 	return &bodyResp, resp.StatusCode, err
 }
 
-// SubscribeToGraphQL sends an SSE request and streams data to a channel
-func SubscribeToGraphQL(url, query string) (chan map[string]interface{}, func(), error) {
-	ctx, cancelFn := context.WithCancel(context.Background())
+func Subscribe(url, query string, log *logger.Logger) (<-chan SubscriptionResponse, context.CancelFunc, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	events := make(chan SubscriptionResponse)
 
-	payload := map[string]string{"query": query}
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		return nil, cancelFn, fmt.Errorf("failed to marshal query: %w", err)
-	}
+	go func() {
+		defer close(events)
+		defer cancel()
 
-	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "GET", url, bytes.NewReader(payloadBytes))
-	if err != nil {
-		return nil, cancelFn, fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Accept", "text/event-stream")
-	req.Header.Set("Content-Type", "application/json")
+		payload, err := json.Marshal(map[string]string{"query": query})
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to marshal payload")
+			return
+		}
 
-	msgChan := make(chan map[string]interface{})
-	go func(msgChan chan map[string]interface{}) {
+		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payload))
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to create request")
+			return
+		}
+		req.Header.Set("Accept", "text/event-stream")
+		req.Header.Set("Content-Type", "application/json")
+
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
-			fmt.Printf("Failed to send request: %v", err)
+			log.Error().Err(err).Msg("Failed to send request")
 			return
 		}
+		defer resp.Body.Close()
 
-		defer resp.Body.Close() // closes SSE stream
+		reader := bufio.NewReader(resp.Body)
+		var eventData strings.Builder
 
-		if resp.StatusCode != http.StatusOK {
-			fmt.Printf("Unexpected status code: %d", resp.StatusCode)
-			return
-		}
-
-		scanner := bufio.NewScanner(resp.Body)
-		for scanner.Scan() {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				line := scanner.Text()
-				if len(line) == 0 || line == ":" {
-					continue // Skip heartbeat or empty lines
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				if err != io.EOF {
+					log.Error().Err(err).Msg("Failed to read response")
 				}
+				break
+			}
+			line = strings.TrimSpace(line)
 
-				// Handle SSE message lines starting with "data: "
-				if len(line) > 6 && line[:6] == "data: " {
-					rawData := line[6:] // Extract data after "data: "
-					var data map[string]interface{}
-					err := json.Unmarshal([]byte(rawData), &data)
-					if err != nil {
-						fmt.Printf("Failed to parse message: %v", err)
-						continue
-					}
-					msgChan <- data
+			// If empty line, we've reached event's end.
+			if line == "" && eventData.Len() > 0 {
+				rawMsg := strings.TrimPrefix(eventData.String(), "event: next\ndata: ")
+				var msg SubscriptionResponse
+				if err := json.Unmarshal([]byte(rawMsg), &msg); err != nil {
+					log.Error().Err(err).Msg("Failed to unmarshal response")
+					return
 				}
+				events <- msg
+				eventData.Reset()
+			} else {
+				eventData.WriteString(line)
+				eventData.WriteString("\n")
 			}
 		}
+	}()
 
-		if err := scanner.Err(); err != nil {
-			fmt.Printf("Error reading SSE stream: %v", err)
-		}
-	}(msgChan)
-
-	return msgChan, cancelFn, nil
+	return events, cancel, nil
 }

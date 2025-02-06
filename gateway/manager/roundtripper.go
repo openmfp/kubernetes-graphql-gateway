@@ -11,18 +11,24 @@ import (
 type TokenKey struct{}
 
 type roundTripper struct {
-	log  *logger.Logger
-	base http.RoundTripper // TODO change to awareBaseHttp
+	log              *logger.Logger
+	base             http.RoundTripper
+	LocalDevelopment bool
 }
 
-func NewRoundTripper(log *logger.Logger, base http.RoundTripper) http.RoundTripper {
+func NewRoundTripper(log *logger.Logger, base http.RoundTripper, localDevelopment bool) http.RoundTripper {
 	return &roundTripper{
-		log:  log,
-		base: base,
+		log:              log,
+		base:             base,
+		LocalDevelopment: localDevelopment,
 	}
 }
 
 func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if rt.LocalDevelopment {
+		return rt.base.RoundTrip(req)
+	}
+
 	token, ok := req.Context().Value(TokenKey{}).(string)
 	if !ok {
 		rt.log.Debug().Msg("No token found in context")
