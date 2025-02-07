@@ -4,18 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/kcp-dev/logicalcluster/v3"
+	"k8s.io/apimachinery/pkg/runtime"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/kontext"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/handler"
-	"github.com/kcp-dev/logicalcluster/v3"
 	appConfig "github.com/openmfp/crd-gql-gateway/gateway/config"
 	"github.com/openmfp/crd-gql-gateway/gateway/resolver"
 	"github.com/openmfp/crd-gql-gateway/gateway/schema"
@@ -23,7 +27,6 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
-	"sigs.k8s.io/controller-runtime/pkg/kontext"
 )
 
 type Provider interface {
@@ -68,9 +71,53 @@ func NewManager(log *logger.Logger, cfg *rest.Config, appCfg appConfig.Config) (
 		return NewRoundTripper(log, rt)
 	})
 
-	runtimeClient, err := kcp.NewClusterAwareClientWithWatch(cfg, client.Options{})
+	scheme := runtime.NewScheme()
+
+	ctx := context.Background()
+	var cacheOpt *client.CacheOptions
+	if appCfg.EnableCache {
+		cacheObj, err := kcp.NewClusterAwareCache(cfg, cache.Options{
+			Scheme: scheme,
+			DefaultNamespaces: map[string]cache.Config{
+				cache.AllNamespaces: {},
+			},
+		})
+		if err != nil {
+			log.Fatal().Err(err).Msg("Failed to create cache")
+			return nil, err
+		}
+
+		cacheOpt = &client.CacheOptions{
+			Unstructured: true,
+			Reader:       cacheObj,
+		}
+
+		go cacheObj.Start(ctx)
+		if !cacheObj.WaitForCacheSync(ctx) {
+			log.Fatal().Msg("Failed to wait for caches to sync")
+		}
+
+		log.Debug().Msg("Caches have synced, waiting for things to settle.")
+		time.Sleep(3 * time.Second)
+	} else {
+		log.Println("Skipping caches.")
+	}
+
+	httpClient, err := kcp.NewClusterAwareHTTPClient(cfg)
 	if err != nil {
-		return nil, err
+		log.Fatal().Err(err).Msg("Failed to create HTTP client")
+	}
+
+	mapperCreator := kcp.NewClusterAwareMapperProvider(cfg, httpClient)
+
+	runtimeClient, err := kcp.NewClusterAwareClientWithWatch(cfg, client.Options{
+		Scheme:            scheme,
+		MapperWithContext: mapperCreator,
+		HTTPClient:        httpClient,
+		Cache:             cacheOpt,
+	})
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to create client")
 	}
 
 	m := &Service{
@@ -216,6 +263,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if s.appCfg.EnableKcp {
+		//r = r.WithContext(kontext.WithCluster(r.Context(), logicalcluster.Name(logicalcluster.Wildcard.String())))
 		r = r.WithContext(kontext.WithCluster(r.Context(), logicalcluster.Name(workspace)))
 	}
 
@@ -223,7 +271,6 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(split) == 1 {
 		r = r.WithContext(context.WithValue(r.Context(), TokenKey{}, token))
 	} else {
-		r = r.WithContext(context.WithValue(r.Context(), TokenKey{}, split[1]))
 	}
 
 	if r.Header.Get("Accept") == "text/event-stream" {

@@ -13,6 +13,7 @@ type Config struct {
 	Port             string `envconfig:"default=8080,optional"`
 	LogLevel         string `envconfig:"default=INFO,optional"`
 	LocalDevelopment bool   `envconfig:"default=false,optional"`
+	EnableCache      bool   `envconfig:"default=true,optional"`
 	HandlerCfg       HandlerConfig
 }
 
