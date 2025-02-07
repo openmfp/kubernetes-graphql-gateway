@@ -1,4 +1,4 @@
-package gateway
+package gateway_test
 
 import (
 	"net/http"
@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/openmfp/crd-gql-gateway/tests/gateway/graphql"
+	"github.com/openmfp/crd-gql-gateway/tests/gateway_test/testutils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,7 +21,7 @@ func (suite *CommonTestSuite) TestFullSchemaGeneration() {
 	suite.writeToFile("fullSchema", workspaceName)
 
 	// Create the Pod and check results
-	createResp, statusCode, err := graphql.SendRequest(suite.getUrl(workspaceName), graphql.CreatePodMutation())
+	createResp, statusCode, err := testutils.SendRequest(suite.getUrl(workspaceName), testutils.CreatePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), createResp.Errors, "GraphQL errors: %v", createResp.Errors)
@@ -34,19 +34,19 @@ func (suite *CommonTestSuite) TestPodCRUD() {
 	url := suite.getUrl(workspaceName)
 
 	// Create the Pod and check results
-	createResp, statusCode, err := graphql.SendRequest(url, graphql.CreatePodMutation())
+	createResp, statusCode, err := testutils.SendRequest(url, testutils.CreatePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), createResp.Errors, "GraphQL errors: %v", createResp.Errors)
 
 	// Let's update Pod and add new label to it
-	updateResp, statusCode, err := graphql.SendRequest(url, graphql.UpdatePodMutation())
+	updateResp, statusCode, err := testutils.SendRequest(url, testutils.UpdatePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Equal(suite.T(), "labelForTest", updateResp.Data.Core.UpdatePod.Metadata.Labels["labelForTest"])
 
 	// Get the Pod
-	getResp, statusCode, err := graphql.SendRequest(url, graphql.GetPodQuery())
+	getResp, statusCode, err := testutils.SendRequest(url, testutils.GetPodQuery())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), getResp.Errors, "GraphQL errors: %v", getResp.Errors)
@@ -58,7 +58,7 @@ func (suite *CommonTestSuite) TestPodCRUD() {
 	require.Equal(suite.T(), "nginx", podData.Spec.Containers[0].Image)
 
 	// List pods
-	listResp, statusCode, err := graphql.SendRequest(url, graphql.ListPodsQuery())
+	listResp, statusCode, err := testutils.SendRequest(url, testutils.ListPodsQuery())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), getResp.Errors, "GraphQL errors: %v", getResp.Errors)
@@ -71,13 +71,13 @@ func (suite *CommonTestSuite) TestPodCRUD() {
 	require.Equal(suite.T(), "nginx", listPodsData[0].Spec.Containers[0].Image)
 
 	// Delete the Pod
-	deleteResp, statusCode, err := graphql.SendRequest(url, graphql.DeletePodMutation())
+	deleteResp, statusCode, err := testutils.SendRequest(url, testutils.DeletePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), deleteResp.Errors, "GraphQL errors: %v", deleteResp.Errors)
 
 	// Try to get the Pod after deletion
-	getRespAfterDelete, statusCode, err := graphql.SendRequest(url, graphql.GetPodQuery())
+	getRespAfterDelete, statusCode, err := testutils.SendRequest(url, testutils.GetPodQuery())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.NotNil(suite.T(), getRespAfterDelete.Errors, "Expected error when querying deleted Pod, but got none")
@@ -90,13 +90,13 @@ func (suite *CommonTestSuite) TestSchemaUpdate() {
 	url := suite.getUrl(workspaceName)
 
 	// Create the Pod
-	createPodResp, statusCode, err := graphql.SendRequest(url, graphql.CreatePodMutation())
+	createPodResp, statusCode, err := testutils.SendRequest(url, testutils.CreatePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), createPodResp.Errors, "GraphQL errors: %v", createPodResp.Errors)
 
 	// Get the Pod
-	getPodResp, statusCode, err := graphql.SendRequest(url, graphql.GetPodQuery())
+	getPodResp, statusCode, err := testutils.SendRequest(url, testutils.GetPodQuery())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), getPodResp.Errors, "GraphQL errors: %v", getPodResp.Errors)
@@ -109,13 +109,13 @@ func (suite *CommonTestSuite) TestSchemaUpdate() {
 	suite.writeToFile("podAndServiceOnly", workspaceName)
 
 	// Create the Service
-	createServiceResp, statusCode, err := graphql.SendRequest(url, graphql.CreateServiceMutation())
+	createServiceResp, statusCode, err := testutils.SendRequest(url, testutils.CreateServiceMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), createServiceResp.Errors, "GraphQL errors during creation: %v", createServiceResp.Errors)
 
 	// Get the Service
-	getServiceResp, statusCode, err := graphql.SendRequest(url, graphql.GetServiceQuery())
+	getServiceResp, statusCode, err := testutils.SendRequest(url, testutils.GetServiceQuery())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), getServiceResp.Errors, "GraphQL errors during query: %v", getServiceResp.Errors)
@@ -127,13 +127,13 @@ func (suite *CommonTestSuite) TestSchemaUpdate() {
 	require.Equal(suite.T(), 80, serviceData.Spec.Ports[0].Port)
 
 	// Delete the Service
-	deleteServiceResp, statusCode, err := graphql.SendRequest(url, graphql.DeleteServiceMutation())
+	deleteServiceResp, statusCode, err := testutils.SendRequest(url, testutils.DeleteServiceMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), deleteServiceResp.Errors, "GraphQL errors during deletion: %v", deleteServiceResp.Errors)
 
 	// Try to get the Service after deletion
-	getServiceRespAfterDelete, statusCode, err := graphql.SendRequest(url, graphql.GetServiceQuery())
+	getServiceRespAfterDelete, statusCode, err := testutils.SendRequest(url, testutils.GetServiceQuery())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.NotNil(suite.T(), getServiceRespAfterDelete.Errors, "Expected error when querying deleted Service, but got none")
@@ -145,7 +145,7 @@ func (suite *CommonTestSuite) TestSpecFileRemove() {
 	url := suite.getUrl(workspaceName)
 
 	// Create the Pod
-	_, statusCode, err := graphql.SendRequest(url, graphql.CreatePodMutation())
+	_, statusCode, err := testutils.SendRequest(url, testutils.CreatePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 
@@ -156,7 +156,7 @@ func (suite *CommonTestSuite) TestSpecFileRemove() {
 	time.Sleep(sleepTime)
 
 	// Attempt to access the URL again
-	_, statusCode, _ = graphql.SendRequest(url, graphql.CreatePodMutation())
+	_, statusCode, _ = testutils.SendRequest(url, testutils.CreatePodMutation())
 	require.Equal(suite.T(), http.StatusNotFound, statusCode, "Expected StatusNotFound after handler is removed")
 }
 
@@ -166,7 +166,7 @@ func (suite *CommonTestSuite) TestSpecFileRename() {
 	url := suite.getUrl(workspaceName)
 
 	// Check if the handler is accessible
-	_, statusCode, err := graphql.SendRequest(url, graphql.CreatePodMutation())
+	_, statusCode, err := testutils.SendRequest(url, testutils.CreatePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 
@@ -177,11 +177,11 @@ func (suite *CommonTestSuite) TestSpecFileRename() {
 	time.Sleep(sleepTime) // let's give some time to the manager to process the file and create a url
 
 	// old url should not be accessible, status should be NotFound
-	_, statusCode, _ = graphql.SendRequest(url, graphql.CreatePodMutation())
+	_, statusCode, _ = testutils.SendRequest(url, testutils.CreatePodMutation())
 	require.Equal(suite.T(), http.StatusNotFound, statusCode, "Expected StatusNotFound after workspace rename")
 
 	// now new url should be accessible
-	_, statusCode, err = graphql.SendRequest(suite.getUrl(newWorkspaceName), graphql.CreatePodMutation())
+	_, statusCode, err = testutils.SendRequest(suite.getUrl(newWorkspaceName), testutils.CreatePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 }
@@ -192,13 +192,13 @@ func (suite *CommonTestSuite) TestCreateGetAndDeleteAccount() {
 	url := suite.getUrl(workspaceName)
 
 	// Create the Account and verify the response
-	createResp, statusCode, err := graphql.SendRequest(url, graphql.CreateAccountMutation())
+	createResp, statusCode, err := testutils.SendRequest(url, testutils.CreateAccountMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), createResp.Errors, "GraphQL errors: %v", createResp.Errors)
 
 	// Retrieve the Account and verify its details
-	getResp, statusCode, err := graphql.SendRequest(url, graphql.GetAccountQuery())
+	getResp, statusCode, err := testutils.SendRequest(url, testutils.GetAccountQuery())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), getResp.Errors, "GraphQL errors: %v", getResp.Errors)
@@ -209,13 +209,13 @@ func (suite *CommonTestSuite) TestCreateGetAndDeleteAccount() {
 	require.Equal(suite.T(), "account", accountData.Spec.Type)
 
 	// Delete the Account and verify the response
-	deleteResp, statusCode, err := graphql.SendRequest(url, graphql.DeleteAccountMutation())
+	deleteResp, statusCode, err := testutils.SendRequest(url, testutils.DeleteAccountMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), deleteResp.Errors, "GraphQL errors: %v", deleteResp.Errors)
 
 	// Attempt to retrieve the Account after deletion and expect an error
-	getRespAfterDelete, statusCode, err := graphql.SendRequest(url, graphql.GetAccountQuery())
+	getRespAfterDelete, statusCode, err := testutils.SendRequest(url, testutils.GetAccountQuery())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.NotNil(suite.T(), getRespAfterDelete.Errors, "Expected error when querying deleted Account, but got none")
@@ -227,7 +227,7 @@ func (suite *CommonTestSuite) TestSubscribeToSingleAccount() {
 	suite.writeToFile("fullSchema", workspaceName)
 	url := suite.getUrl(workspaceName)
 
-	events, cancel, err := graphql.Subscribe(url, graphql.SubscribeToSingleAccount(), suite.log)
+	events, cancel, err := testutils.Subscribe(url, testutils.SubscribeToSingleAccount(), suite.log)
 	if err != nil {
 		suite.log.Error().Err(err).Msg("Failed to subscribe to events")
 		return
@@ -247,12 +247,12 @@ func (suite *CommonTestSuite) TestSubscribeToSingleAccount() {
 	}()
 
 	// Create the Account and verify the response
-	_, statusCode, err := graphql.SendRequest(url, graphql.CreateAccountMutation())
+	_, statusCode, err := testutils.SendRequest(url, testutils.CreateAccountMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 
 	// Update the Account and verify the response
-	updateResp, statusCode, err := graphql.SendRequest(url, graphql.UpdateAccountMutation())
+	updateResp, statusCode, err := testutils.SendRequest(url, testutils.UpdateAccountMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Equal(suite.T(), "new display name", updateResp.Data.CoreOpenmfpIO.UpdateAccount.Spec.DisplayName)
@@ -267,7 +267,7 @@ func (suite *CommonTestSuite) TestSubscribeToAccounts() {
 	suite.writeToFile("fullSchema", workspaceName)
 	url := suite.getUrl(workspaceName)
 
-	events, cancel, err := graphql.Subscribe(url, graphql.SubscribeToAccounts(), suite.log)
+	events, cancel, err := testutils.Subscribe(url, testutils.SubscribeToAccounts(), suite.log)
 	if err != nil {
 		suite.log.Error().Err(err).Msg("Failed to subscribe to events")
 		return
@@ -283,7 +283,7 @@ func (suite *CommonTestSuite) TestSubscribeToAccounts() {
 	}()
 
 	// Create the Account and verify the response
-	_, statusCode, err := graphql.SendRequest(url, graphql.CreateAccountMutation())
+	_, statusCode, err := testutils.SendRequest(url, testutils.CreateAccountMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 

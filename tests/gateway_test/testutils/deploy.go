@@ -1,4 +1,4 @@
-package graphql
+package testutils
 
 func CreateDeploymentMutation() string {
 	return `mutation {

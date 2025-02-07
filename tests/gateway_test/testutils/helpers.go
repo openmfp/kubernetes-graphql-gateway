@@ -1,4 +1,4 @@
-package graphql
+package testutils
 
 import (
 	"bufio"
@@ -75,7 +75,6 @@ func SendRequest(url, query string) (*GraphQLResponse, int, error) {
 	}
 	defer resp.Body.Close()
 	v := resp.Body
-	fmt.Println(v)
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {

@@ -1,4 +1,4 @@
-package graphql
+package testutils
 
 // Account represents the Account resource with its metadata and specification.
 type Account struct {

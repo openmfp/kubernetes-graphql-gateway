@@ -1,4 +1,4 @@
-package graphql
+package testutils
 
 type Pod struct {
 	Metadata Metadata `json:"metadata"`

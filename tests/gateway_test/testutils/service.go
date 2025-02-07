@@ -1,4 +1,4 @@
-package graphql
+package testutils
 
 type ServiceData struct {
 	Metadata Metadata       `json:"metadata"`
