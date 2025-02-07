@@ -271,6 +271,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(split) == 1 {
 		r = r.WithContext(context.WithValue(r.Context(), TokenKey{}, token))
 	} else {
+		r = r.WithContext(context.WithValue(r.Context(), TokenKey{}, split[1]))
 	}
 
 	if r.Header.Get("Accept") == "text/event-stream" {
