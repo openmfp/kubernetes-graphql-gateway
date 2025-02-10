@@ -74,7 +74,6 @@ func SendRequest(url, query string) (*GraphQLResponse, int, error) {
 		return nil, 0, err
 	}
 	defer resp.Body.Close()
-	v := resp.Body
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
