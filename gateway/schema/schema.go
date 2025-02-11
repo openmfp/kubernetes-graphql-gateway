@@ -99,40 +99,60 @@ func (g *Gateway) generateGraphqlSchema() error {
 			})
 
 			queryGroupType.AddFieldConfig(plural, &graphql.Field{
-				Type:    graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(resourceType))),
-				Args:    g.resolver.GetListItemsArguments(),
+				Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(resourceType))),
+				Args: g.resolver.GetFieldConfigArguments(map[string]struct{}{
+					resolver.LabelSelectorArg: {},
+					resolver.NamespaceArg:     {},
+				}, nil),
 				Resolve: g.resolver.ListItems(*gvk),
 			})
 
 			queryGroupType.AddFieldConfig(singular, &graphql.Field{
-				Type:    graphql.NewNonNull(resourceType),
-				Args:    g.resolver.GetNameAndNamespaceArguments(),
+				Type: graphql.NewNonNull(resourceType),
+				Args: g.resolver.GetFieldConfigArguments(map[string]struct{}{
+					resolver.NameArg:      {},
+					resolver.NamespaceArg: {},
+				}, nil),
 				Resolve: g.resolver.GetItem(*gvk),
 			})
 
 			// Mutation definitions
 			mutationGroupType.AddFieldConfig("create"+singular, &graphql.Field{
-				Type:    resourceType,
-				Args:    g.resolver.GetMutationArguments(resourceInputType),
+				Type: resourceType,
+				Args: g.resolver.GetFieldConfigArguments(map[string]struct{}{
+					resolver.NamespaceArg: {},
+					resolver.ObjectArg:    {},
+				}, resourceInputType),
 				Resolve: g.resolver.CreateItem(*gvk),
 			})
 
 			mutationGroupType.AddFieldConfig("update"+singular, &graphql.Field{
-				Type:    resourceType,
-				Args:    g.resolver.GetMutationArguments(resourceInputType),
+				Type: resourceType,
+				Args: g.resolver.GetFieldConfigArguments(map[string]struct{}{
+					resolver.NameArg:      {},
+					resolver.NamespaceArg: {},
+					resolver.ObjectArg:    {},
+				}, resourceInputType),
 				Resolve: g.resolver.UpdateItem(*gvk),
 			})
 
 			mutationGroupType.AddFieldConfig("delete"+singular, &graphql.Field{
-				Type:    graphql.Boolean,
-				Args:    g.resolver.GetNameAndNamespaceArguments(),
+				Type: graphql.Boolean,
+				Args: g.resolver.GetFieldConfigArguments(map[string]struct{}{
+					resolver.NameArg:      {},
+					resolver.NamespaceArg: {},
+				}, nil),
 				Resolve: g.resolver.DeleteItem(*gvk),
 			})
 
 			subscriptionSingular := strings.ToLower(fmt.Sprintf("%s_%s", group, singular))
 			rootSubscriptionFields[subscriptionSingular] = &graphql.Field{
-				Type:        resourceType,
-				Args:        g.resolver.GetSubscriptionArguments(true),
+				Type: resourceType,
+				Args: g.resolver.GetFieldConfigArguments(map[string]struct{}{
+					resolver.NameArg:           {},
+					resolver.NamespaceArg:      {},
+					resolver.SubscribeToAllArg: {},
+				}, nil),
 				Resolve:     g.resolver.CommonResolver(),
 				Subscribe:   g.resolver.SubscribeItem(*gvk),
 				Description: fmt.Sprintf("Subscribe to changes of %s", singular),
@@ -140,8 +160,11 @@ func (g *Gateway) generateGraphqlSchema() error {
 
 			subscriptionPlural := strings.ToLower(fmt.Sprintf("%s_%s", group, plural))
 			rootSubscriptionFields[subscriptionPlural] = &graphql.Field{
-				Type:        graphql.NewList(resourceType),
-				Args:        g.resolver.GetSubscriptionArguments(false),
+				Type: graphql.NewList(resourceType),
+				Args: g.resolver.GetFieldConfigArguments(map[string]struct{}{
+					resolver.NamespaceArg:      {},
+					resolver.SubscribeToAllArg: {},
+				}, nil),
 				Resolve:     g.resolver.CommonResolver(),
 				Subscribe:   g.resolver.SubscribeItems(*gvk),
 				Description: fmt.Sprintf("Subscribe to changes of %s", plural),

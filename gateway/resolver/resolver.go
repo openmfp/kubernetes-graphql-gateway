@@ -21,10 +21,11 @@ import (
 )
 
 const (
-	labelSelectorArg  = "labelselector"
-	nameArg           = "name"
-	namespaceArg      = "namespace"
-	subscribeToAllArg = "subscribeToAll"
+	LabelSelectorArg  = "labelselector"
+	NameArg           = "name"
+	NamespaceArg      = "namespace"
+	ObjectArg         = "object"
+	SubscribeToAllArg = "subscribeToAll"
 )
 
 type Provider interface {
@@ -50,10 +51,7 @@ type FieldResolverProvider interface {
 }
 
 type ArgumentsProvider interface {
-	GetListItemsArguments() graphql.FieldConfigArgument
-	GetMutationArguments(resourceInputType *graphql.InputObject) graphql.FieldConfigArgument
-	GetNameAndNamespaceArguments() graphql.FieldConfigArgument
-	GetSubscriptionArguments(includeNameArg bool) graphql.FieldConfigArgument
+	GetFieldConfigArguments(input map[string]struct{}, resourceInputType *graphql.InputObject) graphql.FieldConfigArgument
 }
 
 type Service struct {
@@ -96,17 +94,17 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn 
 
 		var opts []client.ListOption
 		// Handle label selector argument
-		if labelSelector, ok := p.Args[labelSelectorArg].(string); ok && labelSelector != "" {
+		if labelSelector, ok := p.Args[LabelSelectorArg].(string); ok && labelSelector != "" {
 			selector, err := labels.Parse(labelSelector)
 			if err != nil {
-				log.Error().Err(err).Str(labelSelectorArg, labelSelector).Msg("Unable to parse given label selector")
+				log.Error().Err(err).Str(LabelSelectorArg, labelSelector).Msg("Unable to parse given label selector")
 				return nil, err
 			}
 			opts = append(opts, client.MatchingLabelsSelector{Selector: selector})
 		}
 
 		// Handle namespace argument
-		if namespace, ok := p.Args[namespaceArg].(string); ok && namespace != "" {
+		if namespace, ok := p.Args[NamespaceArg].(string); ok && namespace != "" {
 			opts = append(opts, client.InNamespace(namespace))
 		}
 
@@ -176,7 +174,7 @@ func (r *Service) CreateItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 
 		log := r.log.With().Str("operation", "create").Str("kind", gvk.Kind).Logger()
 
-		namespace := p.Args[namespaceArg].(string)
+		namespace := p.Args[NamespaceArg].(string)
 		objectInput := p.Args["object"].(map[string]interface{})
 
 		obj := &unstructured.Unstructured{
@@ -276,50 +274,41 @@ func (r *Service) CommonResolver() graphql.FieldResolveFn {
 	}
 }
 
-// GetListItemsArguments returns the GraphQL arguments for listing resources.
-func (r *Service) GetListItemsArguments() graphql.FieldConfigArgument {
-	return graphql.FieldConfigArgument{
-		labelSelectorArg: &graphql.ArgumentConfig{
-			Type:        graphql.String,
-			Description: "A label selector to filter the objects by",
-		},
-		namespaceArg: &graphql.ArgumentConfig{
-			Type:        graphql.String,
-			Description: "The namespace in which to search for the objects",
-		},
+// GetFieldConfigArguments return specific arguments for the given input and resourceInputType
+func (r *Service) GetFieldConfigArguments(input map[string]struct{}, resourceInputType *graphql.InputObject) graphql.FieldConfigArgument {
+	arguments := graphql.FieldConfigArgument{}
+	for arg := range input {
+		switch arg {
+		case NameArg:
+			arguments[NameArg] = &graphql.ArgumentConfig{
+				Type:        graphql.NewNonNull(graphql.String),
+				Description: "The name of the object",
+			}
+		case NamespaceArg:
+			arguments[NamespaceArg] = &graphql.ArgumentConfig{
+				Type:        graphql.String,
+				Description: "The namespace in which to search for the objects",
+			}
+		case LabelSelectorArg:
+			arguments[LabelSelectorArg] = &graphql.ArgumentConfig{
+				Type:        graphql.String,
+				Description: "A label selector to filter the objects by",
+			}
+		case ObjectArg:
+			arguments[ObjectArg] = &graphql.ArgumentConfig{
+				Type:        graphql.NewNonNull(resourceInputType),
+				Description: "The object to create or update",
+			}
+		case SubscribeToAllArg:
+			arguments[SubscribeToAllArg] = &graphql.ArgumentConfig{
+				Type:         graphql.Boolean,
+				DefaultValue: false,
+				Description:  "If true, events will be emitted on every field change",
+			}
+		}
 	}
-}
 
-// GetMutationArguments returns the GraphQL arguments for create and update mutations.
-func (r *Service) GetMutationArguments(resourceInputType *graphql.InputObject) graphql.FieldConfigArgument {
-	return graphql.FieldConfigArgument{
-		nameArg: &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(graphql.String),
-			Description: "The name of the object",
-		},
-		namespaceArg: &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(graphql.String),
-			Description: "The namespace of the object",
-		},
-		"object": &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(resourceInputType),
-			Description: "The object to create or update",
-		},
-	}
-}
-
-// GetNameAndNamespaceArguments returns the GraphQL arguments for delete mutations.
-func (r *Service) GetNameAndNamespaceArguments() graphql.FieldConfigArgument {
-	return graphql.FieldConfigArgument{
-		nameArg: &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(graphql.String),
-			Description: "The name of the object",
-		},
-		namespaceArg: &graphql.ArgumentConfig{
-			Type:        graphql.NewNonNull(graphql.String),
-			Description: "The namespace of the object",
-		},
-	}
+	return arguments
 }
 
 func (r *Service) SanitizeGroupName(groupName string) string {
@@ -349,13 +338,13 @@ func (r *Service) GetOriginalGroupName(groupName string) string {
 }
 
 func getNameAndNameSpace(args map[string]interface{}) (name, namespace string, err error) {
-	name, ok := args[nameArg].(string)
+	name, ok := args[NameArg].(string)
 	if !ok || name == "" {
 		log.Error().Err(errors.New("missing required argument: name")).Msg("Name argument is required")
 		return "", "", errors.New("name argument is required")
 	}
 
-	namespace, ok = args[namespaceArg].(string)
+	namespace, ok = args[NamespaceArg].(string)
 	if !ok || namespace == "" {
 		log.Error().Err(errors.New("missing required argument: namespace")).Msg("Namespace argument is required")
 		return "", "", errors.New("namespace argument is required")

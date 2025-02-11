@@ -32,8 +32,8 @@ func TestListItems(t *testing.T) {
 		{
 			name: "listItems_OK",
 			args: map[string]interface{}{
-				namespaceArg:     "test-namespace",
-				labelSelectorArg: "key=value",
+				NamespaceArg:     "test-namespace",
+				LabelSelectorArg: "key=value",
 			},
 			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
 				runtimeClientMock.EXPECT().
@@ -66,7 +66,7 @@ func TestListItems(t *testing.T) {
 		{
 			name: "invalidLabelSelector_ERROR",
 			args: map[string]interface{}{
-				labelSelectorArg: ",,",
+				LabelSelectorArg: ",,",
 			},
 			expectedItems: nil,
 			expectError:   true,
@@ -113,8 +113,8 @@ func TestGetItem(t *testing.T) {
 		{
 			name: "getItem_OK",
 			args: map[string]interface{}{
-				nameArg:      "test-object",
-				namespaceArg: "test-namespace",
+				NameArg:      "test-object",
+				NamespaceArg: "test-namespace",
 			},
 			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
 				runtimeClientMock.EXPECT().
@@ -138,8 +138,8 @@ func TestGetItem(t *testing.T) {
 		{
 			name: "getItem_ERROR",
 			args: map[string]interface{}{
-				nameArg:      "test-object",
-				namespaceArg: "test-namespace",
+				NameArg:      "test-object",
+				NamespaceArg: "test-namespace",
 			},
 			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
 				runtimeClientMock.EXPECT().
@@ -151,14 +151,14 @@ func TestGetItem(t *testing.T) {
 		{
 			name: "missingNameArg_ERROR",
 			args: map[string]interface{}{
-				namespaceArg: "test-namespace",
+				NamespaceArg: "test-namespace",
 			},
 			expectError: true,
 		},
 		{
 			name: "missingNamespaceArg_ERROR",
 			args: map[string]interface{}{
-				nameArg: "test-object",
+				NameArg: "test-object",
 			},
 			expectError: true,
 		},
@@ -204,8 +204,8 @@ func TestCreateItem(t *testing.T) {
 		{
 			name: "create_item_OK",
 			args: map[string]interface{}{
-				nameArg:      "test-object",
-				namespaceArg: "test-namespace",
+				NameArg:      "test-object",
+				NamespaceArg: "test-namespace",
 				"object": map[string]interface{}{
 					"metadata": map[string]interface{}{
 						"name": "test-object",
@@ -229,8 +229,8 @@ func TestCreateItem(t *testing.T) {
 		{
 			name: "create_item_ERROR",
 			args: map[string]interface{}{
-				nameArg:      "test-object",
-				namespaceArg: "test-namespace",
+				NameArg:      "test-object",
+				NamespaceArg: "test-namespace",
 				"object": map[string]interface{}{
 					"metadata": map[string]interface{}{
 						"name": "test-object",
@@ -247,7 +247,7 @@ func TestCreateItem(t *testing.T) {
 		{
 			name: "missing_metadata_name_ERROR",
 			args: map[string]interface{}{
-				namespaceArg: "test-namespace",
+				NamespaceArg: "test-namespace",
 				"object":     map[string]interface{}{},
 			},
 			expectError: true,
@@ -294,8 +294,8 @@ func TestUpdateItem(t *testing.T) {
 		{
 			name: "update_item_OK",
 			args: map[string]interface{}{
-				nameArg:      "test-object",
-				namespaceArg: "test-namespace",
+				NameArg:      "test-object",
+				NamespaceArg: "test-namespace",
 				"object": map[string]interface{}{
 					"metadata": map[string]interface{}{
 						"name": "test-object",
@@ -328,7 +328,7 @@ func TestUpdateItem(t *testing.T) {
 		{
 			name: "missing_metadata_name_ERROR",
 			args: map[string]interface{}{
-				namespaceArg: "test-namespace",
+				NamespaceArg: "test-namespace",
 				"object":     map[string]interface{}{},
 			},
 			expectError: true,
@@ -336,8 +336,8 @@ func TestUpdateItem(t *testing.T) {
 		{
 			name: "get_existing_object_ERROR",
 			args: map[string]interface{}{
-				nameArg:      "test-object",
-				namespaceArg: "test-namespace",
+				NameArg:      "test-object",
+				NamespaceArg: "test-namespace",
 				"object": map[string]interface{}{
 					"metadata": map[string]interface{}{
 						"name": "test-object",
@@ -354,8 +354,8 @@ func TestUpdateItem(t *testing.T) {
 		{
 			name: "patch_object_ERROR",
 			args: map[string]interface{}{
-				nameArg:      "test-object",
-				namespaceArg: "test-namespace",
+				NameArg:      "test-object",
+				NamespaceArg: "test-namespace",
 				"object": map[string]interface{}{
 					"metadata": map[string]interface{}{
 						"name": "test-object",
@@ -414,8 +414,8 @@ func TestDeleteItem(t *testing.T) {
 		{
 			name: "delete_item_OK",
 			args: map[string]interface{}{
-				nameArg:      "test-object",
-				namespaceArg: "test-namespace",
+				NameArg:      "test-object",
+				NamespaceArg: "test-namespace",
 			},
 			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
 				runtimeClientMock.EXPECT().
@@ -426,22 +426,22 @@ func TestDeleteItem(t *testing.T) {
 		{
 			name: "missing_name_argument_ERROR",
 			args: map[string]interface{}{
-				namespaceArg: "test-namespace",
+				NamespaceArg: "test-namespace",
 			},
 			expectError: true,
 		},
 		{
 			name: "missing_namespace_argument_ERROR",
 			args: map[string]interface{}{
-				nameArg: "test-object",
+				NameArg: "test-object",
 			},
 			expectError: true,
 		},
 		{
 			name: "delete_object_ERROR",
 			args: map[string]interface{}{
-				nameArg:      "test-object",
-				namespaceArg: "test-namespace",
+				NameArg:      "test-object",
+				NamespaceArg: "test-namespace",
 			},
 			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
 				runtimeClientMock.EXPECT().
@@ -479,60 +479,6 @@ func TestDeleteItem(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestGetListItemsArguments(t *testing.T) {
-	r := &Service{}
-	args := r.GetListItemsArguments()
-
-	require.NotNil(t, args)
-	require.Contains(t, args, labelSelectorArg)
-	require.Contains(t, args, namespaceArg)
-
-	require.Equal(t, graphql.String, args[labelSelectorArg].Type)
-	require.Equal(t, "A label selector to filter the objects by", args[labelSelectorArg].Description)
-
-	require.Equal(t, graphql.String, args[namespaceArg].Type)
-	require.Equal(t, "The namespace in which to search for the objects", args[namespaceArg].Description)
-}
-
-func TestGetMutationArguments(t *testing.T) {
-	r := &Service{}
-	resourceInputType := graphql.NewInputObject(graphql.InputObjectConfig{
-		Name: "TestResourceInput",
-		Fields: graphql.InputObjectConfigFieldMap{
-			"testField": &graphql.InputObjectFieldConfig{Type: graphql.String},
-		},
-	})
-
-	args := r.GetMutationArguments(resourceInputType)
-
-	require.NotNil(t, args)
-	require.Contains(t, args, namespaceArg)
-	require.Contains(t, args, "object")
-
-	require.Equal(t, graphql.NewNonNull(graphql.String), args[namespaceArg].Type)
-	require.Equal(t, "The namespace of the object", args[namespaceArg].Description)
-
-	require.Equal(t, graphql.NewNonNull(resourceInputType), args["object"].Type)
-	require.Equal(t, "The object to create or update", args["object"].Description)
-}
-
-func TestGetNameAndNamespaceArguments(t *testing.T) {
-	r := &Service{}
-	arguments := r.GetNameAndNamespaceArguments()
-
-	name, ok := arguments[nameArg]
-	assert.True(t, ok, "nameArg should be present")
-	assert.NotNil(t, nameArg, "nameArg should not be nil")
-	assert.Equal(t, graphql.NewNonNull(graphql.String), name.Type, "nameArg type should be graphql.String")
-	assert.Equal(t, "The name of the object", name.Description, "nameArg description should match")
-
-	namespace, ok := arguments[namespaceArg]
-	assert.True(t, ok, "namespaceArg should be present")
-	assert.NotNil(t, namespaceArg, "namespaceArg should not be nil")
-	assert.Equal(t, graphql.NewNonNull(graphql.String), namespace.Type, "namespaceArg type should be graphql.String")
-	assert.Equal(t, "The namespace of the object", namespace.Description, "namespaceArg description should match")
 }
 
 func TestSanitizeGroupName(t *testing.T) {
