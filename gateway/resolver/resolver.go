@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/rs/zerolog/log"
 	"regexp"
 
 	"github.com/graphql-go/graphql"
@@ -144,16 +145,9 @@ func (r *Service) GetItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 		}
 
 		// Retrieve required arguments
-		name, ok := p.Args[nameArg].(string)
-		if !ok || name == "" {
-			log.Error().Err(errors.New("missing required argument: name")).Msg("Name argument is required")
-			return nil, errors.New("name argument is required")
-		}
-
-		namespace, ok := p.Args[namespaceArg].(string)
-		if !ok || namespace == "" {
-			log.Error().Err(errors.New("missing required argument: namespace")).Msg("Namespace argument is required")
-			return nil, errors.New("namespace argument is required")
+		name, namespace, err := getNameAndNameSpace(p.Args)
+		if err != nil {
+			return nil, err
 		}
 
 		// Create an unstructured object to hold the result
@@ -213,7 +207,12 @@ func (r *Service) UpdateItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 
 		log := r.log.With().Str("operation", "update").Str("kind", gvk.Kind).Logger()
 
-		namespace := p.Args[namespaceArg].(string)
+		namespace, ok := p.Args[namespaceArg].(string)
+		if !ok || namespace == "" {
+			log.Error().Err(errors.New("missing required argument: namespace")).Msg("Namespace argument is required")
+			return nil, errors.New("namespace argument is required")
+		}
+
 		objectInput := p.Args["object"].(map[string]interface{})
 
 		// Ensure metadata.name is set
@@ -260,16 +259,9 @@ func (r *Service) DeleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 
 		log := r.log.With().Str("operation", "delete").Str("kind", gvk.Kind).Logger()
 
-		name, ok := p.Args[nameArg].(string)
-		if !ok || name == "" {
-			log.Error().Err(errors.New("missing required argument: name")).Msg("Name argument is required")
-			return nil, errors.New("name argument is required")
-		}
-
-		namespace, ok := p.Args[namespaceArg].(string)
-		if !ok || namespace == "" {
-			log.Error().Err(errors.New("missing required argument: namespace")).Msg("Namespace argument is required")
-			return nil, errors.New("namespace argument is required")
+		name, namespace, err := getNameAndNameSpace(p.Args)
+		if err != nil {
+			return nil, err
 		}
 
 		obj := &unstructured.Unstructured{}
@@ -358,4 +350,20 @@ func (r *Service) GetOriginalGroupName(groupName string) string {
 	}
 
 	return groupName
+}
+
+func getNameAndNameSpace(args map[string]interface{}) (name, namespace string, err error) {
+	name, ok := args[nameArg].(string)
+	if !ok || name == "" {
+		log.Error().Err(errors.New("missing required argument: name")).Msg("Name argument is required")
+		return "", "", errors.New("name argument is required")
+	}
+
+	namespace, ok = args[namespaceArg].(string)
+	if !ok || namespace == "" {
+		log.Error().Err(errors.New("missing required argument: namespace")).Msg("Namespace argument is required")
+		return "", "", errors.New("namespace argument is required")
+	}
+
+	return name, namespace, nil
 }
