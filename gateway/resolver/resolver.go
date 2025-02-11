@@ -144,16 +144,16 @@ func (r *Service) GetItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 		}
 
 		// Retrieve required arguments
-		name, ok := p.Args["name"].(string)
+		name, ok := p.Args[nameArg].(string)
 		if !ok || name == "" {
 			log.Error().Err(errors.New("missing required argument: name")).Msg("Name argument is required")
-			return nil, err
+			return nil, errors.New("name argument is required")
 		}
 
-		namespace, ok := p.Args["namespace"].(string)
+		namespace, ok := p.Args[namespaceArg].(string)
 		if !ok || namespace == "" {
 			log.Error().Err(errors.New("missing required argument: namespace")).Msg("Namespace argument is required")
-			return nil, err
+			return nil, errors.New("namespace argument is required")
 		}
 
 		// Create an unstructured object to hold the result
@@ -260,8 +260,17 @@ func (r *Service) DeleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 
 		log := r.log.With().Str("operation", "delete").Str("kind", gvk.Kind).Logger()
 
-		name := p.Args[nameArg].(string)
-		namespace := p.Args[namespaceArg].(string)
+		name, ok := p.Args[nameArg].(string)
+		if !ok || name == "" {
+			log.Error().Err(errors.New("missing required argument: name")).Msg("Name argument is required")
+			return nil, errors.New("name argument is required")
+		}
+
+		namespace, ok := p.Args[namespaceArg].(string)
+		if !ok || namespace == "" {
+			log.Error().Err(errors.New("missing required argument: namespace")).Msg("Namespace argument is required")
+			return nil, errors.New("namespace argument is required")
+		}
 
 		obj := &unstructured.Unstructured{}
 		obj.SetGroupVersionKind(gvk)
