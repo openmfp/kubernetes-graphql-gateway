@@ -4,15 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"slices"
-	"strings"
-
-	//nolint:staticcheck // SA1019 Keep using module since it's still being maintained and the api of google.golang.org/protobuf/proto differs
 
 	"k8s.io/client-go/discovery"
 	"k8s.io/kube-openapi/pkg/validation/spec"
-	// "github.com/getkin/kin-openapi/openapi2conv"
-	// "github.com/getkin/kin-openapi/openapi3"
 )
 
 const (
@@ -54,30 +48,13 @@ func (r *ResolverImpl) Resolve(dc discovery.DiscoveryInterface) ([]byte, error) 
 	}
 
 	schemas := make(map[string]*spec.Schema)
-	for key, path := range apiv3Paths {
-		if !strings.Contains(key, separator) {
-			continue
-		}
-		pathApiGroupArray := strings.Split(key, separator)
-		pathApiGroup := strings.Join(pathApiGroupArray[1:], separator)
-		// filer out apiGroups that aren't in the preferred list
-		if !slices.Contains(preferredApiGroups, pathApiGroup) {
-			continue
-		}
-
-		b, err := path.Schema(discovery.AcceptV1)
+	for path, gv := range apiv3Paths {
+		schema, err := getSchemaForPath(preferredApiGroups, path, gv)
 		if err != nil {
 			//TODO: debug log?
 			continue
 		}
-
-		resp := &schemaResponse{}
-		err = json.Unmarshal(b, resp)
-		if err != nil {
-			//TODO: debug log?
-			continue
-		}
-		maps.Copy(schemas, resp.Components.Schemas)
+		maps.Copy(schemas, schema)
 	}
 	v3JSON, err := json.Marshal(&schemaResponse{
 		Components: schemasComponentsWrapper{
