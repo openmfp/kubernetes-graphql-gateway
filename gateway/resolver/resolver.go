@@ -207,20 +207,12 @@ func (r *Service) UpdateItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 
 		log := r.log.With().Str("operation", "update").Str("kind", gvk.Kind).Logger()
 
-		namespace, ok := p.Args[namespaceArg].(string)
-		if !ok || namespace == "" {
-			log.Error().Err(errors.New("missing required argument: namespace")).Msg("Namespace argument is required")
-			return nil, errors.New("namespace argument is required")
+		name, namespace, err := getNameAndNameSpace(p.Args)
+		if err != nil {
+			return nil, err
 		}
 
 		objectInput := p.Args["object"].(map[string]interface{})
-
-		// Ensure metadata.name is set
-		name, found, err := unstructured.NestedString(objectInput, "metadata", "name")
-		if err != nil || !found || name == "" {
-			return nil, errors.New("object metadata.name is required")
-		}
-
 		// Marshal the input object to JSON to create the patch data
 		patchData, err := json.Marshal(objectInput)
 		if err != nil {
@@ -301,6 +293,10 @@ func (r *Service) GetListItemsArguments() graphql.FieldConfigArgument {
 // GetMutationArguments returns the GraphQL arguments for create and update mutations.
 func (r *Service) GetMutationArguments(resourceInputType *graphql.InputObject) graphql.FieldConfigArgument {
 	return graphql.FieldConfigArgument{
+		nameArg: &graphql.ArgumentConfig{
+			Type:        graphql.NewNonNull(graphql.String),
+			Description: "The name of the object",
+		},
 		namespaceArg: &graphql.ArgumentConfig{
 			Type:        graphql.NewNonNull(graphql.String),
 			Description: "The namespace of the object",
