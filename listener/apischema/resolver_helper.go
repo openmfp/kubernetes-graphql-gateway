@@ -14,13 +14,13 @@ import (
 )
 
 var (
-	errInvalidKey   = errors.New("key path doesn't contain the / separator")
-	errNotPreferred = errors.New("key path ApiGroup does not belong to the server preferred APIs")
+	errInvalidPath  = errors.New("path doesn't contain the / separator")
+	errNotPreferred = errors.New("path ApiGroup does not belong to the server preferred APIs")
 )
 
 func getSchemaForPath(preferredApiGroups []string, path string, gv openapi.GroupVersion) (map[string]*spec.Schema, error) {
 	if !strings.Contains(path, separator) {
-		return nil, errInvalidKey
+		return nil, errInvalidPath
 	}
 	pathApiGroupArray := strings.Split(path, separator)
 	pathApiGroup := strings.Join(pathApiGroupArray[1:], separator)
