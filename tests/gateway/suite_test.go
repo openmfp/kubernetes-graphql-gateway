@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"github.com/graphql-go/graphql"
-	appConfig "github.com/openmfp/crd-gql-gateway/gateway/config"
 	"github.com/openmfp/crd-gql-gateway/gateway/manager"
 	"github.com/openmfp/crd-gql-gateway/gateway/resolver"
 	"github.com/openmfp/crd-gql-gateway/gateway/schema"
@@ -22,7 +21,6 @@ type CommonTestSuite struct {
 	testEnv       *envtest.Environment
 	log           *logger.Logger
 	restCfg       *rest.Config
-	appCfg        appConfig.Config
 	runtimeClient client.WithWatch
 	schema        graphql.Schema
 }
