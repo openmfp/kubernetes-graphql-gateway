@@ -65,7 +65,7 @@ func NewManager(log *logger.Logger, cfg *rest.Config, appCfg appConfig.Config) (
 	cfg.Host = fmt.Sprintf("%s://%s", u.Scheme, u.Host)
 
 	cfg.Wrap(func(rt http.RoundTripper) http.RoundTripper {
-		return NewRoundTripper(log, rt, appCfg.UserNameClaim)
+		return NewRoundTripper(log, rt, appCfg.UserNameClaim, appCfg.ShouldImpersonate)
 	})
 
 	runtimeClient, err := kcp.NewClusterAwareClientWithWatch(cfg, client.Options{})
@@ -187,6 +187,15 @@ func (s *Service) createHandler(schema *graphql.Schema) *graphqlHandler {
 }
 
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if (*r).Method == "OPTIONS" {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		w.Header().Set("Access-Control-Allow-Headers", "*")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
 	workspace, err := s.parsePath(r.URL.Path)
 	if err != nil {
 		s.log.Error().Err(err).Str("path", r.URL.Path).Msg("Error parsing path")
