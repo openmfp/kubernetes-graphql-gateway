@@ -1,16 +1,31 @@
 package apischema
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
+	"strings"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/openapi"
+	"k8s.io/kube-openapi/pkg/validation/spec"
+)
+
+var (
+	errInvalidPath  = errors.New("path doesn't contain the / separator")
+	errNotPreferred = errors.New("path ApiGroup does not belong to the server preferred APIs")
 )
 
 type CRDResolver struct {
 	*discovery.DiscoveryClient
+}
+
+func (cr *CRDResolver) Resolve() ([]byte, error) {
+	return resolveSchema(cr.DiscoveryClient)
 }
 
 func (cr *CRDResolver) ResolveApiSchema(crd *apiextensionsv1.CustomResourceDefinition) ([]byte, error) {
@@ -18,15 +33,27 @@ func (cr *CRDResolver) ResolveApiSchema(crd *apiextensionsv1.CustomResourceDefin
 	if err != nil {
 		return nil, fmt.Errorf("failed to get CRD GVK: %w", err)
 	}
-	preferredApiGroups := []string{}
+
 	apiResLists, err := cr.ServerPreferredResources()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get server preferred resources: %w", err)
 	}
+
+	preferredApiGroups, err := errorIfCRDNotInPreferredApiGroups(gvk, apiResLists)
+	if err != nil {
+		return nil, fmt.Errorf("failed to filter server preferred resources: %w", err)
+	}
+
+	return resolveForPaths(cr.OpenAPIV3(), preferredApiGroups)
+}
+
+func errorIfCRDNotInPreferredApiGroups(gvk *metav1.GroupVersionKind, apiResLists []*metav1.APIResourceList) ([]string, error) {
+	targetGV := gvk.Group + "/" + gvk.Version
 	isCRDFound := false
+	preferredApiGroups := []string{}
 	for _, apiResources := range apiResLists {
 		gv := apiResources.GroupVersion
-		if gv == fmt.Sprintf("%s/%s", gvk.Group, gvk.Version) {
+		if gv == targetGV {
 			for _, res := range apiResources.APIResources {
 				if res.Kind == gvk.Kind {
 					isCRDFound = true
@@ -40,12 +67,7 @@ func (cr *CRDResolver) ResolveApiSchema(crd *apiextensionsv1.CustomResourceDefin
 	if !isCRDFound {
 		return nil, errors.New("failed to find CRD GVK in API preferred resources")
 	}
-
-	return resolveForPaths(cr.OpenAPIV3(), preferredApiGroups)
-}
-
-func (cr *CRDResolver) Resolve() ([]byte, error) {
-	return resolveSchema(cr.DiscoveryClient)
+	return preferredApiGroups, nil
 }
 
 func getCRDGroupVersionKind(spec apiextensionsv1.CustomResourceDefinitionSpec) (*metav1.GroupVersionKind, error) {
@@ -59,4 +81,71 @@ func getCRDGroupVersionKind(spec apiextensionsv1.CustomResourceDefinitionSpec) (
 		}
 	}
 	return nil, errors.New("failed to find storage version")
+}
+
+func getSchemaForPath(preferredApiGroups []string, path string, gv openapi.GroupVersion) (map[string]*spec.Schema, error) {
+	if !strings.Contains(path, separator) {
+		return nil, errInvalidPath
+	}
+	pathApiGroupArray := strings.Split(path, separator)
+	pathApiGroup := strings.Join(pathApiGroupArray[1:], separator)
+	// filer out apiGroups that aren't in the preferred list
+	if !slices.Contains(preferredApiGroups, pathApiGroup) {
+		return nil, errNotPreferred
+	}
+
+	b, err := gv.Schema(discovery.AcceptV1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get schema for path %s :%w", path, err)
+	}
+
+	resp := &schemaResponse{}
+	if err := json.Unmarshal(b, resp); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal schema for path %s :%w", path, err)
+	}
+	return resp.Components.Schemas, nil
+}
+
+func resolveForPaths(oc openapi.Client, preferredApiGroups []string) ([]byte, error) {
+	apiv3Paths, err := oc.Paths()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get OpenAPI paths: %w", err)
+	}
+
+	schemas := make(map[string]*spec.Schema)
+	for path, gv := range apiv3Paths {
+		schema, err := getSchemaForPath(preferredApiGroups, path, gv)
+		if err != nil {
+			//TODO: debug log?
+			continue
+		}
+		maps.Copy(schemas, schema)
+	}
+	v3JSON, err := json.Marshal(&schemaResponse{
+		Components: schemasComponentsWrapper{
+			Schemas: schemas,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal openAPI v3 schema: %w", err)
+	}
+	v2JSON, err := ConvertJSON(v3JSON)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert openAPI v3 schema to v2: %w", err)
+	}
+
+	return v2JSON, nil
+}
+
+func resolveSchema(dc discovery.DiscoveryInterface) ([]byte, error) {
+	preferredApiGroups := []string{}
+	apiResList, err := dc.ServerPreferredResources()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get server preferred resources: %w", err)
+	}
+	for _, apiRes := range apiResList {
+		preferredApiGroups = append(preferredApiGroups, apiRes.GroupVersion)
+	}
+
+	return resolveForPaths(dc.OpenAPIV3(), preferredApiGroups)
 }
