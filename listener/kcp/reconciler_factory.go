@@ -66,17 +66,13 @@ func NewKcpReconciler(opts ReconcilerOpts) (CustomReconciler, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create IO Handler: %w", err)
 	}
-
 	df, err := discoveryclient.NewFactory(virtualWorkspaceCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Discovery client factory: %w", err)
 	}
-
-	return controller.NewAPIBindingReconciler(
-		ioHandler, df, apischema.NewResolver(), &clusterpath.Resolver{
-			Scheme:       opts.Scheme,
-			Config:       opts.Config,
-			ResolverFunc: clusterpath.Resolve,
-		},
-	), nil
+	pr, err := clusterpath.NewResolver(opts.Config, opts.Scheme)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cluster path resolver: %w", err)
+	}
+	return controller.NewAPIBindingReconciler(ioHandler, df, apischema.NewResolver(), pr), nil
 }

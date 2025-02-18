@@ -7,12 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	//nolint:staticcheck // SA1019 Keep using module since it's still being maintained and the api of google.golang.org/protobuf/proto differs
-
 	"k8s.io/client-go/discovery"
 	"k8s.io/kube-openapi/pkg/validation/spec"
-	// "github.com/getkin/kin-openapi/openapi2conv"
-	// "github.com/getkin/kin-openapi/openapi3"
 )
 
 const (

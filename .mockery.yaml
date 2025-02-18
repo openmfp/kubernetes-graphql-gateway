@@ -7,13 +7,6 @@ packages:
     interfaces:
       Resolver:
 
-  github.com/openmfp/crd-gql-gateway/listener/discoveryclient:
-    config:
-      dir: listener/discoveryclient/mocks
-      outpkg: mocks
-    interfaces:
-      Factory:
-
   github.com/openmfp/crd-gql-gateway/listener/workspacefile:
     config:
       dir: listener/workspacefile/mocks
