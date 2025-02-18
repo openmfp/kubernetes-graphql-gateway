@@ -16,8 +16,9 @@ import (
 )
 
 var (
-	errInvalidPath  = errors.New("path doesn't contain the / separator")
-	errNotPreferred = errors.New("path ApiGroup does not belong to the server preferred APIs")
+	errInvalidPath     = errors.New("path doesn't contain the / separator")
+	errNotPreferred    = errors.New("path ApiGroup does not belong to the server preferred APIs")
+	errGVKNotPreferred = errors.New("failed to find CRD GVK in API preferred resources")
 )
 
 type CRDResolver struct {
@@ -49,25 +50,30 @@ func (cr *CRDResolver) ResolveApiSchema(crd *apiextensionsv1.CustomResourceDefin
 
 func errorIfCRDNotInPreferredApiGroups(gvk *metav1.GroupVersionKind, apiResLists []*metav1.APIResourceList) ([]string, error) {
 	targetGV := gvk.Group + "/" + gvk.Version
-	isCRDFound := false
-	preferredApiGroups := []string{}
+	isGVFound := false
+	preferredApiGroups := make([]string, 0, len(apiResLists))
 	for _, apiResources := range apiResLists {
 		gv := apiResources.GroupVersion
-		if gv == targetGV {
-			for _, res := range apiResources.APIResources {
-				if res.Kind == gvk.Kind {
-					isCRDFound = true
-					break
-				}
-			}
+		isGVFound = gv == targetGV
+		if isGVFound && !isCRDKindIncluded(gvk, apiResources) {
+			return nil, errGVKNotPreferred
 		}
 		preferredApiGroups = append(preferredApiGroups, gv)
 	}
 
-	if !isCRDFound {
-		return nil, errors.New("failed to find CRD GVK in API preferred resources")
+	if !isGVFound {
+		return nil, errGVKNotPreferred
 	}
 	return preferredApiGroups, nil
+}
+
+func isCRDKindIncluded(gvk *metav1.GroupVersionKind, apiResources *metav1.APIResourceList) bool {
+	for _, res := range apiResources.APIResources {
+		if res.Kind == gvk.Kind {
+			return true
+		}
+	}
+	return false
 }
 
 func getCRDGroupVersionKind(spec apiextensionsv1.CustomResourceDefinitionSpec) (*metav1.GroupVersionKind, error) {
