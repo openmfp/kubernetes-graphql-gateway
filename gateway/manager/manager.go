@@ -187,15 +187,6 @@ func (s *Service) createHandler(schema *graphql.Schema) *graphqlHandler {
 }
 
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if (*r).Method == "OPTIONS" {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "*")
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-
 	workspace, err := s.parsePath(r.URL.Path)
 	if err != nil {
 		s.log.Error().Err(err).Str("path", r.URL.Path).Msg("Error parsing path")
