@@ -1,7 +1,7 @@
 package gateway
 
 type Metadata struct {
-	Name string `json:"name"`
+	Name string `json:"testName"`
 }
 
 type Spec struct {
