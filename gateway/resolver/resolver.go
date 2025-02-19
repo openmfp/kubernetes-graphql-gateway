@@ -20,18 +20,9 @@ import (
 	"github.com/openmfp/golang-commons/logger"
 )
 
-const (
-	LabelSelectorArg  = "labelselector"
-	NameArg           = "name"
-	NamespaceArg      = "namespace"
-	ObjectArg         = "object"
-	SubscribeToAllArg = "subscribeToAll"
-)
-
 type Provider interface {
 	CrudProvider
 	FieldResolverProvider
-	ArgumentsProvider
 }
 
 type CrudProvider interface {
@@ -48,10 +39,6 @@ type FieldResolverProvider interface {
 	CommonResolver() graphql.FieldResolveFn
 	SanitizeGroupName(string) string
 	GetOriginalGroupName(string) string
-}
-
-type ArgumentsProvider interface {
-	GetFieldConfigArguments(input map[string]struct{}, resourceInputType *graphql.InputObject) graphql.FieldConfigArgument
 }
 
 type Service struct {
@@ -143,7 +130,7 @@ func (r *Service) GetItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 		}
 
 		// Retrieve required arguments
-		name, namespace, err := getNameAndNameSpace(p.Args)
+		name, namespace, err := getNameAndNamespace(p.Args)
 		if err != nil {
 			return nil, err
 		}
@@ -205,7 +192,7 @@ func (r *Service) UpdateItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 
 		log := r.log.With().Str("operation", "update").Str("kind", gvk.Kind).Logger()
 
-		name, namespace, err := getNameAndNameSpace(p.Args)
+		name, namespace, err := getNameAndNamespace(p.Args)
 		if err != nil {
 			return nil, err
 		}
@@ -249,7 +236,7 @@ func (r *Service) DeleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 
 		log := r.log.With().Str("operation", "delete").Str("kind", gvk.Kind).Logger()
 
-		name, namespace, err := getNameAndNameSpace(p.Args)
+		name, namespace, err := getNameAndNamespace(p.Args)
 		if err != nil {
 			return nil, err
 		}
@@ -272,43 +259,6 @@ func (r *Service) CommonResolver() graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		return p.Source, nil
 	}
-}
-
-// GetFieldConfigArguments return specific arguments for the given input and resourceInputType
-func (r *Service) GetFieldConfigArguments(input map[string]struct{}, resourceInputType *graphql.InputObject) graphql.FieldConfigArgument {
-	arguments := graphql.FieldConfigArgument{}
-	for arg := range input {
-		switch arg {
-		case NameArg:
-			arguments[NameArg] = &graphql.ArgumentConfig{
-				Type:        graphql.NewNonNull(graphql.String),
-				Description: "The name of the object",
-			}
-		case NamespaceArg:
-			arguments[NamespaceArg] = &graphql.ArgumentConfig{
-				Type:        graphql.String,
-				Description: "The namespace in which to search for the objects",
-			}
-		case LabelSelectorArg:
-			arguments[LabelSelectorArg] = &graphql.ArgumentConfig{
-				Type:        graphql.String,
-				Description: "A label selector to filter the objects by",
-			}
-		case ObjectArg:
-			arguments[ObjectArg] = &graphql.ArgumentConfig{
-				Type:        graphql.NewNonNull(resourceInputType),
-				Description: "The object to create or update",
-			}
-		case SubscribeToAllArg:
-			arguments[SubscribeToAllArg] = &graphql.ArgumentConfig{
-				Type:         graphql.Boolean,
-				DefaultValue: false,
-				Description:  "If true, events will be emitted on every field change",
-			}
-		}
-	}
-
-	return arguments
 }
 
 func (r *Service) SanitizeGroupName(groupName string) string {
@@ -337,18 +287,40 @@ func (r *Service) GetOriginalGroupName(groupName string) string {
 	return groupName
 }
 
-func getNameAndNameSpace(args map[string]interface{}) (name, namespace string, err error) {
-	name, ok := args[NameArg].(string)
-	if !ok || name == "" {
-		log.Error().Err(errors.New("missing required argument: name")).Msg("Name argument is required")
-		return "", "", errors.New("name argument is required")
+func getNameAndNamespace(args map[string]interface{}) (string, string, error) {
+	name, err := getStringArg(args, NameArg)
+	if err != nil {
+		return "", "", err
 	}
 
-	namespace, ok = args[NamespaceArg].(string)
-	if !ok || namespace == "" {
-		log.Error().Err(errors.New("missing required argument: namespace")).Msg("Namespace argument is required")
-		return "", "", errors.New("namespace argument is required")
+	namespace, err := getStringArg(args, NamespaceArg)
+	if err != nil {
+		return "", "", err
 	}
 
 	return name, namespace, nil
+}
+
+func getStringArg(args map[string]interface{}, key string) (string, error) {
+	val, exists := args[key]
+	if !exists {
+		err := errors.New("missing required argument: " + key)
+		log.Error().Err(err).Msg(key + " argument is required")
+		return "", err
+	}
+
+	str, ok := val.(string)
+	if !ok {
+		err := errors.New("invalid type for argument: " + key)
+		log.Error().Err(err).Msg(key + " argument must be a string")
+		return "", err
+	}
+
+	if str == "" {
+		err := errors.New("empty value for argument: " + key)
+		log.Error().Err(err).Msg(key + " argument cannot be empty")
+		return "", err
+	}
+
+	return str, nil
 }
