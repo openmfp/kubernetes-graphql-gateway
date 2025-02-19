@@ -261,43 +261,6 @@ func (r *Service) CommonResolver() graphql.FieldResolveFn {
 	}
 }
 
-// GetFieldConfigArguments return specific arguments for the given input and resourceInputType
-func (r *Service) GetFieldConfigArguments(input map[string]struct{}, resourceInputType *graphql.InputObject) graphql.FieldConfigArgument {
-	arguments := graphql.FieldConfigArgument{}
-	for arg := range input {
-		switch arg {
-		case NameArg:
-			arguments[NameArg] = &graphql.ArgumentConfig{
-				Type:        graphql.NewNonNull(graphql.String),
-				Description: "The name of the object",
-			}
-		case NamespaceArg:
-			arguments[NamespaceArg] = &graphql.ArgumentConfig{
-				Type:        graphql.String,
-				Description: "The namespace in which to search for the objects",
-			}
-		case LabelSelectorArg:
-			arguments[LabelSelectorArg] = &graphql.ArgumentConfig{
-				Type:        graphql.String,
-				Description: "A label selector to filter the objects by",
-			}
-		case ObjectArg:
-			arguments[ObjectArg] = &graphql.ArgumentConfig{
-				Type:        graphql.NewNonNull(resourceInputType),
-				Description: "The object to create or update",
-			}
-		case SubscribeToAllArg:
-			arguments[SubscribeToAllArg] = &graphql.ArgumentConfig{
-				Type:         graphql.Boolean,
-				DefaultValue: false,
-				Description:  "If true, events will be emitted on every field change",
-			}
-		}
-	}
-
-	return arguments
-}
-
 func (r *Service) SanitizeGroupName(groupName string) string {
 	oldGroupName := groupName
 
