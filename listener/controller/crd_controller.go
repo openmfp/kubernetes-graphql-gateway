@@ -22,14 +22,14 @@ type CRDReconciler struct {
 	ClusterName string
 	client.Client
 	*discovery.DiscoveryClient
-	io workspacefile.IOHandler
+	io *workspacefile.IOHandler
 	sc apischema.Resolver
 }
 
 func NewCRDReconciler(name string,
 	clt client.Client,
 	dc *discovery.DiscoveryClient,
-	io workspacefile.IOHandler,
+	io *workspacefile.IOHandler,
 	sc apischema.Resolver,
 ) *CRDReconciler {
 	return &CRDReconciler{

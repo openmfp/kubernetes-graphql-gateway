@@ -21,14 +21,14 @@ import (
 
 // APIBindingReconciler reconciles an APIBinding object
 type APIBindingReconciler struct {
-	io workspacefile.IOHandler
+	io *workspacefile.IOHandler
 	df *discoveryclient.Factory
 	sc apischema.Resolver
 	pr *clusterpath.Resolver
 }
 
 func NewAPIBindingReconciler(
-	io workspacefile.IOHandler,
+	io *workspacefile.IOHandler,
 	df *discoveryclient.Factory,
 	sc apischema.Resolver,
 	pr *clusterpath.Resolver,
