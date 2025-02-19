@@ -20,18 +20,9 @@ import (
 	"github.com/openmfp/golang-commons/logger"
 )
 
-const (
-	LabelSelectorArg  = "labelselector"
-	NameArg           = "name"
-	NamespaceArg      = "namespace"
-	ObjectArg         = "object"
-	SubscribeToAllArg = "subscribeToAll"
-)
-
 type Provider interface {
 	CrudProvider
 	FieldResolverProvider
-	ArgumentsProvider
 }
 
 type CrudProvider interface {
@@ -48,10 +39,6 @@ type FieldResolverProvider interface {
 	CommonResolver() graphql.FieldResolveFn
 	SanitizeGroupName(string) string
 	GetOriginalGroupName(string) string
-}
-
-type ArgumentsProvider interface {
-	GetFieldConfigArguments(input map[string]struct{}, resourceInputType *graphql.InputObject) graphql.FieldConfigArgument
 }
 
 type Service struct {
