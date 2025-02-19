@@ -16,9 +16,9 @@ import (
 )
 
 var (
-	errInvalidPath     = errors.New("path doesn't contain the / separator")
-	errNotPreferred    = errors.New("path ApiGroup does not belong to the server preferred APIs")
-	errGVKNotPreferred = errors.New("failed to find CRD GVK in API preferred resources")
+	ErrInvalidPath     = errors.New("path doesn't contain the / separator")
+	ErrNotPreferred    = errors.New("path ApiGroup does not belong to the server preferred APIs")
+	ErrGVKNotPreferred = errors.New("failed to find CRD GVK in API preferred resources")
 )
 
 type CRDResolver struct {
@@ -56,13 +56,13 @@ func errorIfCRDNotInPreferredApiGroups(gvk *metav1.GroupVersionKind, apiResLists
 		gv := apiResources.GroupVersion
 		isGVFound = gv == targetGV
 		if isGVFound && !isCRDKindIncluded(gvk, apiResources) {
-			return nil, errGVKNotPreferred
+			return nil, ErrGVKNotPreferred
 		}
 		preferredApiGroups = append(preferredApiGroups, gv)
 	}
 
 	if !isGVFound {
-		return nil, errGVKNotPreferred
+		return nil, ErrGVKNotPreferred
 	}
 	return preferredApiGroups, nil
 }
@@ -91,13 +91,13 @@ func getCRDGroupVersionKind(spec apiextensionsv1.CustomResourceDefinitionSpec) (
 
 func getSchemaForPath(preferredApiGroups []string, path string, gv openapi.GroupVersion) (map[string]*spec.Schema, error) {
 	if !strings.Contains(path, separator) {
-		return nil, errInvalidPath
+		return nil, ErrInvalidPath
 	}
 	pathApiGroupArray := strings.Split(path, separator)
 	pathApiGroup := strings.Join(pathApiGroupArray[1:], separator)
 	// filer out apiGroups that aren't in the preferred list
 	if !slices.Contains(preferredApiGroups, pathApiGroup) {
-		return nil, errNotPreferred
+		return nil, ErrNotPreferred
 	}
 
 	b, err := gv.Schema(discovery.AcceptV1)
