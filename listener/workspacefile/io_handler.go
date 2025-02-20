@@ -7,24 +7,21 @@ import (
 )
 
 type IOHandler struct {
-	SchemasDir string
+	schemasDir string
 }
 
 func NewIOHandler(schemasDir string) (*IOHandler, error) {
 	_, err := os.Stat(schemasDir)
-	if os.IsNotExist(err) {
-		err := os.Mkdir(schemasDir, os.ModePerm)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create openAPI definitions dir: %w", err)
-		}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get info for openAPI definitions dir: %w", err)
 	}
 	return &IOHandler{
-		SchemasDir: schemasDir,
+		schemasDir: schemasDir,
 	}, nil
 }
 
 func (h *IOHandler) Read(clusterName string) ([]byte, error) {
-	fileName := path.Join(h.SchemasDir, clusterName)
+	fileName := path.Join(h.schemasDir, clusterName)
 	JSON, err := os.ReadFile(fileName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read JSON file: %w", err)
@@ -33,9 +30,8 @@ func (h *IOHandler) Read(clusterName string) ([]byte, error) {
 }
 
 func (h *IOHandler) Write(JSON []byte, clusterName string) error {
-	fileName := path.Join(h.SchemasDir, clusterName)
-	err := os.WriteFile(fileName, JSON, os.ModePerm)
-	if err != nil {
+	fileName := path.Join(h.schemasDir, clusterName)
+	if err := os.WriteFile(fileName, JSON, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to write JSON to file: %w", err)
 	}
 	return nil

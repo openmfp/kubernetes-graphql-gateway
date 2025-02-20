@@ -82,7 +82,13 @@ func preReconcile(
 }
 
 func NewKcpReconciler(opts ReconcilerOpts) (CustomReconciler, error) {
-	virtualWorkspaceCfg, err := virtualWorkspaceConfigFromCfg(opts.Config, opts.Scheme)
+	clt, err := client.New(opts.Config, client.Options{
+		Scheme: opts.Scheme,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create client from config: %w", err)
+	}
+	virtualWorkspaceCfg, err := virtualWorkspaceConfigFromCfg(opts.Config, clt)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get virtual workspace config: %w", err)
 	}
