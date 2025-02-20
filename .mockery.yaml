@@ -20,3 +20,4 @@ packages:
       outpkg: mocks
     interfaces:
       Client:
+      WithWatch:
