@@ -46,8 +46,21 @@ func (r *Service) runWatch(
 
 	gvk.Group = r.GetOriginalGroupName(gvk.Group)
 
-	namespace, _ := p.Args[NamespaceArg].(string)
-	name, _ := p.Args[NameArg].(string)
+	namespace, err := getStringArg(p.Args, NamespaceArg)
+	if err != nil {
+		r.log.Error().Err(err).Msg("Failed to get namespace argument")
+		return
+	}
+
+	var name string
+	if singleItem {
+		name, err = getStringArg(p.Args, NameArg)
+		if err != nil {
+			r.log.Error().Err(err).Msg("Failed to get name argument")
+			return
+		}
+	}
+
 	labelSelector, _ := p.Args[LabelSelectorArg].(string)
 	subscribeToAll, _ := p.Args[SubscribeToAllArg].(bool)
 
