@@ -94,9 +94,15 @@ func (suite *CommonTestSuite) TestSchemaSubscribe() {
 			go func() {
 				for res := range c {
 					if tt.expectError {
-						require.NotNil(t, res.Errors)
+						if res.Errors == nil {
+							t.Errorf("Expected error but got nil")
+							cancel()
+						}
 					} else {
-						require.NotNil(t, res.Data)
+						if res.Data == nil {
+							t.Errorf("Data is nil because of the errror: %v", res.Errors)
+							cancel()
+						}
 					}
 					wg.Done()
 				}
