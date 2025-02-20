@@ -16,6 +16,7 @@ import (
 
 func (r *Service) SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
+
 		resultChannel := make(chan interface{})
 
 		go r.runWatch(p, gvk, resultChannel, true)
@@ -26,6 +27,7 @@ func (r *Service) SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolv
 
 func (r *Service) SubscribeItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
+
 		resultChannel := make(chan interface{})
 
 		go r.runWatch(p, gvk, resultChannel, false)
