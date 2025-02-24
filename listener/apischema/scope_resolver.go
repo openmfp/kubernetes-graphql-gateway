@@ -3,6 +3,7 @@ package apischema
 import (
 	"encoding/json"
 
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	k8sschema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/kube-openapi/pkg/validation/spec"
@@ -10,8 +11,8 @@ import (
 )
 
 const (
-	gvkExtensionKey        = "x-kubernetes-group-version-kind"
-	namespacedExtensionKey = "x-openmfp-namespaced"
+	gvkExtensionKey   = "x-kubernetes-group-version-kind"
+	scopeExtensionKey = "x-openmfp-scope"
 )
 
 type GroupVersionKind struct {
@@ -62,7 +63,12 @@ func addScopeInfo(schemas map[string]*spec.Schema, rm meta.RESTMapper) (map[stri
 			continue
 		}
 
-		schema.VendorExtensible.AddExtension(namespacedExtensionKey, namespaced)
+		if namespaced {
+			schema.VendorExtensible.AddExtension(scopeExtensionKey, apiextensionsv1.NamespaceScoped)
+		} else {
+			schema.VendorExtensible.AddExtension(scopeExtensionKey, apiextensionsv1.ClusterScoped)
+		}
+
 		scopedSchemas[name] = schema
 	}
 	return scopedSchemas, nil
