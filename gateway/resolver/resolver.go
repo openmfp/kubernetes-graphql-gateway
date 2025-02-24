@@ -5,10 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
-
-	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
+	"regexp"
 
 	"github.com/graphql-go/graphql"
 	"go.opentelemetry.io/otel"
