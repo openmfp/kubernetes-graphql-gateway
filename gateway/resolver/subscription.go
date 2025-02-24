@@ -46,9 +46,9 @@ func (r *Service) runWatch(
 
 	ctx := p.Context
 
-	gvk.Group = r.GetOriginalGroupName(gvk.Group)
+	gvk.Group = r.getOriginalGroupName(gvk.Group)
 
-	namespace, err := getStringArg(p.Args, NamespaceArg)
+	namespace, err := getStringArg(p.Args, NamespaceArg, true)
 	if err != nil {
 		r.log.Error().Err(err).Msg("Failed to get namespace argument")
 		return
@@ -56,15 +56,24 @@ func (r *Service) runWatch(
 
 	var name string
 	if singleItem {
-		name, err = getStringArg(p.Args, NameArg)
+		name, err = getStringArg(p.Args, NameArg, true)
 		if err != nil {
 			r.log.Error().Err(err).Msg("Failed to get name argument")
 			return
 		}
 	}
 
-	labelSelector, _ := p.Args[LabelSelectorArg].(string)
-	subscribeToAll, _ := p.Args[SubscribeToAllArg].(bool)
+	labelSelector, err := getStringArg(p.Args, LabelSelectorArg, false)
+	if err != nil {
+		r.log.Error().Err(err).Msg("Failed to get label selector argument")
+		return
+	}
+
+	subscribeToAll, err := getBoolArg(p.Args, SubscribeToAllArg, false)
+	if err != nil {
+		r.log.Error().Err(err).Msg("Failed to get subscribeToAll argument")
+		return
+	}
 
 	fieldsToWatch := extractRequestedFields(p.Info)
 
