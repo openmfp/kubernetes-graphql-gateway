@@ -91,23 +91,6 @@ func (suite *CommonTestSuite) TestSchemaSubscribe() {
 			wg := sync.WaitGroup{}
 			wg.Add(tt.expectedEvents)
 
-			//go func() {
-			//	for res := range c {
-			//		if tt.expectError {
-			//			if res.Errors == nil {
-			//				t.Errorf("Expected error but got nil")
-			//				cancel()
-			//			}
-			//		} else {
-			//			if res.Data == nil {
-			//				t.Errorf("Data is nil because of the errror: %v", res.Errors)
-			//				cancel()
-			//			}
-			//		}
-			//		wg.Done()
-			//	}
-			//}()
-
 			go func() {
 				for {
 					select {
