@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 
@@ -45,7 +44,7 @@ func (cr *CRDResolver) ResolveApiSchema(crd *apiextensionsv1.CustomResourceDefin
 		return nil, fmt.Errorf("failed to filter server preferred resources: %w", err)
 	}
 
-	return resolveForPaths(cr.OpenAPIV3(), preferredApiGroups)
+	return NewSchemaBuilder(cr.OpenAPIV3(), preferredApiGroups).WithCategories().Complete()
 }
 
 func errorIfCRDNotInPreferredApiGroups(gvk *metav1.GroupVersionKind, apiResLists []*metav1.APIResourceList) ([]string, error) {
@@ -112,37 +111,6 @@ func getSchemaForPath(preferredApiGroups []string, path string, gv openapi.Group
 	return resp.Components.Schemas, nil
 }
 
-func resolveForPaths(oc openapi.Client, preferredApiGroups []string) ([]byte, error) {
-	apiv3Paths, err := oc.Paths()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get OpenAPI paths: %w", err)
-	}
-
-	schemas := make(map[string]*spec.Schema)
-	for path, gv := range apiv3Paths {
-		schema, err := getSchemaForPath(preferredApiGroups, path, gv)
-		if err != nil {
-			//TODO: debug log?
-			continue
-		}
-		maps.Copy(schemas, schema)
-	}
-	v3JSON, err := json.Marshal(&schemaResponse{
-		Components: schemasComponentsWrapper{
-			Schemas: schemas,
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal openAPI v3 schema: %w", err)
-	}
-	v2JSON, err := ConvertJSON(v3JSON)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert openAPI v3 schema to v2: %w", err)
-	}
-
-	return v2JSON, nil
-}
-
 func resolveSchema(dc discovery.DiscoveryInterface) ([]byte, error) {
 	preferredApiGroups := []string{}
 	apiResList, err := dc.ServerPreferredResources()
@@ -153,5 +121,5 @@ func resolveSchema(dc discovery.DiscoveryInterface) ([]byte, error) {
 		preferredApiGroups = append(preferredApiGroups, apiRes.GroupVersion)
 	}
 
-	return resolveForPaths(dc.OpenAPIV3(), preferredApiGroups)
+	return NewSchemaBuilder(dc.OpenAPIV3(), preferredApiGroups).Complete()
 }
