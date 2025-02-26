@@ -8,9 +8,11 @@ import (
 
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/graphql"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/openmfp/crd-gql-gateway/common"
 	"github.com/openmfp/crd-gql-gateway/gateway/resolver"
 	"github.com/openmfp/golang-commons/logger"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 type Provider interface {
@@ -30,16 +32,20 @@ type Gateway struct {
 	inputTypesCache map[string]*graphql.InputObject
 	// Prevents naming conflict in case of the same Kind name in different groups/versions
 	typeNameRegistry map[string]string
+
+	// categoryRegistry stores resources by category for typeByCategory query
+	typeByCategory map[string][]resolver.TypeByCategory
 }
 
-func New(log *logger.Logger, definitions spec.Definitions, resolver resolver.Provider) (*Gateway, error) {
+func New(log *logger.Logger, definitions spec.Definitions, resolverProvider resolver.Provider) (*Gateway, error) {
 	g := &Gateway{
 		log:              log,
-		resolver:         resolver,
+		resolver:         resolverProvider,
 		definitions:      definitions,
 		typesCache:       make(map[string]*graphql.Object),
 		inputTypesCache:  make(map[string]*graphql.InputObject),
 		typeNameRegistry: make(map[string]string),
+		typeByCategory:   make(map[string][]resolver.TypeByCategory),
 	}
 
 	err := g.generateGraphqlSchema()
@@ -65,6 +71,8 @@ func (g *Gateway) generateGraphqlSchema() error {
 			rootSubscriptionFields,
 		)
 	}
+
+	g.AddTypeByCategoryQuery(rootQueryFields)
 
 	newSchema, err := graphql.NewSchema(graphql.SchemaConfig{
 		Query: graphql.NewObject(graphql.ObjectConfig{
@@ -137,6 +145,11 @@ func (g *Gateway) processSingleResource(
 	if err != nil {
 		g.log.Error().Err(err).Msg("Error parsing group version kind")
 		return
+	}
+
+	err = g.storeCategory(resourceUri, gvk)
+	if err != nil {
+		g.log.Debug().Err(err).Str("resource", resourceUri).Msg("Error storing category")
 	}
 
 	singular, plural := g.getNames(gvk)
@@ -472,6 +485,42 @@ func (g *Gateway) getGroupVersionKind(resourceKey string) (*schema.GroupVersionK
 	}
 
 	return nil, errors.New("failed to parse x-kubernetes-group-version-kind extension")
+}
+
+func (g *Gateway) storeCategory(resourceKey string, gvk *schema.GroupVersionKind) error {
+	resourceSpec, ok := g.definitions[resourceKey]
+	if !ok || resourceSpec.Extensions == nil {
+		return errors.New("no resource extensions")
+	}
+	categoriesRaw, ok := resourceSpec.Extensions[common.XKubernetesCategories]
+	if !ok {
+		return fmt.Errorf("%s extension not found", common.XKubernetesCategories)
+	}
+
+	categoriesRawArray, ok := categoriesRaw.([]interface{})
+	if !ok {
+		return fmt.Errorf("%s extension is not an array", common.XKubernetesCategories)
+	}
+
+	categories := make([]string, len(categoriesRawArray))
+	for i, v := range categoriesRawArray {
+		if str, ok := v.(string); ok {
+			categories[i] = str
+		} else {
+			return fmt.Errorf("failed to convert %d to string", v)
+		}
+	}
+
+	for _, category := range categories {
+		g.typeByCategory[category] = append(g.typeByCategory[category], resolver.TypeByCategory{
+			Group:   gvk.Group,
+			Version: gvk.Version,
+			Kind:    gvk.Kind,
+			Scope:   "TBD",
+		})
+	}
+
+	return nil
 }
 
 func sanitizeFieldName(name string) string {

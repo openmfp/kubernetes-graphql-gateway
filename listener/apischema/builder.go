@@ -3,14 +3,16 @@ package apischema
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/go-multierror"
-	"github.com/openmfp/crd-gql-gateway/common"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/client-go/openapi"
-	"k8s.io/kube-openapi/pkg/validation/spec"
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/hashicorp/go-multierror"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/client-go/openapi"
+	"k8s.io/kube-openapi/pkg/validation/spec"
+
+	"github.com/openmfp/crd-gql-gateway/common"
 )
 
 // SchemaBuilder helps construct GraphQL field config arguments

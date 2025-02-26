@@ -23,6 +23,7 @@ import (
 
 type Provider interface {
 	CrudProvider
+	CustomQueriesProvider
 	CommonResolver() graphql.FieldResolveFn
 	SanitizeGroupName(string) string
 }
@@ -36,6 +37,10 @@ type CrudProvider interface {
 	DeleteItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 	SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn
 	SubscribeItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn
+}
+
+type CustomQueriesProvider interface {
+	TypeByCategory(m map[string][]TypeByCategory) graphql.FieldResolveFn
 }
 
 type Service struct {
