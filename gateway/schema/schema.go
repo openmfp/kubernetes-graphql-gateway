@@ -57,143 +57,13 @@ func (g *Gateway) generateGraphqlSchema() error {
 	rootSubscriptionFields := graphql.Fields{}
 
 	for group, groupedResources := range g.getDefinitionsByGroup(g.definitions) {
-		queryGroupType := graphql.NewObject(graphql.ObjectConfig{
-			Name:   group + "Query",
-			Fields: graphql.Fields{},
-		})
-
-		mutationGroupType := graphql.NewObject(graphql.ObjectConfig{
-			Name:   group + "Mutation",
-			Fields: graphql.Fields{},
-		})
-
-		for resourceUri, resourceScheme := range groupedResources {
-			gvk, err := g.getGroupVersionKind(resourceUri)
-			if err != nil {
-				g.log.Error().Err(err).Msg("Error parsing group version kind")
-				continue
-			}
-
-			singular, plural := g.getNames(gvk)
-
-			// Generate both fields and inputFields
-			fields, inputFields, err := g.generateGraphQLFields(&resourceScheme, singular, []string{}, make(map[string]bool))
-			if err != nil {
-				g.log.Error().Err(err).Str("resource", singular).Msg("Error generating fields")
-				continue
-			}
-
-			if len(fields) == 0 {
-				g.log.Debug().Str("resource", singular).Msg("No fields found")
-				continue
-			}
-
-			resourceType := graphql.NewObject(graphql.ObjectConfig{
-				Name:   singular,
-				Fields: fields,
-			})
-
-			resourceInputType := graphql.NewInputObject(graphql.InputObjectConfig{
-				Name:   singular + "Input",
-				Fields: inputFields,
-			})
-
-			queryGroupType.AddFieldConfig(plural, &graphql.Field{
-				Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(resourceType))),
-				Args: resolver.NewFieldConfigArguments().
-					WithNamespaceArg().
-					WithLabelSelectorArg().
-					Complete(),
-				Resolve: g.resolver.ListItems(*gvk),
-			})
-
-			queryGroupType.AddFieldConfig(singular, &graphql.Field{
-				Type: graphql.NewNonNull(resourceType),
-				Args: resolver.NewFieldConfigArguments().
-					WithNameArg().
-					WithNamespaceArg().
-					Complete(),
-				Resolve: g.resolver.GetItem(*gvk),
-			})
-
-			queryGroupType.AddFieldConfig(singular+"Yaml", &graphql.Field{
-				Type: graphql.NewNonNull(graphql.String),
-				Args: resolver.NewFieldConfigArguments().
-					WithNameArg().
-					WithNamespaceArg().
-					Complete(),
-				Resolve: g.resolver.GetItemAsYAML(*gvk),
-			})
-
-			// Mutation definitions
-			mutationGroupType.AddFieldConfig("create"+singular, &graphql.Field{
-				Type: resourceType,
-				Args: resolver.NewFieldConfigArguments().
-					WithNamespaceArg().
-					WithObjectArg(resourceInputType).
-					Complete(),
-				Resolve: g.resolver.CreateItem(*gvk),
-			})
-
-			mutationGroupType.AddFieldConfig("update"+singular, &graphql.Field{
-				Type: resourceType,
-				Args: resolver.NewFieldConfigArguments().
-					WithNameArg().
-					WithNamespaceArg().
-					WithObjectArg(resourceInputType).
-					Complete(),
-				Resolve: g.resolver.UpdateItem(*gvk),
-			})
-
-			mutationGroupType.AddFieldConfig("delete"+singular, &graphql.Field{
-				Type: graphql.Boolean,
-				Args: resolver.NewFieldConfigArguments().
-					WithNameArg().
-					WithNamespaceArg().
-					Complete(),
-				Resolve: g.resolver.DeleteItem(*gvk),
-			})
-
-			subscriptionSingular := strings.ToLower(fmt.Sprintf("%s_%s", group, singular))
-			rootSubscriptionFields[subscriptionSingular] = &graphql.Field{
-				Type: resourceType,
-				Args: resolver.NewFieldConfigArguments().
-					WithNameArg().
-					WithNamespaceArg().
-					WithSubscribeToAllArg().
-					Complete(),
-				Resolve:     g.resolver.CommonResolver(),
-				Subscribe:   g.resolver.SubscribeItem(*gvk),
-				Description: fmt.Sprintf("Subscribe to changes of %s", singular),
-			}
-
-			subscriptionPlural := strings.ToLower(fmt.Sprintf("%s_%s", group, plural))
-			rootSubscriptionFields[subscriptionPlural] = &graphql.Field{
-				Type: graphql.NewList(resourceType),
-				Args: resolver.NewFieldConfigArguments().
-					WithNamespaceArg().
-					WithLabelSelectorArg().
-					WithSubscribeToAllArg().
-					Complete(),
-				Resolve:     g.resolver.CommonResolver(),
-				Subscribe:   g.resolver.SubscribeItems(*gvk),
-				Description: fmt.Sprintf("Subscribe to changes of %s", plural),
-			}
-		}
-
-		if len(queryGroupType.Fields()) > 0 {
-			rootQueryFields[group] = &graphql.Field{
-				Type:    queryGroupType,
-				Resolve: g.resolver.CommonResolver(),
-			}
-		}
-
-		if len(mutationGroupType.Fields()) > 0 {
-			rootMutationFields[group] = &graphql.Field{
-				Type:    mutationGroupType,
-				Resolve: g.resolver.CommonResolver(),
-			}
-		}
+		g.processGroupedResources(
+			group,
+			groupedResources,
+			rootQueryFields,
+			rootMutationFields,
+			rootSubscriptionFields,
+		)
 	}
 
 	newSchema, err := graphql.NewSchema(graphql.SchemaConfig{
@@ -219,6 +89,161 @@ func (g *Gateway) generateGraphqlSchema() error {
 	g.graphqlSchema = newSchema
 
 	return nil
+}
+
+func (g *Gateway) processGroupedResources(group string, groupedResources spec.Definitions, rootQueryFields graphql.Fields, rootMutationFields graphql.Fields, rootSubscriptionFields graphql.Fields) {
+	queryGroupType := graphql.NewObject(graphql.ObjectConfig{
+		Name:   group + "Query",
+		Fields: graphql.Fields{},
+	})
+
+	mutationGroupType := graphql.NewObject(graphql.ObjectConfig{
+		Name:   group + "Mutation",
+		Fields: graphql.Fields{},
+	})
+
+	for resourceUri, resourceScheme := range groupedResources {
+		g.processSingleResource(
+			resourceUri,
+			resourceScheme,
+			queryGroupType,
+			mutationGroupType,
+			rootSubscriptionFields,
+		)
+	}
+
+	if len(queryGroupType.Fields()) > 0 {
+		rootQueryFields[group] = &graphql.Field{
+			Type:    queryGroupType,
+			Resolve: g.resolver.CommonResolver(),
+		}
+	}
+
+	if len(mutationGroupType.Fields()) > 0 {
+		rootMutationFields[group] = &graphql.Field{
+			Type:    mutationGroupType,
+			Resolve: g.resolver.CommonResolver(),
+		}
+	}
+}
+
+func (g *Gateway) processSingleResource(
+	resourceUri string,
+	resourceScheme spec.Schema,
+	queryGroupType, mutationGroupType *graphql.Object,
+	rootSubscriptionFields graphql.Fields,
+) {
+	gvk, err := g.getGroupVersionKind(resourceUri)
+	if err != nil {
+		g.log.Error().Err(err).Msg("Error parsing group version kind")
+		return
+	}
+
+	singular, plural := g.getNames(gvk)
+
+	// Generate both fields and inputFields
+	fields, inputFields, err := g.generateGraphQLFields(&resourceScheme, singular, []string{}, make(map[string]bool))
+	if err != nil {
+		g.log.Error().Err(err).Str("resource", singular).Msg("Error generating fields")
+		return
+	}
+
+	if len(fields) == 0 {
+		g.log.Debug().Str("resource", singular).Msg("No fields found")
+		return
+	}
+
+	resourceType := graphql.NewObject(graphql.ObjectConfig{
+		Name:   singular,
+		Fields: fields,
+	})
+
+	resourceInputType := graphql.NewInputObject(graphql.InputObjectConfig{
+		Name:   singular + "Input",
+		Fields: inputFields,
+	})
+
+	queryGroupType.AddFieldConfig(plural, &graphql.Field{
+		Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(resourceType))),
+		Args: resolver.NewFieldConfigArguments().
+			WithNamespaceArg().
+			WithLabelSelectorArg().
+			Complete(),
+		Resolve: g.resolver.ListItems(*gvk),
+	})
+
+	queryGroupType.AddFieldConfig(singular, &graphql.Field{
+		Type: graphql.NewNonNull(resourceType),
+		Args: resolver.NewFieldConfigArguments().
+			WithNameArg().
+			WithNamespaceArg().
+			Complete(),
+		Resolve: g.resolver.GetItem(*gvk),
+	})
+
+	queryGroupType.AddFieldConfig(singular+"Yaml", &graphql.Field{
+		Type: graphql.NewNonNull(graphql.String),
+		Args: resolver.NewFieldConfigArguments().
+			WithNameArg().
+			WithNamespaceArg().
+			Complete(),
+		Resolve: g.resolver.GetItemAsYAML(*gvk),
+	})
+
+	// Mutation definitions
+	mutationGroupType.AddFieldConfig("create"+singular, &graphql.Field{
+		Type: resourceType,
+		Args: resolver.NewFieldConfigArguments().
+			WithNamespaceArg().
+			WithObjectArg(resourceInputType).
+			Complete(),
+		Resolve: g.resolver.CreateItem(*gvk),
+	})
+
+	mutationGroupType.AddFieldConfig("update"+singular, &graphql.Field{
+		Type: resourceType,
+		Args: resolver.NewFieldConfigArguments().
+			WithNameArg().
+			WithNamespaceArg().
+			WithObjectArg(resourceInputType).
+			Complete(),
+		Resolve: g.resolver.UpdateItem(*gvk),
+	})
+
+	mutationGroupType.AddFieldConfig("delete"+singular, &graphql.Field{
+		Type: graphql.Boolean,
+		Args: resolver.NewFieldConfigArguments().
+			WithNameArg().
+			WithNamespaceArg().
+			Complete(),
+		Resolve: g.resolver.DeleteItem(*gvk),
+	})
+
+	subscriptionSingular := strings.ToLower(fmt.Sprintf("%s_%s", gvk.Group, singular))
+	rootSubscriptionFields[subscriptionSingular] = &graphql.Field{
+		Type: resourceType,
+		Args: resolver.NewFieldConfigArguments().
+			WithNameArg().
+			WithNamespaceArg().
+			WithSubscribeToAllArg().
+			Complete(),
+		Resolve:     g.resolver.CommonResolver(),
+		Subscribe:   g.resolver.SubscribeItem(*gvk),
+		Description: fmt.Sprintf("Subscribe to changes of %s", singular),
+	}
+
+	subscriptionPlural := strings.ToLower(fmt.Sprintf("%s_%s", gvk.Group, plural))
+	rootSubscriptionFields[subscriptionPlural] = &graphql.Field{
+		Type: graphql.NewList(resourceType),
+		Args: resolver.NewFieldConfigArguments().
+			WithNamespaceArg().
+			WithLabelSelectorArg().
+			WithSubscribeToAllArg().
+			Complete(),
+		Resolve:     g.resolver.CommonResolver(),
+		Subscribe:   g.resolver.SubscribeItems(*gvk),
+		Description: fmt.Sprintf("Subscribe to changes of %s", plural),
+	}
 }
 
 func (g *Gateway) getNames(gvk *schema.GroupVersionKind) (singular string, plural string) {
