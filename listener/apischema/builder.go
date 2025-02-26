@@ -4,9 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
+	"github.com/openmfp/crd-gql-gateway/common"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/openapi"
 	"k8s.io/kube-openapi/pkg/validation/spec"
 	"maps"
+	"slices"
+	"strings"
 )
 
 // SchemaBuilder helps construct GraphQL field config arguments
@@ -39,7 +43,18 @@ func NewSchemaBuilder(oc openapi.Client, preferredApiGroups []string) *SchemaBui
 	return b
 }
 
-func (b *SchemaBuilder) WithCategories() *SchemaBuilder {
+func (b *SchemaBuilder) WithCategories(crd *apiextensionsv1.CustomResourceDefinition) *SchemaBuilder {
+	category := crd.Spec.Names.Categories
+	if len(category) == 0 {
+		return b
+	}
+
+	for key, schema := range b.schemas {
+		if matchesCRD(crd, key) {
+			schema.VendorExtensible.AddExtension(common.XKubernetesCategories, category)
+		}
+	}
+
 	return b
 }
 
@@ -61,4 +76,20 @@ func (b *SchemaBuilder) Complete() ([]byte, error) {
 	}
 
 	return v2JSON, nil
+}
+
+func matchesCRD(crd *apiextensionsv1.CustomResourceDefinition, schemaKey string) bool {
+	gvk, err := getCRDGroupVersionKind(crd.Spec)
+	if err != nil {
+		return false
+	}
+
+	// we need to inverse group to match the schema key(io.openmfp.core.v1alpha1.Account)
+	parts := strings.Split(gvk.Group, ".")
+	slices.Reverse(parts)
+	reversedGroup := strings.Join(parts, ".")
+
+	expectedKey := fmt.Sprintf("%s.%s.%s", reversedGroup, gvk.Version, gvk.Kind)
+
+	return schemaKey == expectedKey
 }

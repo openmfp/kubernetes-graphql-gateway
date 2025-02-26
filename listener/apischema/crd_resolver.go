@@ -44,7 +44,7 @@ func (cr *CRDResolver) ResolveApiSchema(crd *apiextensionsv1.CustomResourceDefin
 		return nil, fmt.Errorf("failed to filter server preferred resources: %w", err)
 	}
 
-	return NewSchemaBuilder(cr.OpenAPIV3(), preferredApiGroups).WithCategories().Complete()
+	return NewSchemaBuilder(cr.OpenAPIV3(), preferredApiGroups).WithCategories(crd).Complete()
 }
 
 func errorIfCRDNotInPreferredApiGroups(gvk *metav1.GroupVersionKind, apiResLists []*metav1.APIResourceList) ([]string, error) {
