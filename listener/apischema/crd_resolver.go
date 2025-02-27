@@ -44,7 +44,7 @@ func (cr *CRDResolver) ResolveApiSchema(crd *apiextensionsv1.CustomResourceDefin
 		return nil, fmt.Errorf("failed to filter server preferred resources: %w", err)
 	}
 
-	return NewSchemaBuilder(cr.OpenAPIV3(), preferredApiGroups).WithCategories(crd).Complete()
+	return NewSchemaBuilder(cr.OpenAPIV3(), preferredApiGroups).WithCRDCategories(crd).Complete()
 }
 
 func errorIfCRDNotInPreferredApiGroups(gvk *metav1.GroupVersionKind, apiResLists []*metav1.APIResourceList) ([]string, error) {
@@ -112,14 +112,17 @@ func getSchemaForPath(preferredApiGroups []string, path string, gv openapi.Group
 }
 
 func resolveSchema(dc discovery.DiscoveryInterface) ([]byte, error) {
-	preferredApiGroups := []string{}
 	apiResList, err := dc.ServerPreferredResources()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get server preferred resources: %w", err)
 	}
+
+	var preferredApiGroups []string
 	for _, apiRes := range apiResList {
 		preferredApiGroups = append(preferredApiGroups, apiRes.GroupVersion)
 	}
 
-	return NewSchemaBuilder(dc.OpenAPIV3(), preferredApiGroups).Complete()
+	return NewSchemaBuilder(dc.OpenAPIV3(), preferredApiGroups).
+		WithApiResourceCategories(apiResList).
+		Complete()
 }

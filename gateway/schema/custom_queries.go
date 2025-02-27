@@ -13,18 +13,10 @@ func (g *Gateway) AddTypeByCategoryQuery(rootQueryFields graphql.Fields) {
 	resourceType := graphql.NewObject(graphql.ObjectConfig{
 		Name: typeByCategory + "Object",
 		Fields: graphql.Fields{
-			"kind": &graphql.Field{
-				Type: graphql.NewNonNull(graphql.String),
-			},
-			"group": &graphql.Field{
-				Type: graphql.NewNonNull(graphql.String),
-			},
-			"version": &graphql.Field{
-				Type: graphql.NewNonNull(graphql.String),
-			},
-			"scope": &graphql.Field{
-				Type: graphql.NewNonNull(graphql.String),
-			},
+			"kind":    graphqlStringField(),
+			"group":   graphqlStringField(),
+			"version": graphqlStringField(),
+			"scope":   graphqlStringField(),
 		},
 	})
 
@@ -34,5 +26,11 @@ func (g *Gateway) AddTypeByCategoryQuery(rootQueryFields graphql.Fields) {
 			WithNameArg().
 			Complete(),
 		Resolve: g.resolver.TypeByCategory(g.typeByCategory),
+	}
+}
+
+func graphqlStringField() *graphql.Field {
+	return &graphql.Field{
+		Type: graphql.NewNonNull(graphql.String),
 	}
 }

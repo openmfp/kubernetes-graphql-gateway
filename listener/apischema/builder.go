@@ -3,6 +3,7 @@ package apischema
 import (
 	"encoding/json"
 	"fmt"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"maps"
 	"slices"
 	"strings"
@@ -45,7 +46,7 @@ func NewSchemaBuilder(oc openapi.Client, preferredApiGroups []string) *SchemaBui
 	return b
 }
 
-func (b *SchemaBuilder) WithCategories(crd *apiextensionsv1.CustomResourceDefinition) *SchemaBuilder {
+func (b *SchemaBuilder) WithCRDCategories(crd *apiextensionsv1.CustomResourceDefinition) *SchemaBuilder {
 	category := crd.Spec.Names.Categories
 	if len(category) == 0 {
 		return b
@@ -54,6 +55,24 @@ func (b *SchemaBuilder) WithCategories(crd *apiextensionsv1.CustomResourceDefini
 	for key, schema := range b.schemas {
 		if matchesCRD(crd, key) {
 			schema.VendorExtensible.AddExtension(common.XKubernetesCategories, category)
+		}
+	}
+
+	return b
+}
+
+func (b *SchemaBuilder) WithApiResourceCategories(list []*metav1.APIResourceList) *SchemaBuilder {
+	for _, apiResourceList := range list {
+		for _, apiResource := range apiResourceList.APIResources {
+			if apiResource.Categories == nil {
+				continue
+			}
+
+			for key, schema := range b.schemas {
+				if matchesApiResource(apiResource.Kind, apiResourceList.GroupVersion, key) {
+					schema.VendorExtensible.AddExtension(common.XKubernetesCategories, apiResource.Categories)
+				}
+			}
 		}
 	}
 
@@ -86,6 +105,28 @@ func matchesCRD(crd *apiextensionsv1.CustomResourceDefinition, schemaKey string)
 		return false
 	}
 
+	// we need to inverse group to match the schema key(io.openmfp.core.v1alpha1.Account)
+	parts := strings.Split(gvk.Group, ".")
+	slices.Reverse(parts)
+	reversedGroup := strings.Join(parts, ".")
+
+	expectedKey := fmt.Sprintf("%s.%s.%s", reversedGroup, gvk.Version, gvk.Kind)
+
+	return schemaKey == expectedKey
+}
+
+//key io.k8s.api.rbac.v1.Subject
+
+func matchesApiResource(kind, groupVersion, schemaKey string) bool {
+	groupVersionSlice := strings.Split(groupVersion, "/")
+	if len(groupVersionSlice) != 2 {
+		return false
+	}
+	gvk := metav1.GroupVersionKind{
+		Group:   groupVersionSlice[0],
+		Version: groupVersionSlice[1],
+		Kind:    kind,
+	}
 	// we need to inverse group to match the schema key(io.openmfp.core.v1alpha1.Account)
 	parts := strings.Split(gvk.Group, ".")
 	slices.Reverse(parts)
