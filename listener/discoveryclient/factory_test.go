@@ -40,8 +40,8 @@ func TestClientForCluster(t *testing.T) {
 		restCfg     *rest.Config
 		expectErr   bool
 	}{
-		"nil config":     {clusterName: "test-cluster", restCfg: nil, expectErr: true},
-		"non nil config": {clusterName: "test-cluster", restCfg: &rest.Config{}, expectErr: false},
+		"invalid config": {clusterName: "test-cluster", restCfg: &rest.Config{Host: "://192.168.1.13:6443"}, expectErr: true},
+		"valid config":   {clusterName: "test-cluster", restCfg: &rest.Config{Host: "https://192.168.1.13:6443"}, expectErr: false},
 	}
 
 	for name, tc := range tests {
@@ -57,6 +57,33 @@ func TestClientForCluster(t *testing.T) {
 			}
 			assert.NoError(t, err)
 			assert.NotNil(t, dc)
+		})
+	}
+}
+
+func TestRestMapperForCluster(t *testing.T) {
+	tests := map[string]struct {
+		clusterName string
+		restCfg     *rest.Config
+		expectErr   bool
+	}{
+		"invalid config": {clusterName: "test-cluster", restCfg: &rest.Config{Host: "://192.168.1.13:6443"}, expectErr: true},
+		"valid config":   {clusterName: "test-cluster", restCfg: &rest.Config{Host: "https://192.168.1.13:6443"}, expectErr: false},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			factory := &Factory{
+				restCfg:       tc.restCfg,
+				clientFactory: fakeClientFactory,
+			}
+			rm, err := factory.RestMapperForCluster(tc.clusterName)
+			if tc.expectErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.NotNil(t, rm)
 		})
 	}
 }

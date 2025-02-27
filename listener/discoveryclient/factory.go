@@ -32,12 +32,12 @@ func NewFactory(cfg *rest.Config) (*Factory, error) {
 	}, nil
 }
 
-func (f *Factory) ClientForCluster(name string) (*discovery.DiscoveryClient, error) {
+func (f *Factory) ClientForCluster(name string) (discovery.DiscoveryInterface, error) {
 	clusterCfg, err := configForCluster(name, f.restCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get rest config for cluster: %w", err)
 	}
-	return discovery.NewDiscoveryClientForConfig(clusterCfg)
+	return f.clientFactory(clusterCfg)
 }
 
 func (f *Factory) RestMapperForCluster(name string) (meta.RESTMapper, error) {

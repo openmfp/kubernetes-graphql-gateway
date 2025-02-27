@@ -41,7 +41,8 @@ func TestRead(t *testing.T) {
 
 	validFile := filepath.Join(tempDir, validClusterName)
 
-	os.WriteFile(validFile, testJSON, 0644)
+	err := os.WriteFile(validFile, testJSON, 0644)
+	assert.NoError(t, err)
 
 	handler := &IOHandler{
 		schemasDir: tempDir,
