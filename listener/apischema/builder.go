@@ -23,7 +23,6 @@ type SchemaBuilder struct {
 	err     *multierror.Error
 }
 
-// NewSchemaBuilder initializes a new builder
 func NewSchemaBuilder(oc openapi.Client, preferredApiGroups []string) *SchemaBuilder {
 	b := &SchemaBuilder{
 		schemas: make(map[string]*spec.Schema),
@@ -65,6 +64,7 @@ func (b *SchemaBuilder) WithCRDCategories(crd *apiextensionsv1.CustomResourceDef
 	}
 
 	schema.VendorExtensible.AddExtension(common.XKubernetesCategories, categories)
+
 	return b
 }
 
@@ -98,7 +98,6 @@ func (b *SchemaBuilder) WithApiResourceCategories(list []*metav1.APIResourceList
 	return b
 }
 
-// Complete returns the constructed arguments
 func (b *SchemaBuilder) Complete() ([]byte, error) {
 	v3JSON, err := json.Marshal(&schemaResponse{
 		Components: schemasComponentsWrapper{
