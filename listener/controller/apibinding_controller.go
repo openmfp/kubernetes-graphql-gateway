@@ -63,9 +63,15 @@ func (r *APIBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
+	rm, err := r.df.RestMapperForCluster(clusterPath)
+	if err != nil {
+		logger.Error(err, "failed to create rest mapper for cluster")
+		return ctrl.Result{}, err
+	}
+
 	savedJSON, err := r.io.Read(clusterPath)
 	if errors.Is(err, fs.ErrNotExist) {
-		actualJSON, err1 := r.sc.Resolve(dc)
+		actualJSON, err1 := r.sc.Resolve(dc, rm)
 		if err1 != nil {
 			logger.Error(err1, "failed to resolve server JSON schema")
 			return ctrl.Result{}, err1
@@ -82,7 +88,7 @@ func (r *APIBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	actualJSON, err := r.sc.Resolve(dc)
+	actualJSON, err := r.sc.Resolve(dc, rm)
 	if err != nil {
 		logger.Error(err, "failed to resolve server JSON schema")
 		return ctrl.Result{}, err
