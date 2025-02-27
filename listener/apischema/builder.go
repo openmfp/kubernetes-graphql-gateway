@@ -2,6 +2,7 @@ package apischema
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"maps"
@@ -47,17 +48,23 @@ func NewSchemaBuilder(oc openapi.Client, preferredApiGroups []string) *SchemaBui
 }
 
 func (b *SchemaBuilder) WithCRDCategories(crd *apiextensionsv1.CustomResourceDefinition) *SchemaBuilder {
-	category := crd.Spec.Names.Categories
-	if len(category) == 0 {
+	categories := crd.Spec.Names.Categories
+	if len(categories) == 0 {
 		return b
 	}
 
-	for key, schema := range b.schemas {
-		if matchesCRD(crd, key) {
-			schema.VendorExtensible.AddExtension(common.XKubernetesCategories, category)
-		}
+	gvk, err := getCRDGroupVersionKind(crd.Spec)
+	if err != nil {
+		b.err = multierror.Append(b.err, fmt.Errorf("failed to get CRD GVK: %w", err))
+		return b
 	}
 
+	schema, ok := b.schemas[getOpenAPISchemaKey(*gvk)]
+	if !ok {
+		return b
+	}
+
+	schema.VendorExtensible.AddExtension(common.XKubernetesCategories, categories)
 	return b
 }
 
@@ -68,11 +75,18 @@ func (b *SchemaBuilder) WithApiResourceCategories(list []*metav1.APIResourceList
 				continue
 			}
 
-			for key, schema := range b.schemas {
-				if matchesApiResource(apiResource.Kind, apiResourceList.GroupVersion, key) {
-					schema.VendorExtensible.AddExtension(common.XKubernetesCategories, apiResource.Categories)
-				}
+			gvk, err := getApiResourceGVK(apiResource.Kind, apiResourceList.GroupVersion)
+			if err != nil {
+				b.err = multierror.Append(b.err, fmt.Errorf("failed to get API resource GVK: %w", err))
+				continue
 			}
+
+			schema, ok := b.schemas[getOpenAPISchemaKey(*gvk)]
+			if !ok {
+				continue
+			}
+
+			schema.VendorExtensible.AddExtension(common.XKubernetesCategories, apiResource.Categories)
 		}
 	}
 
@@ -99,40 +113,24 @@ func (b *SchemaBuilder) Complete() ([]byte, error) {
 	return v2JSON, nil
 }
 
-func matchesCRD(crd *apiextensionsv1.CustomResourceDefinition, schemaKey string) bool {
-	gvk, err := getCRDGroupVersionKind(crd.Spec)
-	if err != nil {
-		return false
-	}
-
+func getOpenAPISchemaKey(gvk metav1.GroupVersionKind) string {
 	// we need to inverse group to match the schema key(io.openmfp.core.v1alpha1.Account)
 	parts := strings.Split(gvk.Group, ".")
 	slices.Reverse(parts)
 	reversedGroup := strings.Join(parts, ".")
 
-	expectedKey := fmt.Sprintf("%s.%s.%s", reversedGroup, gvk.Version, gvk.Kind)
-
-	return schemaKey == expectedKey
+	return fmt.Sprintf("%s.%s.%s", reversedGroup, gvk.Version, gvk.Kind)
 }
 
-//key io.k8s.api.rbac.v1.Subject
-
-func matchesApiResource(kind, groupVersion, schemaKey string) bool {
+func getApiResourceGVK(kind, groupVersion string) (*metav1.GroupVersionKind, error) {
 	groupVersionSlice := strings.Split(groupVersion, "/")
 	if len(groupVersionSlice) != 2 {
-		return false
+		return nil, errors.New("invalid groupVersion")
 	}
-	gvk := metav1.GroupVersionKind{
+
+	return &metav1.GroupVersionKind{
 		Group:   groupVersionSlice[0],
 		Version: groupVersionSlice[1],
 		Kind:    kind,
-	}
-	// we need to inverse group to match the schema key(io.openmfp.core.v1alpha1.Account)
-	parts := strings.Split(gvk.Group, ".")
-	slices.Reverse(parts)
-	reversedGroup := strings.Join(parts, ".")
-
-	expectedKey := fmt.Sprintf("%s.%s.%s", reversedGroup, gvk.Version, gvk.Kind)
-
-	return schemaKey == expectedKey
+	}, nil
 }
