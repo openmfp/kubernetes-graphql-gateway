@@ -9,8 +9,9 @@ import (
 	"strings"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/openapi"
 	"k8s.io/kube-openapi/pkg/validation/spec"
@@ -143,7 +144,7 @@ func resolveForPaths(oc openapi.Client, preferredApiGroups []string, rm meta.RES
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal openAPI v3 schema: %w", err)
 	}
-	v2JSON, err := convertJSON(v3JSON)
+	v2JSON, err := ConvertJSON(v3JSON)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert openAPI v3 schema to v2: %w", err)
 	}

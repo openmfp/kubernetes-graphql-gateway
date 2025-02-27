@@ -75,6 +75,18 @@ func NewReconciler(opts ReconcilerOpts) (CustomReconciler, error) {
 	return controller.NewCRDReconciler(kubernetesClusterName, clt, schemaResolver, ioHandler), nil
 }
 
+func restMapperFromConfig(cfg *rest.Config) (meta.RESTMapper, error) {
+	httpClt, err := rest.HTTPClientFor(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create http client: %w", err)
+	}
+	rm, err := apiutil.NewDynamicRESTMapper(cfg, httpClt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create rest mapper: %w", err)
+	}
+	return rm, nil
+}
+
 func preReconcile(
 	cr *apischema.CRDResolver,
 	io *workspacefile.IOHandler,
@@ -109,30 +121,11 @@ func NewKcpReconciler(opts ReconcilerOpts) (CustomReconciler, error) {
 		return nil, fmt.Errorf("failed to create Discovery client factory: %w", err)
 	}
 
-	rm, err := restMapperFromConfig(opts.Config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create rest mapper from config: %w", err)
-	}
-
-	sc, err := apischema.NewResolver(rm)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create schema resolver: %w", err)
-	}
 	pr, err := clusterpath.NewResolver(opts.Config, opts.Scheme)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cluster path resolver: %w", err)
 	}
-	return controller.NewAPIBindingReconciler(ioHandler, df, sc, pr), nil
-}
-
-func restMapperFromConfig(cfg *rest.Config) (meta.RESTMapper, error) {
-	httpClt, err := rest.HTTPClientFor(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create http client: %w", err)
-	}
-	rm, err := apiutil.NewDynamicRESTMapper(cfg, httpClt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create rest mapper: %w", err)
-	}
-	return rm, nil
+	return controller.NewAPIBindingReconciler(
+		ioHandler, df, apischema.NewResolver(), pr,
+	), nil
 }

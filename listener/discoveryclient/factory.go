@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"net/url"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
 
 type clientFactory func(cfg *rest.Config) (discovery.DiscoveryInterface, error)
@@ -30,18 +32,27 @@ func NewFactory(cfg *rest.Config) (*Factory, error) {
 	}, nil
 }
 
-func (h *Factory) ClientForCluster(name string) (discovery.DiscoveryInterface, error) {
-	clusterCfg, err := getClusterConfig(name, h.restCfg)
+func (f *Factory) ClientForCluster(name string) (*discovery.DiscoveryClient, error) {
+	clusterCfg, err := configForCluster(name, f.restCfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get cluster config: %w", err)
+		return nil, fmt.Errorf("failed to get rest config for cluster: %w", err)
 	}
-	return h.clientFactory(clusterCfg)
+	return discovery.NewDiscoveryClientForConfig(clusterCfg)
 }
 
-func getClusterConfig(name string, cfg *rest.Config) (*rest.Config, error) {
-	if cfg == nil {
-		return nil, errors.New("config should not be nil")
+func (f *Factory) RestMapperForCluster(name string) (meta.RESTMapper, error) {
+	clusterCfg, err := configForCluster(name, f.restCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get rest config for cluster: %w", err)
 	}
+	httpClt, err := rest.HTTPClientFor(clusterCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create http client: %w", err)
+	}
+	return apiutil.NewDynamicRESTMapper(clusterCfg, httpClt)
+}
+
+func configForCluster(name string, cfg *rest.Config) (*rest.Config, error) {
 	clusterCfg := rest.CopyConfig(cfg)
 	clusterCfgURL, err := url.Parse(clusterCfg.Host)
 	if err != nil {
