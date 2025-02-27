@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/openapi"
 	"k8s.io/kube-openapi/pkg/validation/spec"
@@ -57,20 +58,17 @@ func errorIfCRDNotInPreferredApiGroups(gkv *GroupKindVersions, apiResLists []*me
 	isKindFound := false
 	preferredApiGroups := make([]string, 0, len(apiResLists))
 	for _, apiResources := range apiResLists {
-		gv := apiResources.GroupVersion
-		gvArray := strings.Split(apiResources.GroupVersion, separator)
-		if len(gvArray) != 2 {
+		gv, err := schema.ParseGroupVersion(apiResources.GroupVersion)
+		if err != nil {
 			//TODO: debug log?
 			continue
 		}
-		group := gvArray[0]
-		preferredVersion := gvArray[1]
-		isGroupFound := gkv.Group == group
-		isVersionFound := slices.Contains(gkv.Versions, preferredVersion)
+		isGroupFound := gkv.Group == gv.Group
+		isVersionFound := slices.Contains(gkv.Versions, gv.Version)
 		if isGroupFound && isVersionFound && !isKindFound {
 			isKindFound = isCRDKindIncluded(gkv, apiResources)
 		}
-		preferredApiGroups = append(preferredApiGroups, gv)
+		preferredApiGroups = append(preferredApiGroups, apiResources.GroupVersion)
 	}
 	if !isKindFound {
 		return nil, ErrGVKNotPreferred
