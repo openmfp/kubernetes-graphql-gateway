@@ -2,15 +2,15 @@ package apischema
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"maps"
 	"slices"
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	runtimeSchema "k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/openapi"
 	"k8s.io/kube-openapi/pkg/validation/spec"
 
@@ -75,13 +75,18 @@ func (b *SchemaBuilder) WithApiResourceCategories(list []*metav1.APIResourceList
 				continue
 			}
 
-			gvk, err := getApiResourceGVK(apiResource.Kind, apiResourceList.GroupVersion)
+			gv, err := runtimeSchema.ParseGroupVersion(apiResourceList.GroupVersion)
 			if err != nil {
-				b.err = multierror.Append(b.err, fmt.Errorf("failed to get API resource GVK: %w", err))
+				b.err = multierror.Append(b.err, fmt.Errorf("failed to parse groupVersion: %w", err))
 				continue
 			}
+			gvk := metav1.GroupVersionKind{
+				Group:   gv.Group,
+				Version: gv.Version,
+				Kind:    apiResource.Kind,
+			}
 
-			schema, ok := b.schemas[getOpenAPISchemaKey(*gvk)]
+			schema, ok := b.schemas[getOpenAPISchemaKey(gvk)]
 			if !ok {
 				continue
 			}
@@ -101,12 +106,12 @@ func (b *SchemaBuilder) Complete() ([]byte, error) {
 		},
 	})
 	if err != nil {
-		b.err = multierror.Append(b.err, fmt.Errorf("failed to marshal openAPI v3 schema: %w", err))
+		b.err = multierror.Append(b.err, fmt.Errorf("failed to marshal openAPI v3 runtimeSchema: %w", err))
 		return nil, b.err
 	}
 	v2JSON, err := ConvertJSON(v3JSON)
 	if err != nil {
-		b.err = multierror.Append(b.err, fmt.Errorf("failed to convert openAPI v3 schema to v2: %w", err))
+		b.err = multierror.Append(b.err, fmt.Errorf("failed to convert openAPI v3 runtimeSchema to v2: %w", err))
 		return nil, b.err
 	}
 
@@ -114,23 +119,10 @@ func (b *SchemaBuilder) Complete() ([]byte, error) {
 }
 
 func getOpenAPISchemaKey(gvk metav1.GroupVersionKind) string {
-	// we need to inverse group to match the schema key(io.openmfp.core.v1alpha1.Account)
+	// we need to inverse group to match the runtimeSchema key(io.openmfp.core.v1alpha1.Account)
 	parts := strings.Split(gvk.Group, ".")
 	slices.Reverse(parts)
 	reversedGroup := strings.Join(parts, ".")
 
 	return fmt.Sprintf("%s.%s.%s", reversedGroup, gvk.Version, gvk.Kind)
-}
-
-func getApiResourceGVK(kind, groupVersion string) (*metav1.GroupVersionKind, error) {
-	groupVersionSlice := strings.Split(groupVersion, "/")
-	if len(groupVersionSlice) != 2 {
-		return nil, errors.New("invalid groupVersion")
-	}
-
-	return &metav1.GroupVersionKind{
-		Group:   groupVersionSlice[0],
-		Version: groupVersionSlice[1],
-		Kind:    kind,
-	}, nil
 }
