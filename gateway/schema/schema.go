@@ -463,7 +463,7 @@ func (g *Gateway) getGroupVersionKind(resourceKey string) (*schema.GroupVersionK
 	if !ok || resourceSpec.Extensions == nil {
 		return nil, errors.New("no resource extensions")
 	}
-	xkGvk, ok := resourceSpec.Extensions["x-kubernetes-group-version-kind"]
+	xkGvk, ok := resourceSpec.Extensions[common.GVKExtensionKey]
 	if !ok {
 		return nil, errors.New("x-kubernetes-group-version-kind extension not found")
 	}
@@ -492,14 +492,14 @@ func (g *Gateway) storeCategory(resourceKey string, gvk *schema.GroupVersionKind
 	if !ok || resourceSpec.Extensions == nil {
 		return errors.New("no resource extensions")
 	}
-	categoriesRaw, ok := resourceSpec.Extensions[common.XKubernetesCategories]
+	categoriesRaw, ok := resourceSpec.Extensions[common.CategoriesExtensionKey]
 	if !ok {
-		return fmt.Errorf("%s extension not found", common.XKubernetesCategories)
+		return fmt.Errorf("%s extension not found", common.CategoriesExtensionKey)
 	}
 
 	categoriesRawArray, ok := categoriesRaw.([]interface{})
 	if !ok {
-		return fmt.Errorf("%s extension is not an array", common.XKubernetesCategories)
+		return fmt.Errorf("%s extension is not an array", common.CategoriesExtensionKey)
 	}
 
 	categories := make([]string, len(categoriesRawArray))
@@ -512,15 +512,41 @@ func (g *Gateway) storeCategory(resourceKey string, gvk *schema.GroupVersionKind
 	}
 
 	for _, category := range categories {
+		scope, err := g.getScope(resourceKey)
+		if err != nil {
+			g.log.Error().Err(err).Str("resource", resourceKey).Msg("Error getting scope")
+		}
+
 		g.typeByCategory[category] = append(g.typeByCategory[category], resolver.TypeByCategory{
 			Group:   gvk.Group,
 			Version: gvk.Version,
 			Kind:    gvk.Kind,
-			Scope:   "TBD",
+			Scope:   scope,
 		})
 	}
 
 	return nil
+}
+
+func (g *Gateway) getScope(resourceKey string) (string, error) {
+	resourceSpec, ok := g.definitions[resourceKey]
+	if !ok {
+		return "", errors.New("no resource found")
+	}
+	if resourceSpec.Extensions == nil {
+		return "", errors.New("no resource extensions")
+	}
+	scopeRaw, ok := resourceSpec.Extensions[common.ScopeExtensionKey]
+	if !ok {
+		return "", errors.New("scope extension not found")
+	}
+
+	scope, ok := scopeRaw.(string)
+	if !ok {
+		return "", errors.New("failed to parse scope extension as a string")
+	}
+
+	return scope, nil
 }
 
 func sanitizeFieldName(name string) string {

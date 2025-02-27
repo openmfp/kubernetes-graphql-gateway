@@ -1,5 +1,7 @@
 package common
 
 const (
-	XKubernetesCategories = "x-kubernetes-categories"
+	CategoriesExtensionKey = "x-kubernetes-categories"
+	GVKExtensionKey        = "x-kubernetes-group-version-kind"
+	ScopeExtensionKey      = "x-openmfp-scope"
 )
