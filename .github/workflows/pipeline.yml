@@ -19,7 +19,7 @@ jobs:
       useTask: true
       useLocalCoverageConfig: true
       imageTagName: ghcr.io/openmfp/crd-gql-gateway
-      coverageThreasholdFile: 0
-      coverageThresholdPackage: 0
-      coverageThreasholdTotal: 0
+      coverageThreasholdFile: 99
+      coverageThresholdPackage: 99
+      coverageThreasholdTotal: 99
 
