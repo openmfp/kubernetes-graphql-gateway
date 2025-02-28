@@ -1,6 +1,6 @@
 module github.com/openmfp/crd-gql-gateway
 
-go 1.23.2
+go 1.24
 
 replace sigs.k8s.io/controller-runtime => github.com/kcp-dev/controller-runtime v0.19.0-kcp.1.0.20250129100209-5eaf4c7b6056
 
