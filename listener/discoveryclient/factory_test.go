@@ -29,7 +29,7 @@ func TestNewFactory(t *testing.T) {
 			}
 			assert.NoError(t, err)
 			assert.NotNil(t, factory)
-			assert.Equal(t, factory.restCfg, tc.inputCfg)
+			assert.Equal(t, factory.Config, tc.inputCfg)
 		})
 	}
 }
@@ -47,8 +47,8 @@ func TestClientForCluster(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			factory := &Factory{
-				restCfg:       tc.restCfg,
-				clientFactory: fakeClientFactory,
+				Config:             tc.restCfg,
+				NewDiscoveryIFFunc: fakeClientFactory,
 			}
 			dc, err := factory.ClientForCluster(tc.clusterName)
 			if tc.expectErr {
@@ -74,8 +74,8 @@ func TestRestMapperForCluster(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			factory := &Factory{
-				restCfg:       tc.restCfg,
-				clientFactory: fakeClientFactory,
+				Config:             tc.restCfg,
+				NewDiscoveryIFFunc: fakeClientFactory,
 			}
 			rm, err := factory.RestMapperForCluster(tc.clusterName)
 			if tc.expectErr {

@@ -16,6 +16,7 @@ import (
 
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -99,9 +100,19 @@ var listenCmd = &cobra.Command{
 			LeaderElectionID:       "72231e1f.openmfp.io",
 		}
 
-		newMgrFunc := kcp.ManagerFactory(opFlags)
+		clt, err := client.New(cfg, client.Options{
+			Scheme: scheme,
+		})
+		if err != nil {
+			setupLog.Error(err, "failed to create client from config")
+			os.Exit(1)
+		}
 
-		mgr, err := newMgrFunc(cfg, mgrOpts)
+		mf := &kcp.ManagerFactory{
+			IsKCPEnabled: opFlags.EnableKcp,
+		}
+
+		mgr, err := mf.NewManager(cfg, mgrOpts, clt)
 		if err != nil {
 			setupLog.Error(err, "unable to start manager")
 			os.Exit(1)
@@ -109,13 +120,12 @@ var listenCmd = &cobra.Command{
 
 		reconcilerOpts := kcp.ReconcilerOpts{
 			Scheme:                 scheme,
+			Client:                 clt,
 			Config:                 cfg,
 			OpenAPIDefinitionsPath: opFlags.OpenApiDefinitionsPath,
 		}
 
-		newReconcilerFunc := kcp.ReconcilerFactory(opFlags)
-
-		reconciler, err := newReconcilerFunc(reconcilerOpts)
+		reconciler, err := kcp.NewReconcilerFactory(opFlags).NewReconciler(reconcilerOpts)
 		if err != nil {
 			setupLog.Error(err, "unable to instantiate reconciler")
 			os.Exit(1)

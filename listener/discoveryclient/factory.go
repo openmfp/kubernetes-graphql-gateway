@@ -11,15 +11,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
 
-type clientFactory func(cfg *rest.Config) (discovery.DiscoveryInterface, error)
+type NewDiscoveryIFFunc func(cfg *rest.Config) (discovery.DiscoveryInterface, error)
 
 func discoveryCltFactory(cfg *rest.Config) (discovery.DiscoveryInterface, error) {
 	return discovery.NewDiscoveryClientForConfig(cfg)
 }
 
 type Factory struct {
-	restCfg *rest.Config
-	clientFactory
+	*rest.Config
+	NewDiscoveryIFFunc
 }
 
 func NewFactory(cfg *rest.Config) (*Factory, error) {
@@ -27,21 +27,21 @@ func NewFactory(cfg *rest.Config) (*Factory, error) {
 		return nil, errors.New("config should not be nil")
 	}
 	return &Factory{
-		restCfg:       cfg,
-		clientFactory: discoveryCltFactory,
+		Config:             cfg,
+		NewDiscoveryIFFunc: discoveryCltFactory,
 	}, nil
 }
 
 func (f *Factory) ClientForCluster(name string) (discovery.DiscoveryInterface, error) {
-	clusterCfg, err := configForCluster(name, f.restCfg)
+	clusterCfg, err := configForCluster(name, f.Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get rest config for cluster: %w", err)
 	}
-	return f.clientFactory(clusterCfg)
+	return f.NewDiscoveryIFFunc(clusterCfg)
 }
 
 func (f *Factory) RestMapperForCluster(name string) (meta.RESTMapper, error) {
-	clusterCfg, err := configForCluster(name, f.restCfg)
+	clusterCfg, err := configForCluster(name, f.Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get rest config for cluster: %w", err)
 	}
