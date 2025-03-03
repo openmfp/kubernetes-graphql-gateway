@@ -4,12 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
-	"time"
-
-	//"github.com/openmfp/crd-gql-gateway/tests/graphql"
 	"io"
 	"net/http"
+	"os"
+	"time"
 )
 
 const SleepTime = 2000 * time.Millisecond
@@ -17,8 +15,6 @@ const SleepTime = 2000 * time.Millisecond
 type CoreData struct {
 	Pod       *PodData `json:"Pod,omitempty"`
 	CreatePod *PodData `json:"createPod,omitempty"`
-
-	//Service *graphql.ServiceData `json:"Service,omitempty"`
 
 	Account       *AccountData `json:"Account,omitempty"`
 	CreateAccount *AccountData `json:"createAccount,omitempty"`
