@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"github.com/graphql-go/graphql"
+	appConfig "github.com/openmfp/crd-gql-gateway/gateway/config"
 	"github.com/openmfp/crd-gql-gateway/gateway/manager"
 	"github.com/openmfp/crd-gql-gateway/gateway/resolver"
 	"github.com/openmfp/crd-gql-gateway/gateway/schema"
@@ -9,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"k8s.io/client-go/rest"
+	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
@@ -21,8 +24,11 @@ type CommonTestSuite struct {
 	testEnv       *envtest.Environment
 	log           *logger.Logger
 	restCfg       *rest.Config
+	appCfg        appConfig.Config
 	runtimeClient client.WithWatch
 	schema        graphql.Schema
+	manager       manager.Provider
+	server        *httptest.Server
 }
 
 func TestCommonTestSuite(t *testing.T) {
@@ -33,11 +39,17 @@ func (suite *CommonTestSuite) SetupTest() {
 	var err error
 	suite.testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
+			// this is needed for the CRD registration
 			filepath.Join("testdata", "crd"),
 		},
 	}
 	suite.restCfg, err = suite.testEnv.Start()
 	require.NoError(suite.T(), err)
+
+	suite.appCfg.OpenApiDefinitionsPath, err = os.MkdirTemp("", "watchedDir")
+	require.NoError(suite.T(), err)
+
+	suite.appCfg.LocalDevelopment = true
 
 	suite.log, err = logger.New(logger.DefaultConfig())
 	require.NoError(suite.T(), err)
@@ -52,6 +64,11 @@ func (suite *CommonTestSuite) SetupTest() {
 	require.NoError(suite.T(), err)
 
 	suite.schema = *g.GetSchema()
+
+	suite.manager, err = manager.NewManager(suite.log, suite.restCfg, suite.appCfg)
+	require.NoError(suite.T(), err)
+
+	suite.server = httptest.NewServer(suite.manager)
 }
 
 func (suite *CommonTestSuite) TearDownTest() {

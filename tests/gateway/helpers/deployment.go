@@ -1,8 +1,4 @@
-package gateway
-
-type Metadata struct {
-	Name string `json:"name"`
-}
+package helpers
 
 type Spec struct {
 	Replicas int `json:"replicas"`

@@ -1,4 +1,4 @@
-package graphql
+package helpers
 
 type PodData struct {
 	Metadata Metadata `json:"metadata"`

@@ -1,0 +1,54 @@
+package gateway
+
+import (
+	"fmt"
+	"github.com/openmfp/crd-gql-gateway/tests/gateway/helpers"
+	"github.com/stretchr/testify/require"
+	"net/http"
+	"path/filepath"
+)
+
+// TestCreateGetAndDeletePod generates a schema then creates a Pod, gets it and deletes it.
+func (suite *CommonTestSuite) TestCreateGetAndDeletePod() {
+	workspaceName := "myWorkspace"
+
+	// Trigger schema generation and URL creation
+	require.NoError(suite.T(), helpers.WriteToFile(
+		filepath.Join("testdata", "kubernetes"),
+		filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName),
+	))
+
+	// this url must be generated after new file added
+	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
+
+	// Create the Pod and check results
+	createResp, statusCode, err := helpers.SendRequest(url, helpers.CreatePodMutation())
+	require.NoError(suite.T(), err)
+	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
+	require.NoError(suite.T(), err)
+	require.Nil(suite.T(), createResp.Errors, "GraphQL errors: %v", createResp.Errors)
+
+	// Get the Pod
+	getResp, statusCode, err := helpers.SendRequest(url, helpers.GetPodQuery())
+	require.NoError(suite.T(), err)
+	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
+	require.Nil(suite.T(), getResp.Errors, "GraphQL errors: %v", getResp.Errors)
+
+	podData := getResp.Data.Core.Pod
+	require.Equal(suite.T(), "test-pod", podData.Metadata.Name)
+	require.Equal(suite.T(), "default", podData.Metadata.Namespace)
+	require.Equal(suite.T(), "test-container", podData.Spec.Containers[0].Name)
+	require.Equal(suite.T(), "nginx", podData.Spec.Containers[0].Image)
+
+	// Delete the Pod
+	deleteResp, statusCode, err := helpers.SendRequest(url, helpers.DeletePodMutation())
+	require.NoError(suite.T(), err)
+	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
+	require.Nil(suite.T(), deleteResp.Errors, "GraphQL errors: %v", deleteResp.Errors)
+
+	// Try to get the Pod after deletion
+	getRespAfterDelete, statusCode, err := helpers.SendRequest(url, helpers.GetPodQuery())
+	require.NoError(suite.T(), err)
+	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
+	require.NotNil(suite.T(), getRespAfterDelete.Errors, "Expected error when querying deleted Pod, but got none")
+}

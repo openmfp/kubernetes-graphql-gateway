@@ -1,18 +1,24 @@
-package graphql
+package helpers
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
+	"time"
+
+	//"github.com/openmfp/crd-gql-gateway/tests/graphql"
 	"io"
 	"net/http"
 )
+
+const SleepTime = 2000 * time.Millisecond
 
 type CoreData struct {
 	Pod       *PodData `json:"Pod,omitempty"`
 	CreatePod *PodData `json:"createPod,omitempty"`
 
-	Service *ServiceData `json:"Service,omitempty"`
+	//Service *graphql.ServiceData `json:"Service,omitempty"`
 
 	Account       *AccountData `json:"Account,omitempty"`
 	CreateAccount *AccountData `json:"createAccount,omitempty"`
@@ -74,4 +80,22 @@ func SendRequest(url, query string) (*GraphQLResponse, int, error) {
 	}
 
 	return &bodyResp, resp.StatusCode, err
+}
+
+// WriteToFile adds a new file to the watched directory which will trigger schema generation
+func WriteToFile(from, to string) error {
+	specContent, err := os.ReadFile(from)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(to, specContent, 0644)
+	if err != nil {
+		return err
+	}
+
+	// let's give some time to the manager to process the file and create a url
+	time.Sleep(SleepTime)
+
+	return nil
 }

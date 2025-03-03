@@ -1,4 +1,4 @@
-package graphql
+package helpers
 
 // AccountData represents the Account resource with its metadata and specification.
 type AccountData struct {
