@@ -154,10 +154,6 @@ func (g *Gateway) processSingleResource(
 		return
 	}
 
-	if resourceKey == "io.k8s.api.rbac.v1.ClusterRoleBinding" {
-		fmt.Println("here!")
-	}
-
 	resourceScope, err := g.getScope(resourceKey)
 	if err != nil {
 		g.log.Error().Err(err).Str("resource", resourceKey).Msg("Error getting resourceScope")
