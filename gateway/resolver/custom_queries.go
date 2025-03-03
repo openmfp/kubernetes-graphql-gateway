@@ -1,6 +1,8 @@
 package resolver
 
-import "github.com/graphql-go/graphql"
+import (
+	"github.com/graphql-go/graphql"
+)
 
 type TypeByCategory struct {
 	Group   string
@@ -9,7 +11,7 @@ type TypeByCategory struct {
 	Scope   string
 }
 
-func (s *Service) TypeByCategory(m map[string][]TypeByCategory) graphql.FieldResolveFn {
+func (r *Service) TypeByCategory(m map[string][]TypeByCategory) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		name, err := getStringArg(p.Args, NameArg, true)
 		if err != nil {
