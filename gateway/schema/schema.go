@@ -157,6 +157,7 @@ func (g *Gateway) processSingleResource(
 	resourceScope, err := g.getScope(resourceKey)
 	if err != nil {
 		g.log.Error().Err(err).Str("resource", resourceKey).Msg("Error getting resourceScope")
+		return
 	}
 
 	err = g.storeCategory(resourceKey, gvk, resourceScope)
