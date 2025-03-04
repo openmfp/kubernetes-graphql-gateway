@@ -12,13 +12,9 @@ import (
 
 const SleepTime = 2000 * time.Millisecond
 
-type CoreData struct {
+type Core struct {
 	Pod       *PodData `json:"Pod,omitempty"`
 	CreatePod *PodData `json:"createPod,omitempty"`
-
-	Account       *AccountData `json:"Account,omitempty"`
-	CreateAccount *AccountData `json:"createAccount,omitempty"`
-	DeleteAccount *bool        `json:"deleteAccount,omitempty"`
 }
 
 type Metadata struct {
@@ -32,8 +28,9 @@ type GraphQLResponse struct {
 }
 
 type GraphQLData struct {
-	Core          *CoreData `json:"core,omitempty"`
-	CoreOpenmfpIO *CoreData `json:"core_openmfp_io,omitempty"`
+	Core                   *Core                   `json:"core,omitempty"`
+	CoreOpenmfpIO          *CoreOpenmfpIo          `json:"core_openmfp_io,omitempty"`
+	RbacAuthorizationK8sIo *RbacAuthorizationK8sIo `json:"rbac_authorization_k8s_io,omitempty"`
 }
 
 type GraphQLError struct {

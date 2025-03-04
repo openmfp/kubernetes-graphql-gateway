@@ -1,7 +1,13 @@
 package helpers
 
-// AccountData represents the Account resource with its metadata and specification.
-type AccountData struct {
+type CoreOpenmfpIo struct {
+	Account       *Account `json:"Account,omitempty"`
+	CreateAccount *Account `json:"createAccount,omitempty"`
+	DeleteAccount *bool    `json:"deleteAccount,omitempty"`
+}
+
+// Account represents the Account resource with its metadata and specification.
+type Account struct {
 	Metadata Metadata    `json:"metadata"`
 	Spec     AccountSpec `json:"spec"`
 }
