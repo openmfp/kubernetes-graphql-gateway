@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"context"
-	"fmt"
 	"github.com/graphql-go/graphql"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -113,7 +112,7 @@ func (suite *CommonTestSuite) TestSchemaSubscribe() {
 							t.Errorf("Expected error but got nil")
 							cancel()
 						}
-						fmt.Println("### ", res.Data)
+
 						if !tt.expectError && res.Data == nil {
 							t.Errorf("Data is nil because of the error: %v", res.Errors)
 							cancel()
