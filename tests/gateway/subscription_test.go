@@ -2,10 +2,12 @@ package gateway
 
 import (
 	"context"
+	"fmt"
 	"github.com/graphql-go/graphql"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -63,6 +65,22 @@ func (suite *CommonTestSuite) TestSchemaSubscribe() {
 			},
 			expectedEvents: 2,
 		},
+		{
+			testName:       "subscribeToClusterRole_OK",
+			subscribeQuery: subscribeClusterRole(),
+			setupFunc: func(ctx context.Context) {
+				suite.createClusterRole(ctx)
+			},
+			expectedEvents: 1,
+		},
+		{
+			testName:       "subscribeToClusterRoles_OK",
+			subscribeQuery: subscribeClusterRoles(),
+			setupFunc: func(ctx context.Context) {
+				suite.createClusterRole(ctx)
+			},
+			expectedEvents: 64, // we have 63 default cluster roles
+		},
 	}
 
 	for _, tt := range tests {
@@ -95,6 +113,7 @@ func (suite *CommonTestSuite) TestSchemaSubscribe() {
 							t.Errorf("Expected error but got nil")
 							cancel()
 						}
+						fmt.Println("### ", res.Data)
 						if !tt.expectError && res.Data == nil {
 							t.Errorf("Data is nil because of the error: %v", res.Errors)
 							cancel()
@@ -192,4 +211,30 @@ func SubscribeDeployment(name string, subscribeToAll bool) string {
 			}
 		}
 	`
+}
+
+func (suite *CommonTestSuite) createClusterRole(ctx context.Context) {
+	err := suite.runtimeClient.Create(ctx, &v1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-cluster-role",
+		},
+	})
+	require.NoError(suite.T(), err)
+}
+
+func subscribeClusterRole() string {
+	return `
+		subscription {
+			rbac_authorization_k8s_io_clusterrole(name: "test-cluster-role") {
+				metadata { name }
+			}
+		}
+	`
+}
+
+func subscribeClusterRoles() string {
+	return `
+		subscription { 
+			rbac_authorization_k8s_io_clusterroles (subscribeToAll: false) { metadata { name }}
+		}`
 }
