@@ -18,24 +18,23 @@ import (
 func (suite *CommonTestSuite) TestSchemaSubscribe() {
 	tests := []struct {
 		testName       string
-		nameArg        string // if set, we will subscribe to a single deployment
-		labelsMap      map[string]string
-		subscribeToAll bool
+		subscribeQuery string
 
 		setupFunc      func(ctx context.Context)
 		expectedEvents int
 		expectError    bool
 	}{
 		{
-			testName: "subscribe_deployment_and_create_deployment_OK",
-			nameArg:  "my-new-deployment",
+			testName:       "subscribe_deployment_and_create_deployment_OK",
+			subscribeQuery: SubscribeDeployment("my-new-deployment", false),
 			setupFunc: func(ctx context.Context) {
 				suite.createDeployment(ctx, "my-new-deployment", map[string]string{"app": "my-app"})
 			},
 			expectedEvents: 1,
 		},
 		{
-			testName: "subscribe_to_replicas_change_OK",
+			testName:       "subscribe_to_replicas_change_OK",
+			subscribeQuery: SubscribeDeployments(nil, false),
 			setupFunc: func(ctx context.Context) {
 				suite.createDeployment(ctx, "my-new-deployment", map[string]string{"app": "my-app"})
 				// this event will be ignored because we didn't subscribe to labels change.
@@ -47,8 +46,7 @@ func (suite *CommonTestSuite) TestSchemaSubscribe() {
 		},
 		{
 			testName:       "subscribe_to_deployments_by_labels_OK",
-			labelsMap:      map[string]string{"deployment": "first"},
-			subscribeToAll: true,
+			subscribeQuery: SubscribeDeployments(map[string]string{"deployment": "first"}, true),
 			setupFunc: func(ctx context.Context) {
 				suite.createDeployment(ctx, "my-first-deployment", map[string]string{"deployment": "first"})
 				// this event will be ignored because we subscribe to deployment=first labels only
@@ -57,7 +55,8 @@ func (suite *CommonTestSuite) TestSchemaSubscribe() {
 			expectedEvents: 1,
 		},
 		{
-			testName: "subscribe_deployments_and_delete_deployment_OK",
+			testName:       "subscribe_deployments_and_delete_deployment_OK",
+			subscribeQuery: SubscribeDeployments(nil, false),
 			setupFunc: func(ctx context.Context) {
 				suite.createDeployment(ctx, "my-new-deployment", map[string]string{"app": "my-app"})
 				suite.deleteDeployment(ctx, "my-new-deployment")
@@ -75,16 +74,9 @@ func (suite *CommonTestSuite) TestSchemaSubscribe() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			var requestString string
-			if tt.nameArg != "" {
-				requestString = SubscribeDeployment(tt.nameArg, tt.subscribeToAll)
-			} else {
-				requestString = SubscribeDeployments(tt.labelsMap, tt.subscribeToAll)
-			}
-
 			c := graphql.Subscribe(graphql.Params{
 				Context:       ctx,
-				RequestString: requestString,
+				RequestString: tt.subscribeQuery,
 				Schema:        suite.schema,
 			})
 
