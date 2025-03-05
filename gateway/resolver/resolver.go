@@ -95,11 +95,13 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind, scope v1.ResourceScope)
 		}
 
 		if isResourceNamespaceScoped(scope) {
-			namespace, err := getStringArg(p.Args, NamespaceArg, true)
+			namespace, err := getStringArg(p.Args, NamespaceArg, false)
 			if err != nil {
 				return nil, err
 			}
-			opts = append(opts, client.InNamespace(namespace))
+			if namespace != "" {
+				opts = append(opts, client.InNamespace(namespace))
+			}
 		}
 
 		if err = r.runtimeClient.List(ctx, list, opts...); err != nil {
