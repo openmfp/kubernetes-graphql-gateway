@@ -3,9 +3,10 @@ package schema
 import (
 	"errors"
 	"fmt"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"regexp"
 	"strings"
+
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/graphql"
@@ -189,68 +190,63 @@ func (g *Gateway) processSingleResource(
 		Fields: inputFields,
 	})
 
+	listArgsBuilder := resolver.NewFieldConfigArguments().WithLabelSelectorArg()
+
+	itemArgsBuilder := resolver.NewFieldConfigArguments().WithNameArg()
+
+	creationMutationArgsBuilder := resolver.NewFieldConfigArguments().WithObjectArg(resourceInputType)
+
+	if resourceScope == apiextensionsv1.NamespaceScoped {
+		listArgsBuilder.WithNamespaceArg()
+		itemArgsBuilder.WithNamespaceArg()
+		creationMutationArgsBuilder.WithNamespaceArg()
+	}
+
+	listArgs := listArgsBuilder.Complete()
+	itemArgs := itemArgsBuilder.Complete()
+	creationMutationArgs := creationMutationArgsBuilder.Complete()
+
 	queryGroupType.AddFieldConfig(plural, &graphql.Field{
-		Type: graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(resourceType))),
-		Args: resolver.NewFieldConfigArguments().
-			WithNamespaceArg(resourceScope).
-			WithLabelSelectorArg().
-			Complete(),
+		Type:    graphql.NewNonNull(graphql.NewList(graphql.NewNonNull(resourceType))),
+		Args:    listArgs,
 		Resolve: g.resolver.ListItems(*gvk, resourceScope),
 	})
 
 	queryGroupType.AddFieldConfig(singular, &graphql.Field{
-		Type: graphql.NewNonNull(resourceType),
-		Args: resolver.NewFieldConfigArguments().
-			WithNameArg().
-			WithNamespaceArg(resourceScope).
-			Complete(),
+		Type:    graphql.NewNonNull(resourceType),
+		Args:    itemArgs,
 		Resolve: g.resolver.GetItem(*gvk, resourceScope),
 	})
 
 	queryGroupType.AddFieldConfig(singular+"Yaml", &graphql.Field{
-		Type: graphql.NewNonNull(graphql.String),
-		Args: resolver.NewFieldConfigArguments().
-			WithNameArg().
-			WithNamespaceArg(resourceScope).
-			Complete(),
+		Type:    graphql.NewNonNull(graphql.String),
+		Args:    itemArgs,
 		Resolve: g.resolver.GetItemAsYAML(*gvk, resourceScope),
 	})
 
 	// Mutation definitions
 	mutationGroupType.AddFieldConfig("create"+singular, &graphql.Field{
-		Type: resourceType,
-		Args: resolver.NewFieldConfigArguments().
-			WithNamespaceArg(resourceScope).
-			WithObjectArg(resourceInputType).
-			Complete(),
+		Type:    resourceType,
+		Args:    creationMutationArgs,
 		Resolve: g.resolver.CreateItem(*gvk, resourceScope),
 	})
 
 	mutationGroupType.AddFieldConfig("update"+singular, &graphql.Field{
-		Type: resourceType,
-		Args: resolver.NewFieldConfigArguments().
-			WithNameArg().
-			WithNamespaceArg(resourceScope).
-			WithObjectArg(resourceInputType).
-			Complete(),
+		Type:    resourceType,
+		Args:    creationMutationArgsBuilder.WithObjectArg(resourceInputType).Complete(),
 		Resolve: g.resolver.UpdateItem(*gvk, resourceScope),
 	})
 
 	mutationGroupType.AddFieldConfig("delete"+singular, &graphql.Field{
-		Type: graphql.Boolean,
-		Args: resolver.NewFieldConfigArguments().
-			WithNameArg().
-			WithNamespaceArg(resourceScope).
-			Complete(),
+		Type:    graphql.Boolean,
+		Args:    itemArgs,
 		Resolve: g.resolver.DeleteItem(*gvk, resourceScope),
 	})
 
 	subscriptionSingular := strings.ToLower(fmt.Sprintf("%s_%s", gvk.Group, singular))
 	rootSubscriptionFields[subscriptionSingular] = &graphql.Field{
 		Type: resourceType,
-		Args: resolver.NewFieldConfigArguments().
-			WithNameArg().
-			WithNamespaceArg(resourceScope).
+		Args: itemArgsBuilder.
 			WithSubscribeToAllArg().
 			Complete(),
 		Resolve:     g.resolver.CommonResolver(),
@@ -261,9 +257,7 @@ func (g *Gateway) processSingleResource(
 	subscriptionPlural := strings.ToLower(fmt.Sprintf("%s_%s", gvk.Group, plural))
 	rootSubscriptionFields[subscriptionPlural] = &graphql.Field{
 		Type: graphql.NewList(resourceType),
-		Args: resolver.NewFieldConfigArguments().
-			WithNamespaceArg(resourceScope).
-			WithLabelSelectorArg().
+		Args: listArgsBuilder.
 			WithSubscribeToAllArg().
 			Complete(),
 		Resolve:     g.resolver.CommonResolver(),

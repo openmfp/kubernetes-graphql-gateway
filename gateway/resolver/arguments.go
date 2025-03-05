@@ -2,6 +2,8 @@ package resolver
 
 import (
 	"errors"
+	"maps"
+
 	"github.com/graphql-go/graphql"
 	"github.com/rs/zerolog/log"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -35,12 +37,10 @@ func (b *FieldConfigArgumentsBuilder) WithNameArg() *FieldConfigArgumentsBuilder
 	return b
 }
 
-func (b *FieldConfigArgumentsBuilder) WithNamespaceArg(resourceScope apiextensionsv1.ResourceScope) *FieldConfigArgumentsBuilder {
-	if isResourceNamespaceScoped(resourceScope) {
-		b.arguments[NamespaceArg] = &graphql.ArgumentConfig{
-			Type:        graphql.String,
-			Description: "The namespace in which to search for the objects",
-		}
+func (b *FieldConfigArgumentsBuilder) WithNamespaceArg() *FieldConfigArgumentsBuilder {
+	b.arguments[NamespaceArg] = &graphql.ArgumentConfig{
+		Type:        graphql.String,
+		Description: "The namespace in which to search for the objects",
 	}
 
 	return b
@@ -71,9 +71,9 @@ func (b *FieldConfigArgumentsBuilder) WithSubscribeToAllArg() *FieldConfigArgume
 	return b
 }
 
-// Complete returns the constructed arguments
+// Complete returns the constructed arguments and dereferences the builder
 func (b *FieldConfigArgumentsBuilder) Complete() graphql.FieldConfigArgument {
-	return b.arguments
+	return maps.Clone(b.arguments)
 }
 
 func getStringArg(args map[string]interface{}, key string, required bool) (string, error) {

@@ -75,12 +75,15 @@ func (r *Service) runWatch(
 
 	var namespace string
 	if isResourceNamespaceScoped(scope) {
-		namespace, err = getStringArg(p.Args, NamespaceArg, true)
+		isNamespaceRequired := singleItem
+		namespace, err = getStringArg(p.Args, NamespaceArg, isNamespaceRequired)
 		if err != nil {
 			r.log.Error().Err(err).Msg("Failed to get namespace argument")
 			return
 		}
-		opts = append(opts, client.InNamespace(namespace))
+		if namespace != "" {
+			opts = append(opts, client.InNamespace(namespace))
+		}
 	}
 
 	if labelSelector != "" {
