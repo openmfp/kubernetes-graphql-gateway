@@ -6,3 +6,4 @@ exclude:
     - gateway/config/config.go
     - listener/*
     - deprecated/*
+    - mocks

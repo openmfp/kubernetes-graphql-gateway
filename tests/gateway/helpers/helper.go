@@ -58,9 +58,6 @@ func SendRequest(url, query string) (*GraphQLResponse, int, error) {
 		return nil, 0, err
 	}
 	defer resp.Body.Close()
-	v := resp.Body
-	fmt.Println(v)
-
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, 0, err
