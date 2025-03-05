@@ -10,12 +10,6 @@ import (
 	"time"
 )
 
-// TestSchemaUpdate checks if Graphql schema is updated after the file is changed.
-// We load schema with Pod only at first, then we update the workspace file to include Service
-func (suite *CommonTestSuite) TestSchemaUpdate() {
-	suite.T().Skip()
-}
-
 func (suite *CommonTestSuite) TestWorkspaceRemove() {
 	workspaceName := "myWorkspace"
 	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
