@@ -3,12 +3,12 @@ package kcp
 import (
 	"context"
 	"fmt"
+	"github.com/openmfp/crd-gql-gateway/common/config"
 
 	"github.com/openmfp/crd-gql-gateway/listener/apischema"
 	"github.com/openmfp/crd-gql-gateway/listener/clusterpath"
 	"github.com/openmfp/crd-gql-gateway/listener/controller"
 	"github.com/openmfp/crd-gql-gateway/listener/discoveryclient"
-	"github.com/openmfp/crd-gql-gateway/listener/flags"
 	"github.com/openmfp/crd-gql-gateway/listener/workspacefile"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,7 +34,7 @@ type ReconcilerOpts struct {
 
 type NewReconcilerFunc func(opts ReconcilerOpts) (CustomReconciler, error)
 
-func ReconcilerFactory(opFlags *flags.Flags) NewReconcilerFunc {
+func ReconcilerFactory(opFlags *config.Config) NewReconcilerFunc {
 	if opFlags.EnableKcp {
 		return NewKcpReconciler
 	}

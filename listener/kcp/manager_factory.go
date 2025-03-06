@@ -2,8 +2,8 @@ package kcp
 
 import (
 	"fmt"
+	"github.com/openmfp/crd-gql-gateway/common/config"
 
-	"github.com/openmfp/crd-gql-gateway/listener/flags"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kcpctrl "sigs.k8s.io/controller-runtime/pkg/kcp"
@@ -12,7 +12,7 @@ import (
 
 type NewManagerFunc func(cfg *rest.Config, opts ctrl.Options) (manager.Manager, error)
 
-func ManagerFactory(opFlags *flags.Flags) NewManagerFunc {
+func ManagerFactory(opFlags *config.Config) NewManagerFunc {
 	if opFlags.EnableKcp {
 		return NewKcpManager
 	}

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"crypto/tls"
+	"github.com/openmfp/crd-gql-gateway/common/config"
 	"os"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
@@ -22,7 +23,6 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"github.com/openmfp/crd-gql-gateway/listener/flags"
 	"github.com/openmfp/crd-gql-gateway/listener/kcp"
 	// +kubebuilder:scaffold:imports
 )
@@ -36,7 +36,7 @@ var (
 	setupLog             = ctrl.Log.WithName("setup")
 	webhookServer        webhook.Server
 	metricsServerOptions metricsserver.Options
-	opFlags              *flags.Flags
+	appCfg               *config.Config
 )
 
 var listenCmd = &cobra.Command{
@@ -57,7 +57,7 @@ var listenCmd = &cobra.Command{
 		ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 		var err error
-		opFlags, err = flags.NewFromEnv()
+		appCfg, err = config.NewFromEnv()
 		if err != nil {
 			setupLog.Error(err, "failed to get operator flags from env, exiting...")
 			os.Exit(1)
@@ -69,7 +69,7 @@ var listenCmd = &cobra.Command{
 		}
 
 		var tlsOpts []func(*tls.Config)
-		if !opFlags.EnableHTTP2 {
+		if !appCfg.EnableHTTP2 {
 			tlsOpts = []func(c *tls.Config){disableHTTP2}
 		}
 
@@ -78,12 +78,12 @@ var listenCmd = &cobra.Command{
 		})
 
 		metricsServerOptions = metricsserver.Options{
-			BindAddress:   opFlags.MetricsAddr,
-			SecureServing: opFlags.SecureMetrics,
+			BindAddress:   appCfg.MetricsAddr,
+			SecureServing: appCfg.SecureMetrics,
 			TLSOpts:       tlsOpts,
 		}
 
-		if opFlags.SecureMetrics {
+		if appCfg.SecureMetrics {
 			metricsServerOptions.FilterProvider = filters.WithAuthenticationAndAuthorization
 		}
 	},
@@ -94,12 +94,12 @@ var listenCmd = &cobra.Command{
 			Scheme:                 scheme,
 			Metrics:                metricsServerOptions,
 			WebhookServer:          webhookServer,
-			HealthProbeBindAddress: opFlags.ProbeAddr,
-			LeaderElection:         opFlags.EnableLeaderElection,
+			HealthProbeBindAddress: appCfg.ProbeAddr,
+			LeaderElection:         appCfg.EnableLeaderElection,
 			LeaderElectionID:       "72231e1f.openmfp.io",
 		}
 
-		newMgrFunc := kcp.ManagerFactory(opFlags)
+		newMgrFunc := kcp.ManagerFactory(appCfg)
 
 		mgr, err := newMgrFunc(cfg, mgrOpts)
 		if err != nil {
@@ -110,10 +110,10 @@ var listenCmd = &cobra.Command{
 		reconcilerOpts := kcp.ReconcilerOpts{
 			Scheme:                 scheme,
 			Config:                 cfg,
-			OpenAPIDefinitionsPath: opFlags.OpenApiDefinitionsPath,
+			OpenAPIDefinitionsPath: appCfg.OpenApiDefinitionsPath,
 		}
 
-		newReconcilerFunc := kcp.ReconcilerFactory(opFlags)
+		newReconcilerFunc := kcp.ReconcilerFactory(appCfg)
 
 		reconciler, err := newReconcilerFunc(reconcilerOpts)
 		if err != nil {

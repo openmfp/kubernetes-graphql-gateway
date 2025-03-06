@@ -1,13 +1,13 @@
 package tests
 
 import (
+	appCfg "github.com/openmfp/crd-gql-gateway/common/config"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	appConfig "github.com/openmfp/crd-gql-gateway/gateway/config"
 	"github.com/openmfp/crd-gql-gateway/gateway/manager"
 	"github.com/openmfp/golang-commons/logger"
 	"github.com/stretchr/testify/require"
@@ -21,7 +21,7 @@ type CommonTestSuite struct {
 	testEnv *envtest.Environment
 	log     *logger.Logger
 	cfg     *rest.Config
-	appCfg  appConfig.Config
+	appCfg  *appCfg.Config
 	manager manager.Provider
 	server  *httptest.Server
 }
