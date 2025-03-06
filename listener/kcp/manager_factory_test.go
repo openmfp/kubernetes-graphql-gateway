@@ -20,10 +20,10 @@ func TestNewManager(t *testing.T) {
 		isKCPEnabled bool
 		expectErr    bool
 	}{
-		"successful KCP manager creation":          {cfg: &rest.Config{Host: validAPIServerHost}, isKCPEnabled: true, expectErr: false},
-		"error from virtualWorkspaceConfigFromCfg": {cfg: &rest.Config{Host: schemelessAPIServerHost}, isKCPEnabled: true, expectErr: true},
-		"error from NewClusterAwareManager":        {cfg: &rest.Config{}, isKCPEnabled: true, expectErr: true},
-		"successful manager creation":              {cfg: &rest.Config{Host: validAPIServerHost}, isKCPEnabled: false, expectErr: false},
+		"successful_KCP_manager_creation":          {cfg: &rest.Config{Host: validAPIServerHost}, isKCPEnabled: true, expectErr: false},
+		"error_from_virtualWorkspaceConfigFromCfg": {cfg: &rest.Config{Host: schemelessAPIServerHost}, isKCPEnabled: true, expectErr: true},
+		"error_from_NewClusterAwareManager":        {cfg: &rest.Config{}, isKCPEnabled: true, expectErr: true},
+		"successful_manager_creation":              {cfg: &rest.Config{Host: validAPIServerHost}, isKCPEnabled: false, expectErr: false},
 	}
 
 	for name, tc := range tests {

@@ -30,49 +30,49 @@ func TestNewReconciler(t *testing.T) {
 		isKCPEnabled    bool
 		expectErr       bool
 	}{
-		"Standard Reconciler Creation": {
+		"standard_reconciler_creation": {
 			cfg:             &rest.Config{Host: validAPIServerHost},
 			definitionsPath: tempDir,
 			isKCPEnabled:    false,
 			expectErr:       false,
 		},
-		"KCP Reconciler Creation": {
+		"kcp_reconciler_creation": {
 			cfg:             &rest.Config{Host: validAPIServerHost},
 			definitionsPath: tempDir,
 			isKCPEnabled:    true,
 			expectErr:       false,
 		},
-		"Failure in Discovery Client Creation": {
+		"failure_in_discovery_client_creation": {
 			cfg:             nil,
 			definitionsPath: tempDir,
 			isKCPEnabled:    false,
 			expectErr:       true,
 		},
-		"Failure in IOHandler Creation": {
+		"failure_in_io_handler_creation": {
 			cfg:             &rest.Config{Host: validAPIServerHost},
 			definitionsPath: path.Join(tempDir, "non-existent"),
 			isKCPEnabled:    false,
 			expectErr:       true,
 		},
-		"Failure in REST Mapper Creation": {
+		"failure_in_rest_mapper_creation": {
 			cfg:             &rest.Config{Host: schemelessAPIServerHost},
 			definitionsPath: tempDir,
 			isKCPEnabled:    false,
 			expectErr:       true,
 		},
-		"Failure in Virtual Workspace Config Retrieval (KCP)": {
+		"failure_in_virtual_workspace_config_retrieval_(kcp)": {
 			cfg:             &rest.Config{Host: schemelessAPIServerHost},
 			definitionsPath: tempDir,
 			isKCPEnabled:    true,
 			expectErr:       true,
 		},
-		"Failure in KCP Discovery Client Factory Creation": {
+		"failure_in_kcp_discovery_client_factory_creation": {
 			cfg:             nil,
 			definitionsPath: tempDir,
 			isKCPEnabled:    true,
 			expectErr:       true,
 		},
-		"Failure in Cluster Path Resolver Creation": {
+		"failure_in_cluster_path_resolver_creation": {
 			cfg:             &rest.Config{Host: schemelessAPIServerHost},
 			definitionsPath: tempDir,
 			isKCPEnabled:    true,

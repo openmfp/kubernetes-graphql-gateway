@@ -18,8 +18,8 @@ func TestResolver(t *testing.T) {
 		clusterName string
 		expectErr   bool
 	}{
-		"valid cluster":   {baseConfig: &rest.Config{}, clusterName: "test-cluster", expectErr: false},
-		"nil base config": {baseConfig: nil, clusterName: "test-cluster", expectErr: true},
+		"valid_cluster":   {baseConfig: &rest.Config{}, clusterName: "test-cluster", expectErr: false},
+		"nil_base_config": {baseConfig: nil, clusterName: "test-cluster", expectErr: true},
 	}
 
 	for name, tc := range tests {
@@ -54,30 +54,30 @@ func TestPathForCluster(t *testing.T) {
 		expectErr    bool
 		expectedPath string
 	}{
-		"root cluster": {
+		"root_cluster": {
 			clusterName:  "root",
 			annotations:  nil,
 			expectErr:    false,
 			expectedPath: "root",
 		},
-		"valid cluster with 1st level path": {
+		"valid_cluster_with_1st_level_path": {
 			clusterName:  "sap",
 			annotations:  map[string]string{"kcp.io/path": "root:sap"},
 			expectErr:    false,
 			expectedPath: "root:sap",
 		},
-		"valid cluster with 2nd level path": {
+		"valid_cluster_with_2nd_level_path": {
 			clusterName:  "openmfp",
 			annotations:  map[string]string{"kcp.io/path": "root:sap:openmfp"},
 			expectErr:    false,
 			expectedPath: "root:sap:openmfp",
 		},
-		"missing annotation": {
+		"missing_annotation": {
 			clusterName: "test-cluster",
 			annotations: map[string]string{},
 			expectErr:   true,
 		},
-		"nil annotation": {
+		"nil_annotation": {
 			clusterName: "test-cluster",
 			annotations: nil,
 			expectErr:   true,
@@ -115,19 +115,19 @@ func TestGetClusterConfig(t *testing.T) {
 		expect    *rest.Config
 		expectErr bool
 	}{
-		"nil config": {
+		"nil_config": {
 			cfg:       nil,
 			cluster:   "openmfp",
 			expect:    nil,
 			expectErr: true,
 		},
-		"valid config": {
+		"valid_config": {
 			cfg:       &rest.Config{Host: "https://127.0.0.1:56120/clusters/root"},
 			cluster:   "openmfp",
 			expect:    &rest.Config{Host: "https://127.0.0.1:56120/clusters/openmfp"},
 			expectErr: false,
 		},
-		"invalid URL": {
+		"invalid_URL": {
 			cfg:       &rest.Config{Host: ":://bad-url"},
 			cluster:   "openmfp",
 			expect:    nil,

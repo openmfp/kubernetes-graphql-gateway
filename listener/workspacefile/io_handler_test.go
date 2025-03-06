@@ -18,8 +18,8 @@ func TestNewIOHandler(t *testing.T) {
 		schemasDir string
 		expectErr  bool
 	}{
-		"Valid directory":        {schemasDir: tempDir, expectErr: false},
-		"Non-existent directory": {schemasDir: path.Join(tempDir, "non-existent"), expectErr: true},
+		"valid_directory":        {schemasDir: tempDir, expectErr: false},
+		"non_existent_directory": {schemasDir: path.Join(tempDir, "non-existent"), expectErr: true},
 	}
 
 	for name, tc := range tests {
@@ -52,8 +52,8 @@ func TestRead(t *testing.T) {
 		clusterName string
 		expectErr   bool
 	}{
-		"Valid file":        {clusterName: validClusterName, expectErr: false},
-		"Non-existent file": {clusterName: "root:non-existent", expectErr: true},
+		"valid_file":        {clusterName: validClusterName, expectErr: false},
+		"non_existent_file": {clusterName: "root:non-existent", expectErr: true},
 	}
 
 	for name, tc := range tests {
@@ -78,8 +78,8 @@ func TestWrite(t *testing.T) {
 		clusterName string
 		expectErr   bool
 	}{
-		"Valid write":  {clusterName: "root:sap:openmfp", expectErr: false},
-		"Invalid path": {clusterName: "invalid/root:invalid", expectErr: true},
+		"valid_write":  {clusterName: "root:sap:openmfp", expectErr: false},
+		"invalid_path": {clusterName: "invalid/root:invalid", expectErr: true},
 	}
 
 	for name, tc := range tests {

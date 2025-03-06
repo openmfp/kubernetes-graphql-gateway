@@ -28,7 +28,7 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 		clientObjects []client.Object
 		expectErr     bool
 	}{
-		"Successful configuration update": {
+		"successful_configuration_update": {
 			cfg: &rest.Config{Host: validAPIServerHost},
 			clientObjects: []client.Object{
 				&kcpapis.APIExport{
@@ -42,15 +42,15 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 			},
 			expectErr: false,
 		},
-		"Invalid Config Host URL": {
+		"invalid_config_host_url": {
 			cfg:       &rest.Config{Host: schemelessAPIServerHost},
 			expectErr: true,
 		},
-		"Error retrieving APIExport": {
+		"error_retrieving_APIExport": {
 			cfg:       &rest.Config{Host: validAPIServerHost},
 			expectErr: true,
 		},
-		"Empty Virtual Workspace List": {
+		"empty_virtual_workspace_list": {
 			cfg: &rest.Config{Host: validAPIServerHost},
 			clientObjects: []client.Object{
 				&kcpapis.APIExport{
@@ -59,7 +59,7 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 			},
 			expectErr: true,
 		},
-		"Invalid Virtual Workspace URL": {
+		"invalid_virtual_workspace_url": {
 			cfg: &rest.Config{Host: validAPIServerHost},
 			clientObjects: []client.Object{
 				&kcpapis.APIExport{
