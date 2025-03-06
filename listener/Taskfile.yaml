@@ -1,7 +1,5 @@
 version: "3"
 
-# TODO: migrate to main taskfile
-
 vars:
   LOCAL_BIN: bin
   CONTROLLER_TOOLS_VERSION: v0.16.4
