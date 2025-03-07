@@ -258,7 +258,6 @@ func getFieldValue(obj *unstructured.Unstructured, fieldPath string) (interface{
 	fields := strings.Split(fieldPath, ".")
 	var current interface{} = obj.Object
 
-	// Traverse the fields
 	for i, field := range fields {
 		switch v := current.(type) {
 		case map[string]interface{}:
@@ -271,10 +270,10 @@ func getFieldValue(obj *unstructured.Unstructured, fieldPath string) (interface{
 			}
 			current = value
 		case []interface{}:
-			// in case of slice, we return it and it will be compared later using deep equal
+			// in case of slice, we return it, and that slice will be compared later using deep equal
 			return current, true, nil
 		default:
-			return nil, false, fmt.Errorf("unexpected type at field %s: isFieldChanged map[string]interface{} or []interface{}, got %T", strings.Join(fields[:i+1], "."), current)
+			return nil, false, fmt.Errorf("unexpected type at field %s, expected map[string]interface{} or []interface{}, got %T", strings.Join(fields[:i+1], "."), current)
 		}
 	}
 
