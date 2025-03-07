@@ -1,6 +1,6 @@
 version = 1
-SPDX-PackageName = "crd-gql-gateway"
-SPDX-PackageDownloadLocation = "https://github.com/openmfp/crd-gql-gateway"
+SPDX-PackageName = "kubernetes-graphql-gateway"
+SPDX-PackageDownloadLocation = "https://github.com/openmfp/kubernetes-graphql-gateway"
 
 [[annotations]]
 path = "**"

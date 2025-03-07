@@ -3,9 +3,9 @@
 
 # GQL Gateway 
 
-![Build Status](https://github.com/openmfp/crd-gql-gateway/actions/workflows/pipeline.yml/badge.svg)
+![Build Status](https://github.com/openmfp/kubernetes-graphql-gateway/actions/workflows/pipeline.yml/badge.svg)
 [![REUSE status](
-https://api.reuse.software/badge/github.com/openmfp/crd-gql-gateway)](https://api.reuse.software/info/github.com/openmfp/crd-gql-gateway)
+https://api.reuse.software/badge/github.com/openmfp/kubernetes-graphql-gateway)](https://api.reuse.software/info/github.com/openmfp/kubernetes-graphql-gateway)
 
 The goal of this library is to provide a reusable and generic way of exposing k8s resources from within a cluster using GraphQL.
 This enables UIs that need to consume these objects to do so in a developer-friendly way, leveraging a rich ecosystem.
