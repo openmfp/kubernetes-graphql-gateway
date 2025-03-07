@@ -15,7 +15,7 @@ You are welcome to contribute with your pull requests. These steps explain the c
 
 ## Testing
 
-See https://github.com/openmfp/crd-gql-gateway?tab=readme-ov-file#testing
+See https://github.com/openmfp/kubernetes-graphql-gateway?tab=readme-ov-file#testing
 
 ## Issues
 We use GitHub issues to track bugs. Please ensure your description is
