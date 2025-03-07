@@ -57,7 +57,7 @@ tasks:
         vars:
           ADDITIONAL_COMMAND_ARGS: -coverprofile=./cover.out -covermode=atomic -coverpkg=./...
   cover:
-    deps: [setup:envtest]
+    deps: [setup:envtest, setup:go-test-coverage]
     cmds:
       - task: envtest
         vars:
