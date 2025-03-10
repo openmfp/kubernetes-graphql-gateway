@@ -1,6 +1,3 @@
-> [!WARNING]
-> This repository is under construction and not yet ready for public consumption. Please check back later for updates.
-
 # kubernetes-graphql-gateway
 
 ![Build Status](https://github.com/openmfp/kubernetes-graphql-gateway/actions/workflows/pipeline.yml/badge.svg)

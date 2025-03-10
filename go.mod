@@ -1,4 +1,4 @@
-module github.com/openmfp/crd-gql-gateway
+module github.com/openmfp/kubernetes-graphql-gateway
 
 go 1.23.2
 
@@ -19,7 +19,7 @@ require (
 	github.com/kcp-dev/kcp/sdk v0.26.1
 	github.com/kcp-dev/logicalcluster/v3 v3.0.5
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/openmfp/golang-commons v0.142.7
+	github.com/openmfp/golang-commons v0.142.8
 	github.com/rs/zerolog v1.33.0
 	github.com/spf13/cobra v1.9.1
 	github.com/stretchr/testify v1.10.0
@@ -33,7 +33,7 @@ require (
 	k8s.io/apimachinery v0.32.2
 	k8s.io/client-go v0.32.2
 	k8s.io/kube-openapi v0.0.0-20250304201544-e5f78fe3ede9
-	sigs.k8s.io/controller-runtime v0.20.2
+	sigs.k8s.io/controller-runtime v0.20.3
 )
 
 require (
