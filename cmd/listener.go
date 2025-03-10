@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"crypto/tls"
-	"github.com/openmfp/crd-gql-gateway/common/config"
 	"os"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
@@ -23,8 +22,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"github.com/openmfp/crd-gql-gateway/listener/kcp"
-	// +kubebuilder:scaffold:imports
+	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/kcp"
 )
 
 func init() {

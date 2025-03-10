@@ -33,7 +33,7 @@ tasks:
       - "{{.LOCAL_BIN}}/mockery"
   docker:
     cmds:
-      - docker build -t ghcr.io/openmfp/crd-gql-gateway .
+      - docker build -t ghcr.io/openmfp/kubernetes-graphql-gateway .
   ## Testing
   fmt:
     cmds:

@@ -1,19 +1,21 @@
 package tests
 
 import (
-	appCfg "github.com/openmfp/crd-gql-gateway/common/config"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/openmfp/crd-gql-gateway/gateway/manager"
-	"github.com/openmfp/golang-commons/logger"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+
+	"github.com/openmfp/golang-commons/logger"
+
+	appCfg "github.com/openmfp/kubernetes-graphql-gateway/common/config"
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager"
 )
 
 type CommonTestSuite struct {

@@ -2,12 +2,13 @@ package kcp
 
 import (
 	"fmt"
-	"github.com/openmfp/crd-gql-gateway/common/config"
 
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kcpctrl "sigs.k8s.io/controller-runtime/pkg/kcp"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+
+	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 )
 
 type NewManagerFunc func(cfg *rest.Config, opts ctrl.Options) (manager.Manager, error)

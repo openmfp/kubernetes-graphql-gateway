@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	appConfig "github.com/openmfp/crd-gql-gateway/common/config"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,13 +16,16 @@ import (
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/handler"
 	"github.com/kcp-dev/logicalcluster/v3"
-	"github.com/openmfp/crd-gql-gateway/gateway/resolver"
-	"github.com/openmfp/crd-gql-gateway/gateway/schema"
-	"github.com/openmfp/golang-commons/logger"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
 	"sigs.k8s.io/controller-runtime/pkg/kontext"
+
+	"github.com/openmfp/golang-commons/logger"
+
+	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/resolver"
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/schema"
 )
 
 type Provider interface {
