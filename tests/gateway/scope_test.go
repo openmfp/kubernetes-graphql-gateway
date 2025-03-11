@@ -2,10 +2,11 @@ package gateway
 
 import (
 	"fmt"
-	"github.com/openmfp/crd-gql-gateway/tests/gateway/helpers"
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"path/filepath"
+
+	"github.com/openmfp/kubernetes-graphql-gateway/tests/gateway/helpers"
 )
 
 func (suite *CommonTestSuite) TestCrudClusterRole() {

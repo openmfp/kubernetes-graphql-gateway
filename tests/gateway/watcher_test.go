@@ -2,12 +2,14 @@ package gateway
 
 import (
 	"fmt"
-	"github.com/openmfp/crd-gql-gateway/tests/gateway/helpers"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/openmfp/kubernetes-graphql-gateway/tests/gateway/helpers"
 )
 
 func (suite *CommonTestSuite) TestWorkspaceRemove() {

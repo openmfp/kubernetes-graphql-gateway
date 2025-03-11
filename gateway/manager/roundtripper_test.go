@@ -2,7 +2,6 @@ package manager
 
 import (
 	"context"
-	"github.com/openmfp/crd-gql-gateway/gateway/manager/mocks"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,6 +12,8 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/transport"
+
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager/mocks"
 )
 
 func TestRoundTripper_RoundTrip(t *testing.T) {

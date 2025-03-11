@@ -2,15 +2,16 @@ package gateway
 
 import (
 	"context"
-	"github.com/openmfp/crd-gql-gateway/gateway/manager"
-	"github.com/openmfp/crd-gql-gateway/gateway/resolver"
-	"github.com/openmfp/crd-gql-gateway/gateway/schema"
-	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/graphql-go/graphql"
 	"github.com/openmfp/golang-commons/logger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager"
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/resolver"
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/schema"
 )
 
 func getGateway() (*schema.Gateway, error) {

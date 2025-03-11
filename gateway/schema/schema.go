@@ -12,9 +12,9 @@ import (
 	"github.com/graphql-go/graphql"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/openmfp/crd-gql-gateway/common"
-	"github.com/openmfp/crd-gql-gateway/gateway/resolver"
 	"github.com/openmfp/golang-commons/logger"
+	"github.com/openmfp/kubernetes-graphql-gateway/common"
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/resolver"
 )
 
 type Provider interface {
@@ -155,6 +155,11 @@ func (g *Gateway) processSingleResource(
 		return
 	}
 
+	if strings.HasSuffix(gvk.Kind, "List") {
+		// Skip List resources
+		return
+	}
+
 	resourceScope, err := g.getScope(resourceKey)
 	if err != nil {
 		g.log.Error().Err(err).Str("resource", resourceKey).Msg("Error getting resourceScope")
@@ -233,7 +238,7 @@ func (g *Gateway) processSingleResource(
 
 	mutationGroupType.AddFieldConfig("update"+singular, &graphql.Field{
 		Type:    resourceType,
-		Args:    creationMutationArgsBuilder.WithObjectArg(resourceInputType).Complete(),
+		Args:    creationMutationArgsBuilder.WithNameArg().Complete(),
 		Resolve: g.resolver.UpdateItem(*gvk, resourceScope),
 	})
 
