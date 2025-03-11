@@ -48,7 +48,6 @@ var listenCmd = &cobra.Command{
 		utilruntime.Must(kcpcore.AddToScheme(scheme))
 		utilruntime.Must(kcptenancy.AddToScheme(scheme))
 		utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
-		// +kubebuilder:scaffold:scheme
 
 		opts := zap.Options{
 			Development: true,
@@ -124,7 +123,6 @@ var listenCmd = &cobra.Command{
 			setupLog.Error(err, "unable to create controller")
 			os.Exit(1)
 		}
-		// +kubebuilder:scaffold:builder
 
 		if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 			setupLog.Error(err, "unable to set up health check")
