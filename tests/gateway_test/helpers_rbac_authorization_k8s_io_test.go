@@ -1,11 +1,11 @@
-package gateway_test_test
+package gateway_test
 
 type RbacAuthorizationK8sIo struct {
 	ClusterRole *ClusterRole `json:"ClusterRole,omitempty"`
 }
 
 type ClusterRole struct {
-	Metadata Metadata `json:"metadata"`
+	Metadata metadata `json:"metadata"`
 }
 
 func CreateClusterRoleMutation() string {

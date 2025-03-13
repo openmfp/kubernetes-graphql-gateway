@@ -1,4 +1,4 @@
-package gateway_test_test
+package gateway_test
 
 import (
 	"context"

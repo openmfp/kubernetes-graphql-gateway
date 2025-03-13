@@ -1,4 +1,4 @@
-package gateway_test_test
+package gateway_test
 
 import (
 	"bytes"
@@ -10,30 +10,30 @@ import (
 	"time"
 )
 
-const SleepTime = 2000 * time.Millisecond
+const sleepTime = 2000 * time.Millisecond
 
-type Core struct {
-	Pod       *PodData `json:"Pod,omitempty"`
-	CreatePod *PodData `json:"createPod,omitempty"`
+type core struct {
+	Pod       *podData `json:"Pod,omitempty"`
+	CreatePod *podData `json:"createPod,omitempty"`
 }
 
-type Metadata struct {
+type metadata struct {
 	Name      string
 	Namespace string
 }
 
 type GraphQLResponse struct {
-	Data   *GraphQLData   `json:"data,omitempty"`
-	Errors []GraphQLError `json:"errors,omitempty"`
+	Data   *graphQLData   `json:"data,omitempty"`
+	Errors []graphQLError `json:"errors,omitempty"`
 }
 
-type GraphQLData struct {
-	Core                   *Core                   `json:"core,omitempty"`
-	CoreOpenmfpIO          *CoreOpenmfpIo          `json:"core_openmfp_io,omitempty"`
+type graphQLData struct {
+	Core                   *core                   `json:"core,omitempty"`
+	CoreOpenmfpIO          *coreOpenmfpIo          `json:"core_openmfp_io,omitempty"`
 	RbacAuthorizationK8sIo *RbacAuthorizationK8sIo `json:"rbac_authorization_k8s_io,omitempty"`
 }
 
-type GraphQLError struct {
+type graphQLError struct {
 	Message   string                 `json:"message"`
 	Locations []GraphQLErrorLocation `json:"locations,omitempty"`
 	Path      []interface{}          `json:"path,omitempty"`
@@ -44,7 +44,7 @@ type GraphQLErrorLocation struct {
 	Column int `json:"column"`
 }
 
-func SendRequest(url, query string) (*GraphQLResponse, int, error) {
+func sendRequest(url, query string) (*GraphQLResponse, int, error) {
 	reqBody := map[string]string{
 		"query": query,
 	}
@@ -72,8 +72,8 @@ func SendRequest(url, query string) (*GraphQLResponse, int, error) {
 	return &bodyResp, resp.StatusCode, err
 }
 
-// WriteToFile adds a new file to the watched directory which will trigger schema generation
-func WriteToFile(from, to string) error {
+// writeToFile adds a new file to the watched directory which will trigger schema generation
+func writeToFile(from, to string) error {
 	specContent, err := os.ReadFile(from)
 	if err != nil {
 		return err
@@ -85,7 +85,7 @@ func WriteToFile(from, to string) error {
 	}
 
 	// let's give some time to the manager to process the file and create a url
-	time.Sleep(SleepTime)
+	time.Sleep(sleepTime)
 
 	return nil
 }
