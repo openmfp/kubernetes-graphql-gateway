@@ -16,15 +16,15 @@ import (
 
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/flags"
+	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/kcp"
-	// +kubebuilder:scaffold:imports
 )
 
 func init() {
@@ -36,7 +36,7 @@ var (
 	setupLog             = ctrl.Log.WithName("setup")
 	webhookServer        webhook.Server
 	metricsServerOptions metricsserver.Options
-	opFlags              *flags.Flags
+	appCfg               *config.Config
 )
 
 var listenCmd = &cobra.Command{
@@ -49,7 +49,6 @@ var listenCmd = &cobra.Command{
 		utilruntime.Must(kcpcore.AddToScheme(scheme))
 		utilruntime.Must(kcptenancy.AddToScheme(scheme))
 		utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
-		// +kubebuilder:scaffold:scheme
 
 		opts := zap.Options{
 			Development: true,
@@ -57,7 +56,7 @@ var listenCmd = &cobra.Command{
 		ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 		var err error
-		opFlags, err = flags.NewFromEnv()
+		appCfg, err = config.NewFromEnv()
 		if err != nil {
 			setupLog.Error(err, "failed to get operator flags from env, exiting...")
 			os.Exit(1)
@@ -69,7 +68,7 @@ var listenCmd = &cobra.Command{
 		}
 
 		var tlsOpts []func(*tls.Config)
-		if !opFlags.EnableHTTP2 {
+		if !appCfg.EnableHTTP2 {
 			tlsOpts = []func(c *tls.Config){disableHTTP2}
 		}
 
@@ -78,12 +77,12 @@ var listenCmd = &cobra.Command{
 		})
 
 		metricsServerOptions = metricsserver.Options{
-			BindAddress:   opFlags.MetricsAddr,
-			SecureServing: opFlags.SecureMetrics,
+			BindAddress:   appCfg.MetricsAddr,
+			SecureServing: appCfg.SecureMetrics,
 			TLSOpts:       tlsOpts,
 		}
 
-		if opFlags.SecureMetrics {
+		if appCfg.SecureMetrics {
 			metricsServerOptions.FilterProvider = filters.WithAuthenticationAndAuthorization
 		}
 	},
@@ -94,14 +93,24 @@ var listenCmd = &cobra.Command{
 			Scheme:                 scheme,
 			Metrics:                metricsServerOptions,
 			WebhookServer:          webhookServer,
-			HealthProbeBindAddress: opFlags.ProbeAddr,
-			LeaderElection:         opFlags.EnableLeaderElection,
+			HealthProbeBindAddress: appCfg.ProbeAddr,
+			LeaderElection:         appCfg.EnableLeaderElection,
 			LeaderElectionID:       "72231e1f.openmfp.io",
 		}
 
-		newMgrFunc := kcp.ManagerFactory(opFlags)
+		clt, err := client.New(cfg, client.Options{
+			Scheme: scheme,
+		})
+		if err != nil {
+			setupLog.Error(err, "failed to create client from config")
+			os.Exit(1)
+		}
 
-		mgr, err := newMgrFunc(cfg, mgrOpts)
+		mf := &kcp.ManagerFactory{
+			IsKCPEnabled: appCfg.EnableKcp,
+		}
+
+		mgr, err := mf.NewManager(cfg, mgrOpts, clt)
 		if err != nil {
 			setupLog.Error(err, "unable to start manager")
 			os.Exit(1)
@@ -109,13 +118,12 @@ var listenCmd = &cobra.Command{
 
 		reconcilerOpts := kcp.ReconcilerOpts{
 			Scheme:                 scheme,
+			Client:                 clt,
 			Config:                 cfg,
-			OpenAPIDefinitionsPath: opFlags.OpenApiDefinitionsPath,
+			OpenAPIDefinitionsPath: appCfg.OpenApiDefinitionsPath,
 		}
 
-		newReconcilerFunc := kcp.ReconcilerFactory(opFlags)
-
-		reconciler, err := newReconcilerFunc(reconcilerOpts)
+		reconciler, err := kcp.NewReconcilerFactory(appCfg).NewReconciler(reconcilerOpts)
 		if err != nil {
 			setupLog.Error(err, "unable to instantiate reconciler")
 			os.Exit(1)
@@ -125,7 +133,6 @@ var listenCmd = &cobra.Command{
 			setupLog.Error(err, "unable to create controller")
 			os.Exit(1)
 		}
-		// +kubebuilder:scaffold:builder
 
 		if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 			setupLog.Error(err, "unable to set up health check")

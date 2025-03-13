@@ -20,13 +20,13 @@ type CRDReconciler struct {
 	ClusterName string
 	client.Client
 	*apischema.CRDResolver
-	io workspacefile.IOHandler
+	io *workspacefile.IOHandler
 }
 
 func NewCRDReconciler(name string,
 	clt client.Client,
 	cr *apischema.CRDResolver,
-	io workspacefile.IOHandler,
+	io *workspacefile.IOHandler,
 ) *CRDReconciler {
 	return &CRDReconciler{
 		ClusterName: name,
@@ -36,8 +36,6 @@ func NewCRDReconciler(name string,
 	}
 }
 
-// +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinition,verbs=get;list;watch
-// +kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinition/status,verbs=get
 func (r *CRDReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 
 	logger := log.FromContext(ctx).WithValues("cluster", r.ClusterName).WithName(req.Name)
