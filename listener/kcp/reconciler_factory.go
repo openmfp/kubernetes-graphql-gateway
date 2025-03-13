@@ -4,12 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/clusterpath"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/controller"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/flags"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/discovery"
@@ -17,6 +11,13 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+
+	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/clusterpath"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/controller"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
 )
 
 const kubernetesClusterName = "kubernetes"
@@ -50,7 +51,7 @@ type ReconcilerFactory struct {
 	newDiscoveryFactoryFunc
 }
 
-func NewReconcilerFactory(opFlags *flags.Flags) *ReconcilerFactory {
+func NewReconcilerFactory(opFlags *config.Config) *ReconcilerFactory {
 	return &ReconcilerFactory{
 		IsKCPEnabled:            opFlags.EnableKcp,
 		newDiscoveryIFFunc:      discoveryCltFactory,
