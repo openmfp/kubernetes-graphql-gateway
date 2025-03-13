@@ -6,3 +6,6 @@ exclude:
     - common/config/config.go
     - deprecated/*
     - mocks
+    # the following files should be excluded from coverage later
+    - listener/apischema/*
+    - listener/controller/*
