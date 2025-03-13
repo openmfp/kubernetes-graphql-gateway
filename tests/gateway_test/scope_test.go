@@ -10,7 +10,6 @@ import (
 func (suite *CommonTestSuite) TestCrudClusterRole() {
 	workspaceName := "myWorkspace"
 
-	// Trigger schema generation and URL creation
 	require.NoError(suite.T(), writeToFile(
 		filepath.Join("testdata", "kubernetes"),
 		filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName),

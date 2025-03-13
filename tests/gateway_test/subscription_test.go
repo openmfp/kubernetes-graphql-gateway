@@ -66,7 +66,7 @@ func (suite *CommonTestSuite) TestSchemaSubscribe() {
 		},
 		{
 			testName:       "subscribeToClusterRole_OK",
-			subscribeQuery: subscribeClusterRole(),
+			subscribeQuery: getClusterRoleSubscription(),
 			setupFunc: func(ctx context.Context) {
 				suite.createClusterRole(ctx)
 			},
@@ -221,7 +221,7 @@ func (suite *CommonTestSuite) createClusterRole(ctx context.Context) {
 	require.NoError(suite.T(), err)
 }
 
-func subscribeClusterRole() string {
+func getClusterRoleSubscription() string {
 	return `
 		subscription {
 			rbac_authorization_k8s_io_clusterrole(name: "test-cluster-role") {

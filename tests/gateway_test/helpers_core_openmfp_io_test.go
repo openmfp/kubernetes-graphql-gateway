@@ -6,13 +6,11 @@ type coreOpenmfpIo struct {
 	DeleteAccount *bool    `json:"deleteAccount,omitempty"`
 }
 
-// account represents the account resource with its metadata and specification.
 type account struct {
 	Metadata metadata    `json:"metadata"`
 	Spec     accountSpec `json:"spec"`
 }
 
-// accountSpec defines the desired state of the account.
 type accountSpec struct {
 	Type        string `json:"type"`
 	DisplayName string `json:"displayName"`

@@ -46,27 +46,24 @@ func TestRoundTripper_RoundTrip(t *testing.T) {
 		},
 		{
 			name:        "user_claim_not_found",
-			token:       createTestToken(t, jwt.MapClaims{}), // No user claim
+			token:       createTestToken(t, jwt.MapClaims{}),
 			impersonate: true,
 		},
 		{
 			name:        "user_claim_is_not_a_string",
-			token:       createTestToken(t, jwt.MapClaims{"sub": 123}), // User claim is not a string
+			token:       createTestToken(t, jwt.MapClaims{"sub": 123}),
 			impersonate: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create a mock RoundTripper using mockery
 			mockRoundTripper := &mocks.MockRoundTripper{}
 
-			// Set up the mock to return a successful response
 			mockRoundTripper.EXPECT().
 				RoundTrip(mock.Anything).
 				Return(&http.Response{StatusCode: http.StatusOK}, nil)
 
-			// If impersonation is expected, set up a more specific expectation
 			if tt.expectedUser != "" {
 				mockRoundTripper.EXPECT().
 					RoundTrip(mock.MatchedBy(func(req *http.Request) bool {
@@ -96,7 +93,6 @@ func TestRoundTripper_RoundTrip(t *testing.T) {
 	}
 }
 
-// Helper function to create a test JWT token
 func createTestToken(t *testing.T, claims jwt.MapClaims) string {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signedToken, err := token.SignedString([]byte("test-secret"))
