@@ -1,4 +1,4 @@
-package manager
+package manager_test
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/transport"
 
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager/mocks"
 )
 
@@ -77,11 +78,11 @@ func TestRoundTripper_RoundTrip(t *testing.T) {
 			log, err := logger.New(logger.DefaultConfig())
 			require.NoError(t, err)
 
-			rt := NewRoundTripper(log, mockRoundTripper, "sub", tt.impersonate)
+			rt := manager.NewRoundTripper(log, mockRoundTripper, "sub", tt.impersonate)
 
 			req := httptest.NewRequest(http.MethodGet, "http://example.com", nil)
 			if tt.token != "" {
-				ctx := context.WithValue(req.Context(), TokenKey{}, tt.token)
+				ctx := context.WithValue(req.Context(), manager.TokenKey{}, tt.token)
 				req = req.WithContext(ctx)
 			}
 
