@@ -8,17 +8,17 @@ import (
 
 	"github.com/graphql-go/graphql"
 	"github.com/openmfp/golang-commons/logger"
-	appConfig "github.com/openmfp/kubernetes-graphql-gateway/gateway/config"
-	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager"
-	"github.com/openmfp/kubernetes-graphql-gateway/gateway/resolver"
-	"github.com/openmfp/kubernetes-graphql-gateway/gateway/schema"
-
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
+
+	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager"
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/resolver"
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/schema"
 )
 
 type CommonTestSuite struct {
@@ -67,7 +67,7 @@ func (suite *CommonTestSuite) SetupTest() {
 
 	suite.schema = *g.GetSchema()
 
-	suite.manager, err = manager.NewManager(suite.log, suite.restCfg, suite.appCfg)
+	suite.manager, err = manager.NewManager(suite.log, suite.restCfg, &suite.appCfg)
 	require.NoError(suite.T(), err)
 
 	suite.server = httptest.NewServer(suite.manager)

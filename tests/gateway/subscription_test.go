@@ -78,7 +78,7 @@ func (suite *CommonTestSuite) TestSchemaSubscribe() {
 			setupFunc: func(ctx context.Context) {
 				suite.createClusterRole(ctx)
 			},
-			expectedEvents: 64, // we have 63 default cluster roles
+			expectedEvents: 65,
 		},
 	}
 
