@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"fmt"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"reflect"
 	"strings"
 
@@ -14,23 +16,23 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func (r *Service) SubscribeItem(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
+func (r *Service) SubscribeItem(gvk schema.GroupVersionKind, scope v1.ResourceScope) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 
 		resultChannel := make(chan interface{})
 
-		go r.runWatch(p, gvk, resultChannel, true)
+		go r.runWatch(p, gvk, resultChannel, true, scope)
 
 		return resultChannel, nil
 	}
 }
 
-func (r *Service) SubscribeItems(gvk schema.GroupVersionKind) graphql.FieldResolveFn {
+func (r *Service) SubscribeItems(gvk schema.GroupVersionKind, scope v1.ResourceScope) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 
 		resultChannel := make(chan interface{})
 
-		go r.runWatch(p, gvk, resultChannel, false)
+		go r.runWatch(p, gvk, resultChannel, false, scope)
 
 		return resultChannel, nil
 	}
@@ -41,6 +43,7 @@ func (r *Service) runWatch(
 	gvk schema.GroupVersionKind,
 	resultChannel chan interface{},
 	singleItem bool,
+	scope v1.ResourceScope,
 ) {
 	defer close(resultChannel)
 
@@ -48,20 +51,7 @@ func (r *Service) runWatch(
 
 	gvk.Group = r.getOriginalGroupName(gvk.Group)
 
-	namespace, err := getStringArg(p.Args, NamespaceArg, false)
-	if err != nil {
-		r.log.Error().Err(err).Msg("Failed to get namespace argument")
-		return
-	}
-
-	var name string
-	if singleItem {
-		name, err = getStringArg(p.Args, NameArg, true)
-		if err != nil {
-			r.log.Error().Err(err).Msg("Failed to get name argument")
-			return
-		}
-	}
+	var err error
 
 	labelSelector, err := getStringArg(p.Args, LabelSelectorArg, false)
 	if err != nil {
@@ -83,9 +73,20 @@ func (r *Service) runWatch(
 	})
 
 	var opts []client.ListOption
-	if namespace != "" {
-		opts = append(opts, client.InNamespace(namespace))
+
+	var namespace string
+	if isResourceNamespaceScoped(scope) {
+		isNamespaceRequired := singleItem
+		namespace, err = getStringArg(p.Args, NamespaceArg, isNamespaceRequired)
+		if err != nil {
+			r.log.Error().Err(err).Msg("Failed to get namespace argument")
+			return
+		}
+		if namespace != "" {
+			opts = append(opts, client.InNamespace(namespace))
+		}
 	}
+
 	if labelSelector != "" {
 		selector, err := labels.Parse(labelSelector)
 		if err != nil {
@@ -94,8 +95,14 @@ func (r *Service) runWatch(
 		}
 		opts = append(opts, client.MatchingLabelsSelector{Selector: selector})
 	}
-	if name != "" {
-		// Use field selector for single item
+
+	var name string
+	if singleItem {
+		name, err = getStringArg(p.Args, NameArg, true)
+		if err != nil {
+			r.log.Error().Err(err).Msg("Failed to get name argument")
+			return
+		}
 		opts = append(opts, client.MatchingFields{"metadata.name": name})
 	}
 
@@ -249,6 +256,26 @@ func determineFieldChanged(oldObj, newObj *unstructured.Unstructured, fields []s
 // Helper function to get the value of a field from an unstructured object
 func getFieldValue(obj *unstructured.Unstructured, fieldPath string) (interface{}, bool, error) {
 	fields := strings.Split(fieldPath, ".")
-	value, found, err := unstructured.NestedFieldNoCopy(obj.Object, fields...)
-	return value, found, err
+	var current interface{} = obj.Object
+
+	for i, field := range fields {
+		switch v := current.(type) {
+		case map[string]interface{}:
+			value, found, err := unstructured.NestedFieldNoCopy(v, field)
+			if err != nil {
+				return nil, false, fmt.Errorf("error accessing field %s: %v", strings.Join(fields[:i+1], "."), err)
+			}
+			if !found {
+				return nil, false, nil
+			}
+			current = value
+		case []interface{}:
+			// in case of slice, we return it, and that slice will be compared later using deep equal
+			return current, true, nil
+		default:
+			return nil, false, fmt.Errorf("unexpected type at field %s, expected map[string]interface{} or []interface{}, got %T", strings.Join(fields[:i+1], "."), current)
+		}
+	}
+
+	return current, true, nil
 }

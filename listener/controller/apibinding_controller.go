@@ -8,10 +8,10 @@ import (
 
 	"io/fs"
 
-	"github.com/openmfp/crd-gql-gateway/listener/apischema"
-	"github.com/openmfp/crd-gql-gateway/listener/clusterpath"
-	"github.com/openmfp/crd-gql-gateway/listener/discoveryclient"
-	"github.com/openmfp/crd-gql-gateway/listener/workspacefile"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/clusterpath"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
 
@@ -41,10 +41,7 @@ func NewAPIBindingReconciler(
 	}
 }
 
-// +kubebuilder:rbac:groups=apis.kcp.io,resources=apibindings,verbs=get;list;watch
-// +kubebuilder:rbac:groups=apis.kcp.io,resources=apibindings/status,verbs=get
 func (r *APIBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
 	// ignore system workspaces (e.g. system:shard)
 	if strings.HasPrefix(req.ClusterName, "system") {
 		return ctrl.Result{}, nil

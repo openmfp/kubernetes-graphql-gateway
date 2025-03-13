@@ -11,10 +11,10 @@ type IOHandler struct {
 }
 
 func NewIOHandler(schemasDir string) (*IOHandler, error) {
-	_, err := os.Stat(schemasDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get info for openAPI definitions dir: %w", err)
+	if err := os.MkdirAll(schemasDir, os.ModePerm); err != nil {
+		return nil, fmt.Errorf("failed to create or access schemas directory: %w", err)
 	}
+
 	return &IOHandler{
 		schemasDir: schemasDir,
 	}, nil
