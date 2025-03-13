@@ -6,9 +6,6 @@ import (
 	"testing"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
-	"github.com/openmfp/crd-gql-gateway/listener/apischema"
-	"github.com/openmfp/crd-gql-gateway/listener/discoveryclient"
-	"github.com/openmfp/crd-gql-gateway/listener/workspacefile"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -18,10 +15,13 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
 )
 
 func TestNewReconciler(t *testing.T) {
-
 	tempDir := t.TempDir()
 
 	tests := map[string]struct {
@@ -48,11 +48,11 @@ func TestNewReconciler(t *testing.T) {
 			isKCPEnabled:    false,
 			expectErr:       true,
 		},
-		"failure_in_io_handler_creation": {
+		"success_in_non-existent-dir": {
 			cfg:             &rest.Config{Host: validAPIServerHost},
 			definitionsPath: path.Join(tempDir, "non-existent"),
 			isKCPEnabled:    false,
-			expectErr:       true,
+			expectErr:       false,
 		},
 		"failure_in_rest_mapper_creation": {
 			cfg:             &rest.Config{Host: schemelessAPIServerHost},
