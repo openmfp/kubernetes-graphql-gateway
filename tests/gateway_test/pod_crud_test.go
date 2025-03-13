@@ -1,19 +1,18 @@
-package gateway
+package gateway_test_test
 
 import (
 	"fmt"
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"path/filepath"
-
-	"github.com/openmfp/kubernetes-graphql-gateway/tests/gateway/helpers"
 )
 
-func (suite *CommonTestSuite) TestCrudClusterRole() {
+// TestCreateGetAndDeletePod generates a schema then creates a Pod, gets it and deletes it.
+func (suite *CommonTestSuite) TestCreateGetAndDeletePod() {
 	workspaceName := "myWorkspace"
 
 	// Trigger schema generation and URL creation
-	require.NoError(suite.T(), helpers.WriteToFile(
+	require.NoError(suite.T(), WriteToFile(
 		filepath.Join("testdata", "kubernetes"),
 		filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName),
 	))
@@ -21,31 +20,34 @@ func (suite *CommonTestSuite) TestCrudClusterRole() {
 	// this url must be generated after new file added
 	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
 
-	// Create ClusterRole and check results
-	createResp, statusCode, err := helpers.SendRequest(url, helpers.CreateClusterRoleMutation())
+	// Create the Pod and check results
+	createResp, statusCode, err := SendRequest(url, CreatePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.NoError(suite.T(), err)
 	require.Nil(suite.T(), createResp.Errors, "GraphQL errors: %v", createResp.Errors)
 
-	// Get ClusterRole
-	getResp, statusCode, err := helpers.SendRequest(url, helpers.GetClusterRoleQuery())
+	// Get the Pod
+	getResp, statusCode, err := SendRequest(url, GetPodQuery())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), getResp.Errors, "GraphQL errors: %v", getResp.Errors)
 
-	data := getResp.Data.RbacAuthorizationK8sIo.ClusterRole
-	require.Equal(suite.T(), "test-cluster-role", data.Metadata.Name)
+	podData := getResp.Data.Core.Pod
+	require.Equal(suite.T(), "test-pod", podData.Metadata.Name)
+	require.Equal(suite.T(), "default", podData.Metadata.Namespace)
+	require.Equal(suite.T(), "test-container", podData.Spec.Containers[0].Name)
+	require.Equal(suite.T(), "nginx", podData.Spec.Containers[0].Image)
 
-	// Delete ClusterRole
-	deleteResp, statusCode, err := helpers.SendRequest(url, helpers.DeleteClusterRoleMutation())
+	// Delete the Pod
+	deleteResp, statusCode, err := SendRequest(url, DeletePodMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), deleteResp.Errors, "GraphQL errors: %v", deleteResp.Errors)
 
-	// Try to get the ClusterRole after deletion
-	getRespAfterDelete, statusCode, err := helpers.SendRequest(url, helpers.GetClusterRoleQuery())
+	// Try to get the Pod after deletion
+	getRespAfterDelete, statusCode, err := SendRequest(url, GetPodQuery())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
-	require.NotNil(suite.T(), getRespAfterDelete.Errors, "Expected error when querying deleted ClusterRole, but got none")
+	require.NotNil(suite.T(), getRespAfterDelete.Errors, "Expected error when querying deleted Pod, but got none")
 }

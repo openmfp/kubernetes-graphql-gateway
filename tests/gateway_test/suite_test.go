@@ -1,4 +1,4 @@
-package gateway
+package gateway_test_test
 
 import (
 	"net/http/httptest"

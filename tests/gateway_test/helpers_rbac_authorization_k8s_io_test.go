@@ -1,4 +1,4 @@
-package helpers
+package gateway_test_test
 
 type RbacAuthorizationK8sIo struct {
 	ClusterRole *ClusterRole `json:"ClusterRole,omitempty"`

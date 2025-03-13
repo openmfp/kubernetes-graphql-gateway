@@ -1,4 +1,4 @@
-package helpers
+package gateway_test_test
 
 type CoreOpenmfpIo struct {
 	Account       *Account `json:"Account,omitempty"`

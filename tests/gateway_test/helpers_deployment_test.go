@@ -1,4 +1,4 @@
-package helpers
+package gateway_test_test
 
 type Spec struct {
 	Replicas int `json:"replicas"`
