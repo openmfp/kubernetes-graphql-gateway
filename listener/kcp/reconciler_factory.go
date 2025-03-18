@@ -24,7 +24,7 @@ const kubernetesClusterName = "kubernetes"
 
 type CustomReconciler interface {
 	Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
-	SetupWithManager(mgr ctrl.Manager) error
+	SetupWithManager(mgr ctrl.Manager, ws string) error
 }
 
 type ReconcilerOpts struct {

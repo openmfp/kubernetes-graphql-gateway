@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"crypto/tls"
+	"fmt"
 	"os"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
@@ -44,15 +45,12 @@ var listenCmd = &cobra.Command{
 	Example: "KUBECONFIG=<path to kubeconfig file> go run . listener",
 	PreRun: func(cmd *cobra.Command, args []string) {
 		utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
 		utilruntime.Must(kcpapis.AddToScheme(scheme))
 		utilruntime.Must(kcpcore.AddToScheme(scheme))
 		utilruntime.Must(kcptenancy.AddToScheme(scheme))
 		utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 
-		opts := zap.Options{
-			Development: true,
-		}
+		opts := zap.Options{Development: true}
 		ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 		var err error
@@ -72,16 +70,12 @@ var listenCmd = &cobra.Command{
 			tlsOpts = []func(c *tls.Config){disableHTTP2}
 		}
 
-		webhookServer = webhook.NewServer(webhook.Options{
-			TLSOpts: tlsOpts,
-		})
-
+		webhookServer = webhook.NewServer(webhook.Options{TLSOpts: tlsOpts})
 		metricsServerOptions = metricsserver.Options{
 			BindAddress:   appCfg.MetricsAddr,
 			SecureServing: appCfg.SecureMetrics,
 			TLSOpts:       tlsOpts,
 		}
-
 		if appCfg.SecureMetrics {
 			metricsServerOptions.FilterProvider = filters.WithAuthenticationAndAuthorization
 		}
@@ -89,30 +83,33 @@ var listenCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg := ctrl.GetConfigOrDie()
 
-		mgrOpts := ctrl.Options{
-			Scheme:                 scheme,
-			Metrics:                metricsServerOptions,
-			WebhookServer:          webhookServer,
-			HealthProbeBindAddress: appCfg.ProbeAddr,
-			LeaderElection:         appCfg.EnableLeaderElection,
-			LeaderElectionID:       "72231e1f.openmfp.io",
+		// Base options for both managers
+		baseOpts := ctrl.Options{
+			Scheme:           scheme,
+			Metrics:          metricsServerOptions,
+			WebhookServer:    webhookServer,
+			LeaderElection:   appCfg.EnableLeaderElection,
+			LeaderElectionID: "72231e1f.openmfp.io",
 		}
 
-		clt, err := client.New(cfg, client.Options{
-			Scheme: scheme,
-		})
+		// Root manager options with default probe port
+		rootMgrOpts := baseOpts
+		rootMgrOpts.HealthProbeBindAddress = appCfg.ProbeAddr // e.g., ":8081"
+
+		// Virtual workspace manager options with a different probe port
+		vwMgrOpts := baseOpts
+		vwMgrOpts.HealthProbeBindAddress = ":9444" // Distinct port for vwMgr
+
+		clt, err := client.New(cfg, client.Options{Scheme: scheme})
 		if err != nil {
 			setupLog.Error(err, "failed to create client from config")
 			os.Exit(1)
 		}
 
-		mf := &kcp.ManagerFactory{
-			IsKCPEnabled: appCfg.EnableKcp,
-		}
-
-		mgr, err := mf.NewManager(cfg, mgrOpts, clt)
+		mf := &kcp.ManagerFactory{IsKCPEnabled: appCfg.EnableKcp}
+		rootMgr, vwMgr, err := mf.NewManagers(cfg, rootMgrOpts, vwMgrOpts, clt)
 		if err != nil {
-			setupLog.Error(err, "unable to start manager")
+			setupLog.Error(err, "unable to start managers")
 			os.Exit(1)
 		}
 
@@ -123,30 +120,82 @@ var listenCmd = &cobra.Command{
 			OpenAPIDefinitionsPath: appCfg.OpenApiDefinitionsPath,
 		}
 
-		reconciler, err := kcp.NewReconcilerFactory(appCfg).NewReconciler(reconcilerOpts)
-		if err != nil {
-			setupLog.Error(err, "unable to instantiate reconciler")
-			os.Exit(1)
+		// Create a reconciler factory
+		factory := kcp.NewReconcilerFactory(appCfg)
+
+		// If KCP is enabled, create separate reconcilers for root and virtual workspace
+		// If KCP is enabled, create separate reconcilers for root and virtual workspace
+		if appCfg.EnableKcp {
+			// Reconciler for root manager (APIBinding)
+			rootReconciler, err := factory.NewReconciler(reconcilerOpts)
+			if err != nil {
+				setupLog.Error(err, "unable to instantiate root reconciler")
+				os.Exit(1)
+			}
+			if err := rootReconciler.SetupWithManager(rootMgr, "root"); err != nil {
+				setupLog.Error(err, "unable to create controller for root manager")
+				os.Exit(1)
+			}
+
+			// Reconciler for virtual workspace manager (Workspace)
+			vwReconciler, err := factory.NewReconciler(reconcilerOpts)
+			if err != nil {
+				setupLog.Error(err, "unable to instantiate virtual workspace reconciler")
+				os.Exit(1)
+			}
+			if err := vwReconciler.SetupWithManager(vwMgr, "virtualworkspace"); err != nil {
+				setupLog.Error(err, "unable to create controller for virtual workspace manager")
+				os.Exit(1)
+			}
+		} else {
+			// Single reconciler for non-KCP mode
+			reconciler, err := factory.NewReconciler(reconcilerOpts)
+			if err != nil {
+				setupLog.Error(err, "unable to instantiate reconciler")
+				os.Exit(1)
+			}
+			if err := reconciler.SetupWithManager(rootMgr, "root"); err != nil {
+				setupLog.Error(err, "unable to create controller")
+				os.Exit(1)
+			}
 		}
 
-		if err := reconciler.SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller")
-			os.Exit(1)
+		// Set up health and readiness checks for both managers
+		for _, mgr := range []ctrl.Manager{rootMgr, vwMgr} {
+			if mgr == nil {
+				continue
+			}
+			if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+				setupLog.Error(err, "unable to set up health check")
+				os.Exit(1)
+			}
+			if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+				setupLog.Error(err, "unable to set up ready check")
+				os.Exit(1)
+			}
 		}
 
-		if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-			setupLog.Error(err, "unable to set up health check")
-			os.Exit(1)
-		}
-		if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-			setupLog.Error(err, "unable to set up ready check")
-			os.Exit(1)
-		}
-
-		setupLog.Info("starting manager")
+		setupLog.Info("starting managers")
 		signalHandler := ctrl.SetupSignalHandler()
-		if err := mgr.Start(signalHandler); err != nil {
-			setupLog.Error(err, "problem running manager")
+
+		// Start managers concurrently
+		errChan := make(chan error, 2)
+		go func() {
+			if err := rootMgr.Start(signalHandler); err != nil {
+				errChan <- fmt.Errorf("problem running root manager: %w", err)
+			}
+		}()
+		if vwMgr != nil {
+			go func() {
+				if err := vwMgr.Start(signalHandler); err != nil {
+					errChan <- fmt.Errorf("problem running virtual workspace manager: %w", err)
+				}
+			}()
+		}
+
+		// Wait for any manager to fail
+		if err := <-errChan; err != nil {
+			setupLog.Error(err, "manager failed")
 			os.Exit(1)
 		}
 	},

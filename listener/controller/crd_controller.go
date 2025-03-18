@@ -56,7 +56,7 @@ func (r *CRDReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *CRDReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *CRDReconciler) SetupWithManager(mgr ctrl.Manager, ws string) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiextensionsv1.CustomResourceDefinition{}).
 		Named("CRD").

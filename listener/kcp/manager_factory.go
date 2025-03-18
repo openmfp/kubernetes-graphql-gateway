@@ -14,13 +14,32 @@ type ManagerFactory struct {
 	IsKCPEnabled bool
 }
 
-func (f *ManagerFactory) NewManager(cfg *rest.Config, opts ctrl.Options, clt client.Client) (manager.Manager, error) {
+// NewManagers returns the root manager and, if KCP is enabled, the virtual workspace manager.
+func (f *ManagerFactory) NewManagers(cfg *rest.Config, rootMgrOpts, vwMgrOpts ctrl.Options, clt client.Client) (rootMgr manager.Manager, vwMgr manager.Manager, err error) {
 	if !f.IsKCPEnabled {
-		return ctrl.NewManager(cfg, opts)
+		rootMgr, err = ctrl.NewManager(cfg, rootMgrOpts)
+		if err != nil {
+			return nil, nil, fmt.Errorf("unable to create root manager: %w", err)
+		}
+
+		return rootMgr, nil, nil
 	}
+
+	// Create the root manager for KCP
+	rootMgr, err = kcpctrl.NewClusterAwareManager(cfg, rootMgrOpts)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to create root manager: %w", err)
+	}
+
+	// Create the virtual workspace manager for KCP
 	virtualWorkspaceCfg, err := virtualWorkspaceConfigFromCfg(cfg, clt)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get virtual workspace config: %w", err)
+		return nil, nil, fmt.Errorf("unable to get virtual workspace config: %w", err)
 	}
-	return kcpctrl.NewClusterAwareManager(virtualWorkspaceCfg, opts)
+	vwMgr, err = kcpctrl.NewClusterAwareManager(virtualWorkspaceCfg, vwMgrOpts)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to create virtual workspace manager: %w", err)
+	}
+
+	return rootMgr, vwMgr, nil
 }
