@@ -93,17 +93,13 @@ var listenCmd = &cobra.Command{
 			LeaderElectionID:       "72231e1f.openmfp.io",
 		}
 
-		clt, err := client.New(cfg, client.Options{
-			Scheme: scheme,
-		})
+		clt, err := client.New(cfg, client.Options{Scheme: scheme})
 		if err != nil {
 			setupLog.Error(err, "failed to create client from config")
 			os.Exit(1)
 		}
 
-		mf := &kcp.ManagerFactory{
-			IsKCPEnabled: appCfg.EnableKcp,
-		}
+		mf := &kcp.ManagerFactory{IsKCPEnabled: appCfg.EnableKcp}
 
 		wsOpts := opts
 		wsOpts.HealthProbeBindAddress = ":9444" // Distinct port for wsMgr
@@ -122,26 +118,29 @@ var listenCmd = &cobra.Command{
 			Client:                 clt,
 			OpenAPIDefinitionsPath: appCfg.OpenApiDefinitionsPath,
 		}
-		reconciler, err := factory.NewReconciler(reconcilerOpts)
+
+		// Main reconciler for APIBinding (all workspaces)
+		mainReconciler, err := factory.NewReconciler(reconcilerOpts)
 		if err != nil {
-			setupLog.Error(err, "unable to instantiate reconciler")
+			setupLog.Error(err, "unable to instantiate main reconciler")
 			os.Exit(1)
 		}
-		if err := reconciler.SetupWithManager(mgr, "main"); err != nil {
-			setupLog.Error(err, "unable to create controller")
+		if err := mainReconciler.SetupWithManager(mgr, "apibinding"); err != nil {
+			setupLog.Error(err, "unable to create APIBinding controller")
 			os.Exit(1)
 		}
 
+		// Workspace reconciler for KCP mode
 		if appCfg.EnableKcp {
 			wsReconcilerOpts := reconcilerOpts
 			wsReconcilerOpts.Config = wsMgr.GetConfig()
-			virtualWorkspaceReconciler, err := factory.NewReconciler(wsReconcilerOpts)
+			workspaceReconciler, err := factory.NewReconciler(wsReconcilerOpts)
 			if err != nil {
-				setupLog.Error(err, "unable to instantiate virtual workspace reconciler")
+				setupLog.Error(err, "unable to instantiate workspace reconciler")
 				os.Exit(1)
 			}
-			if err := virtualWorkspaceReconciler.SetupWithManager(wsMgr, "virtualworkspace"); err != nil {
-				setupLog.Error(err, "unable to create controller for virtual workspace manager")
+			if err := workspaceReconciler.SetupWithManager(wsMgr, "workspace"); err != nil {
+				setupLog.Error(err, "unable to create Workspace controller")
 				os.Exit(1)
 			}
 		}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"io/fs"
@@ -14,6 +15,8 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
+	kcptenancy "github.com/kcp-dev/kcp/sdk/apis/tenancy/v1alpha1"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -41,24 +44,26 @@ func NewAPIBindingReconciler(
 }
 
 func (r *APIBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	// ignore system workspaces (e.g. system:shard)
+	logger := log.FromContext(ctx).WithValues("cluster", req.ClusterName, "name", req.NamespacedName.Name)
+	logger.Info("starting reconciliation...")
+
+	// Ignore system workspaces (e.g., system:shard)
 	if strings.HasPrefix(req.ClusterName, "system") {
 		return ctrl.Result{}, nil
 	}
 
-	logger := log.FromContext(ctx).WithValues("cluster", req.ClusterName)
-	logger.Info("starting reconciliation...")
-
 	clusterClt, err := r.pr.ClientForCluster(req.ClusterName)
 	if err != nil {
-		logger.Error(err, "failed to get cluster client", "cluster", req.ClusterName)
+		logger.Error(err, "failed to get cluster client")
 		return ctrl.Result{}, err
 	}
-	clusterPath, err := clusterpath.PathForCluster(req.ClusterName, clusterClt)
+
+	clusterPath, err := clusterpath.PathForCluster(req.ClusterName, req.NamespacedName.Name, clusterClt)
 	if err != nil {
 		logger.Error(err, "failed to get cluster path")
 		return ctrl.Result{}, err
 	}
+	logger.Info("resolved cluster path", "path", clusterPath)
 
 	dc, err := r.df.ClientForCluster(clusterPath)
 	if err != nil {
@@ -107,11 +112,20 @@ func (r *APIBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 }
 
 // SetupWithManager sets up the controller with the Manager.
-// managerType specifies whether this is for "root" (APIBinding) or "virtualworkspace" (Workspace).
+// managerType specifies whether this is for "apibinding" (APIBinding) or "workspace" (Workspace).
 func (r *APIBindingReconciler) SetupWithManager(mgr ctrl.Manager, managerType string) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&kcpapis.APIBinding{}).
-		Named(managerType).
-		Complete(r)
-
+	switch managerType {
+	case "apibinding":
+		return ctrl.NewControllerManagedBy(mgr).
+			For(&kcpapis.APIBinding{}).
+			Named("apibinding").
+			Complete(r)
+	case "workspace":
+		return ctrl.NewControllerManagedBy(mgr).
+			For(&kcptenancy.Workspace{}).
+			Named("workspace").
+			Complete(r)
+	default:
+		return fmt.Errorf("invalid managerType: %s; must be 'apibinding' or 'workspace'", managerType)
+	}
 }

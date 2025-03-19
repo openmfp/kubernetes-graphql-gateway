@@ -21,7 +21,6 @@ func (f *ManagerFactory) NewManagers(cfg *rest.Config, rootMgrOpts, vwMgrOpts ct
 		if err != nil {
 			return nil, nil, fmt.Errorf("unable to create root manager: %w", err)
 		}
-
 		return mgr, nil, nil
 	}
 
