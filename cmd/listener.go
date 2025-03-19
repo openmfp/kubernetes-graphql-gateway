@@ -84,19 +84,14 @@ var listenCmd = &cobra.Command{
 		cfg := ctrl.GetConfigOrDie()
 
 		// Base options for both managers
-		baseOpts := ctrl.Options{
-			Scheme:           scheme,
-			Metrics:          metricsServerOptions,
-			WebhookServer:    webhookServer,
-			LeaderElection:   appCfg.EnableLeaderElection,
-			LeaderElectionID: "72231e1f.openmfp.io",
+		opts := ctrl.Options{
+			Scheme:                 scheme,
+			Metrics:                metricsServerOptions,
+			HealthProbeBindAddress: appCfg.ProbeAddr,
+			WebhookServer:          webhookServer,
+			LeaderElection:         appCfg.EnableLeaderElection,
+			LeaderElectionID:       "72231e1f.openmfp.io",
 		}
-
-		rootMgrOpts := baseOpts
-		rootMgrOpts.HealthProbeBindAddress = appCfg.ProbeAddr // e.g., ":8081"
-
-		vwMgrOpts := baseOpts
-		vwMgrOpts.HealthProbeBindAddress = ":9444" // Distinct port for vwMgr
 
 		clt, err := client.New(cfg, client.Options{
 			Scheme: scheme,
@@ -110,60 +105,49 @@ var listenCmd = &cobra.Command{
 			IsKCPEnabled: appCfg.EnableKcp,
 		}
 
-		rootMgr, vwMgr, err := mf.NewManagers(cfg, rootMgrOpts, vwMgrOpts, clt)
+		wsOpts := opts
+		wsOpts.HealthProbeBindAddress = ":9444" // Distinct port for wsMgr
+
+		mgr, wsMgr, err := mf.NewManagers(cfg, opts, wsOpts, clt)
 		if err != nil {
 			setupLog.Error(err, "unable to start managers")
 			os.Exit(1)
 		}
 
-		reconcilerOptsBase := kcp.ReconcilerOpts{
+		factory := kcp.NewReconcilerFactory(appCfg)
+
+		reconcilerOpts := kcp.ReconcilerOpts{
 			Config:                 cfg,
 			Scheme:                 scheme,
 			Client:                 clt,
 			OpenAPIDefinitionsPath: appCfg.OpenApiDefinitionsPath,
 		}
-
-		factory := kcp.NewReconcilerFactory(appCfg)
+		reconciler, err := factory.NewReconciler(reconcilerOpts)
+		if err != nil {
+			setupLog.Error(err, "unable to instantiate reconciler")
+			os.Exit(1)
+		}
+		if err := reconciler.SetupWithManager(mgr, "main"); err != nil {
+			setupLog.Error(err, "unable to create controller")
+			os.Exit(1)
+		}
 
 		if appCfg.EnableKcp {
-			apiBindingReconcilerOpts := reconcilerOptsBase
-			apiBindingReconcilerOpts.Config = rootMgr.GetConfig()
-			apiBindingReconciler, err := factory.NewReconciler(apiBindingReconcilerOpts)
-			if err != nil {
-				setupLog.Error(err, "unable to instantiate root reconciler")
-				os.Exit(1)
-			}
-			if err := apiBindingReconciler.SetupWithManager(rootMgr, "root"); err != nil {
-				setupLog.Error(err, "unable to create controller for root manager")
-				os.Exit(1)
-			}
-
-			virtualWorkspaceReconcilerOpts := reconcilerOptsBase
-			virtualWorkspaceReconcilerOpts.Config = vwMgr.GetConfig()
-			virtualWorkspaceReconciler, err := factory.NewReconciler(virtualWorkspaceReconcilerOpts)
+			wsReconcilerOpts := reconcilerOpts
+			wsReconcilerOpts.Config = wsMgr.GetConfig()
+			virtualWorkspaceReconciler, err := factory.NewReconciler(wsReconcilerOpts)
 			if err != nil {
 				setupLog.Error(err, "unable to instantiate virtual workspace reconciler")
 				os.Exit(1)
 			}
-			if err := virtualWorkspaceReconciler.SetupWithManager(vwMgr, "virtualworkspace"); err != nil {
+			if err := virtualWorkspaceReconciler.SetupWithManager(wsMgr, "virtualworkspace"); err != nil {
 				setupLog.Error(err, "unable to create controller for virtual workspace manager")
-				os.Exit(1)
-			}
-		} else {
-			// Single reconciler for non-KCP mode
-			reconciler, err := factory.NewReconciler(reconcilerOptsBase)
-			if err != nil {
-				setupLog.Error(err, "unable to instantiate reconciler")
-				os.Exit(1)
-			}
-			if err := reconciler.SetupWithManager(rootMgr, "root"); err != nil {
-				setupLog.Error(err, "unable to create controller")
 				os.Exit(1)
 			}
 		}
 
 		// Set up health and readiness checks for both managers
-		for _, mgr := range []ctrl.Manager{rootMgr, vwMgr} {
+		for _, mgr := range []ctrl.Manager{mgr, wsMgr} {
 			if mgr == nil {
 				continue
 			}
@@ -182,13 +166,13 @@ var listenCmd = &cobra.Command{
 
 		errChan := make(chan error, 2)
 		go func() {
-			if err := rootMgr.Start(signalHandler); err != nil {
+			if err := mgr.Start(signalHandler); err != nil {
 				errChan <- fmt.Errorf("problem running root manager: %w", err)
 			}
 		}()
-		if vwMgr != nil {
+		if wsMgr != nil {
 			go func() {
-				if err := vwMgr.Start(signalHandler); err != nil {
+				if err := wsMgr.Start(signalHandler); err != nil {
 					errChan <- fmt.Errorf("problem running virtual workspace manager: %w", err)
 				}
 			}()

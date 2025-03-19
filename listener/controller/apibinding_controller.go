@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"io/fs"
@@ -15,8 +14,6 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
-	kcptenancy "github.com/kcp-dev/kcp/sdk/apis/tenancy/v1alpha1"
-
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
@@ -112,18 +109,9 @@ func (r *APIBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 // SetupWithManager sets up the controller with the Manager.
 // managerType specifies whether this is for "root" (APIBinding) or "virtualworkspace" (Workspace).
 func (r *APIBindingReconciler) SetupWithManager(mgr ctrl.Manager, managerType string) error {
-	switch managerType {
-	case "root":
-		return ctrl.NewControllerManagedBy(mgr).
-			For(&kcpapis.APIBinding{}).
-			Named("apibinding").
-			Complete(r)
-	case "virtualworkspace":
-		return ctrl.NewControllerManagedBy(mgr).
-			For(&kcptenancy.Workspace{}).
-			Named("workspace").
-			Complete(r)
-	default:
-		return fmt.Errorf("invalid managerType: %s; must be 'root' or 'virtualworkspace'", managerType)
-	}
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&kcpapis.APIBinding{}).
+		Named(managerType).
+		Complete(r)
+
 }
