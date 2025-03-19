@@ -92,64 +92,66 @@ var listenCmd = &cobra.Command{
 			LeaderElectionID: "72231e1f.openmfp.io",
 		}
 
-		// Root manager options with default probe port
 		rootMgrOpts := baseOpts
 		rootMgrOpts.HealthProbeBindAddress = appCfg.ProbeAddr // e.g., ":8081"
 
-		// Virtual workspace manager options with a different probe port
 		vwMgrOpts := baseOpts
 		vwMgrOpts.HealthProbeBindAddress = ":9444" // Distinct port for vwMgr
 
-		clt, err := client.New(cfg, client.Options{Scheme: scheme})
+		clt, err := client.New(cfg, client.Options{
+			Scheme: scheme,
+		})
 		if err != nil {
 			setupLog.Error(err, "failed to create client from config")
 			os.Exit(1)
 		}
 
-		mf := &kcp.ManagerFactory{IsKCPEnabled: appCfg.EnableKcp}
+		mf := &kcp.ManagerFactory{
+			IsKCPEnabled: appCfg.EnableKcp,
+		}
+
 		rootMgr, vwMgr, err := mf.NewManagers(cfg, rootMgrOpts, vwMgrOpts, clt)
 		if err != nil {
 			setupLog.Error(err, "unable to start managers")
 			os.Exit(1)
 		}
 
-		reconcilerOpts := kcp.ReconcilerOpts{
+		reconcilerOptsBase := kcp.ReconcilerOpts{
+			Config:                 cfg,
 			Scheme:                 scheme,
 			Client:                 clt,
-			Config:                 cfg,
 			OpenAPIDefinitionsPath: appCfg.OpenApiDefinitionsPath,
 		}
 
-		// Create a reconciler factory
 		factory := kcp.NewReconcilerFactory(appCfg)
 
-		// If KCP is enabled, create separate reconcilers for root and virtual workspace
-		// If KCP is enabled, create separate reconcilers for root and virtual workspace
 		if appCfg.EnableKcp {
-			// Reconciler for root manager (APIBinding)
-			rootReconciler, err := factory.NewReconciler(reconcilerOpts)
+			apiBindingReconcilerOpts := reconcilerOptsBase
+			apiBindingReconcilerOpts.Config = rootMgr.GetConfig()
+			apiBindingReconciler, err := factory.NewReconciler(apiBindingReconcilerOpts)
 			if err != nil {
 				setupLog.Error(err, "unable to instantiate root reconciler")
 				os.Exit(1)
 			}
-			if err := rootReconciler.SetupWithManager(rootMgr, "root"); err != nil {
+			if err := apiBindingReconciler.SetupWithManager(rootMgr, "root"); err != nil {
 				setupLog.Error(err, "unable to create controller for root manager")
 				os.Exit(1)
 			}
 
-			// Reconciler for virtual workspace manager (Workspace)
-			vwReconciler, err := factory.NewReconciler(reconcilerOpts)
+			virtualWorkspaceReconcilerOpts := reconcilerOptsBase
+			virtualWorkspaceReconcilerOpts.Config = vwMgr.GetConfig()
+			virtualWorkspaceReconciler, err := factory.NewReconciler(virtualWorkspaceReconcilerOpts)
 			if err != nil {
 				setupLog.Error(err, "unable to instantiate virtual workspace reconciler")
 				os.Exit(1)
 			}
-			if err := vwReconciler.SetupWithManager(vwMgr, "virtualworkspace"); err != nil {
+			if err := virtualWorkspaceReconciler.SetupWithManager(vwMgr, "virtualworkspace"); err != nil {
 				setupLog.Error(err, "unable to create controller for virtual workspace manager")
 				os.Exit(1)
 			}
 		} else {
 			// Single reconciler for non-KCP mode
-			reconciler, err := factory.NewReconciler(reconcilerOpts)
+			reconciler, err := factory.NewReconciler(reconcilerOptsBase)
 			if err != nil {
 				setupLog.Error(err, "unable to instantiate reconciler")
 				os.Exit(1)
@@ -178,7 +180,6 @@ var listenCmd = &cobra.Command{
 		setupLog.Info("starting managers")
 		signalHandler := ctrl.SetupSignalHandler()
 
-		// Start managers concurrently
 		errChan := make(chan error, 2)
 		go func() {
 			if err := rootMgr.Start(signalHandler); err != nil {
