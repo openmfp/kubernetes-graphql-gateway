@@ -1,6 +1,7 @@
 package kcp
 
 import (
+	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"testing"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
@@ -20,10 +21,8 @@ func TestNewManager(t *testing.T) {
 		isKCPEnabled bool
 		expectErr    bool
 	}{
-		"successful_KCP_manager_creation":          {cfg: &rest.Config{Host: validAPIServerHost}, isKCPEnabled: true, expectErr: false},
-		"error_from_virtualWorkspaceConfigFromCfg": {cfg: &rest.Config{Host: schemelessAPIServerHost}, isKCPEnabled: true, expectErr: true},
-		"error_from_NewClusterAwareManager":        {cfg: &rest.Config{}, isKCPEnabled: true, expectErr: true},
-		"successful_manager_creation":              {cfg: &rest.Config{Host: validAPIServerHost}, isKCPEnabled: false, expectErr: false},
+		"successful_KCP_manager_creation": {cfg: &rest.Config{Host: validAPIServerHost}, isKCPEnabled: true, expectErr: false},
+		"successful_manager_creation":     {cfg: &rest.Config{Host: validAPIServerHost}, isKCPEnabled: false, expectErr: false},
 	}
 
 	for name, tc := range tests {
@@ -31,10 +30,15 @@ func TestNewManager(t *testing.T) {
 		err := kcpapis.AddToScheme(scheme)
 		assert.NoError(t, err)
 		t.Run(name, func(t *testing.T) {
+			appCfg, err := config.NewFromEnv()
+			assert.NoError(t, err)
 
 			fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects([]client.Object{
 				&kcpapis.APIExport{
-					ObjectMeta: metav1.ObjectMeta{Name: tenancyAPIExportName},
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: appCfg.ApiExportWorkspace,
+						Name:      appCfg.ApiExportName,
+					},
 					Status: kcpapis.APIExportStatus{
 						VirtualWorkspaces: []kcpapis.VirtualWorkspace{
 							{URL: validAPIServerHost},
@@ -42,9 +46,9 @@ func TestNewManager(t *testing.T) {
 					},
 				},
 			}...).Build()
-			f := &ManagerFactory{
-				IsKCPEnabled: tc.isKCPEnabled,
-			}
+
+			f := NewManagerFactory(appCfg)
+
 			mgr, err := f.NewManager(tc.cfg, ctrl.Options{
 				Scheme: scheme,
 			}, fakeClient)

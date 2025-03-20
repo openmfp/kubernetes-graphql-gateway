@@ -1,6 +1,7 @@
 package kcp
 
 import (
+	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,7 +15,6 @@ import (
 )
 
 const (
-	tenancyAPIExportName    = "tenancy.kcp.io"
 	validAPIServerHost      = "https://192.168.1.13:6443"
 	schemelessAPIServerHost = "://192.168.1.13:6443"
 )
@@ -25,20 +25,25 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 	assert.NoError(t, err)
 	tests := map[string]struct {
 		cfg           *rest.Config
-		clientObjects []client.Object
+		clientObjects func(appCfg *config.Config) []client.Object
 		expectErr     bool
 	}{
 		"successful_configuration_update": {
 			cfg: &rest.Config{Host: validAPIServerHost},
-			clientObjects: []client.Object{
-				&kcpapis.APIExport{
-					ObjectMeta: metav1.ObjectMeta{Name: tenancyAPIExportName},
-					Status: kcpapis.APIExportStatus{
-						VirtualWorkspaces: []kcpapis.VirtualWorkspace{
-							{URL: "https://192.168.1.13:6443/services/apiexport/root/tenancy.kcp.io"},
+			clientObjects: func(appCfg *config.Config) []client.Object {
+				return []client.Object{
+					&kcpapis.APIExport{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: appCfg.ApiExportWorkspace,
+							Name:      appCfg.ApiExportName,
+						},
+						Status: kcpapis.APIExportStatus{
+							VirtualWorkspaces: []kcpapis.VirtualWorkspace{
+								{URL: "https://192.168.1.13:6443/services/apiexport/root/tenancy.kcp.io"},
+							},
 						},
 					},
-				},
+				}
 			},
 			expectErr: false,
 		},
@@ -52,24 +57,15 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 		},
 		"empty_virtual_workspace_list": {
 			cfg: &rest.Config{Host: validAPIServerHost},
-			clientObjects: []client.Object{
-				&kcpapis.APIExport{
-					ObjectMeta: metav1.ObjectMeta{Name: tenancyAPIExportName},
-				},
-			},
-			expectErr: true,
-		},
-		"invalid_virtual_workspace_url": {
-			cfg: &rest.Config{Host: validAPIServerHost},
-			clientObjects: []client.Object{
-				&kcpapis.APIExport{
-					ObjectMeta: metav1.ObjectMeta{Name: tenancyAPIExportName},
-					Status: kcpapis.APIExportStatus{
-						VirtualWorkspaces: []kcpapis.VirtualWorkspace{
-							{URL: schemelessAPIServerHost},
+			clientObjects: func(appCfg *config.Config) []client.Object {
+				return []client.Object{
+					&kcpapis.APIExport{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: appCfg.ApiExportWorkspace,
+							Name:      appCfg.ApiExportName,
 						},
 					},
-				},
+				}
 			},
 			expectErr: true,
 		},
@@ -77,9 +73,16 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tc.clientObjects...).Build()
+			appCfg, err := config.NewFromEnv()
+			assert.NoError(t, err)
 
-			resultCfg, err := virtualWorkspaceConfigFromCfg(tc.cfg, fakeClient)
+			fakeClientBuilder := fake.NewClientBuilder().WithScheme(scheme)
+			if tc.clientObjects != nil {
+				fakeClientBuilder.WithObjects(tc.clientObjects(appCfg)...)
+			}
+			fakeClient := fakeClientBuilder.Build()
+
+			resultCfg, err := virtualWorkspaceConfigFromCfg(appCfg, tc.cfg, fakeClient)
 
 			if tc.expectErr {
 				assert.Error(t, err)

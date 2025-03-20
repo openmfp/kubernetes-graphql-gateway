@@ -45,15 +45,15 @@ func discoveryCltFactory(cfg *rest.Config) (discovery.DiscoveryInterface, error)
 }
 
 type ReconcilerFactory struct {
-	IsKCPEnabled bool
+	AppCfg *config.Config
 	newDiscoveryIFFunc
 	preReconcileFunc
 	newDiscoveryFactoryFunc
 }
 
-func NewReconcilerFactory(opFlags *config.Config) *ReconcilerFactory {
+func NewReconcilerFactory(appCfg *config.Config) *ReconcilerFactory {
 	return &ReconcilerFactory{
-		IsKCPEnabled:            opFlags.EnableKcp,
+		AppCfg:                  appCfg,
 		newDiscoveryIFFunc:      discoveryCltFactory,
 		preReconcileFunc:        preReconcile,
 		newDiscoveryFactoryFunc: discoveryclient.NewFactory,
@@ -61,7 +61,7 @@ func NewReconcilerFactory(opFlags *config.Config) *ReconcilerFactory {
 }
 
 func (f *ReconcilerFactory) NewReconciler(opts ReconcilerOpts) (CustomReconciler, error) {
-	if !f.IsKCPEnabled {
+	if !f.AppCfg.EnableKcp {
 		return f.newStdReconciler(opts)
 	}
 	return f.newKcpReconciler(opts)
@@ -127,18 +127,22 @@ func (f *ReconcilerFactory) newKcpReconciler(opts ReconcilerOpts) (CustomReconci
 	if err != nil {
 		return nil, fmt.Errorf("failed to create IO Handler: %w", err)
 	}
+
 	pr, err := clusterpath.NewResolver(opts.Config, opts.Scheme)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cluster path resolver: %w", err)
 	}
-	virtualWorkspaceCfg, err := virtualWorkspaceConfigFromCfg(opts.Config, opts.Client)
+
+	virtualWorkspaceCfg, err := virtualWorkspaceConfigFromCfg(f.AppCfg, opts.Config, opts.Client)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get virtual workspace config: %w", err)
 	}
+
 	df, err := f.newDiscoveryFactoryFunc(virtualWorkspaceCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Discovery client factory: %w", err)
 	}
+
 	return controller.NewAPIBindingReconciler(
 		ioHandler, df, apischema.NewResolver(), pr,
 	), nil

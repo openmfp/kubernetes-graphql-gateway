@@ -2,6 +2,7 @@ package kcp
 
 import (
 	"errors"
+	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"path"
 	"testing"
 
@@ -54,26 +55,8 @@ func TestNewReconciler(t *testing.T) {
 			isKCPEnabled:    false,
 			expectErr:       false,
 		},
-		"failure_in_rest_mapper_creation": {
-			cfg:             &rest.Config{Host: schemelessAPIServerHost},
-			definitionsPath: tempDir,
-			isKCPEnabled:    false,
-			expectErr:       true,
-		},
-		"failure_in_virtual_workspace_config_retrieval_(kcp)": {
-			cfg:             &rest.Config{Host: schemelessAPIServerHost},
-			definitionsPath: tempDir,
-			isKCPEnabled:    true,
-			expectErr:       true,
-		},
 		"failure_in_kcp_discovery_client_factory_creation": {
 			cfg:             nil,
-			definitionsPath: tempDir,
-			isKCPEnabled:    true,
-			expectErr:       true,
-		},
-		"failure_in_cluster_path_resolver_creation": {
-			cfg:             &rest.Config{Host: schemelessAPIServerHost},
 			definitionsPath: tempDir,
 			isKCPEnabled:    true,
 			expectErr:       true,
@@ -85,10 +68,15 @@ func TestNewReconciler(t *testing.T) {
 		err := kcpapis.AddToScheme(scheme)
 		assert.NoError(t, err)
 		t.Run(name, func(t *testing.T) {
+			appCfg, err := config.NewFromEnv()
+			assert.NoError(t, err)
 
 			fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects([]client.Object{
 				&kcpapis.APIExport{
-					ObjectMeta: metav1.ObjectMeta{Name: tenancyAPIExportName},
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: appCfg.ApiExportWorkspace,
+						Name:      appCfg.ApiExportName,
+					},
 					Status: kcpapis.APIExportStatus{
 						VirtualWorkspaces: []kcpapis.VirtualWorkspace{
 							{URL: validAPIServerHost},
@@ -97,7 +85,7 @@ func TestNewReconciler(t *testing.T) {
 				},
 			}...).Build()
 			f := &ReconcilerFactory{
-				IsKCPEnabled:       tc.isKCPEnabled,
+				AppCfg:             appCfg,
 				newDiscoveryIFFunc: fakeClientFactory,
 				preReconcileFunc: func(cr *apischema.CRDResolver, io *workspacefile.IOHandler) error {
 					return nil

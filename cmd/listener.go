@@ -87,7 +87,7 @@ var listenCmd = &cobra.Command{
 		}
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		cfg := ctrl.GetConfigOrDie()
+		restCfg := ctrl.GetConfigOrDie()
 
 		mgrOpts := ctrl.Options{
 			Scheme:                 scheme,
@@ -98,7 +98,7 @@ var listenCmd = &cobra.Command{
 			LeaderElectionID:       "72231e1f.openmfp.io",
 		}
 
-		clt, err := client.New(cfg, client.Options{
+		clt, err := client.New(restCfg, client.Options{
 			Scheme: scheme,
 		})
 		if err != nil {
@@ -106,11 +106,9 @@ var listenCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		mf := &kcp.ManagerFactory{
-			IsKCPEnabled: appCfg.EnableKcp,
-		}
+		mf := kcp.NewManagerFactory(appCfg)
 
-		mgr, err := mf.NewManager(cfg, mgrOpts, clt)
+		mgr, err := mf.NewManager(restCfg, mgrOpts, clt)
 		if err != nil {
 			setupLog.Error(err, "unable to start manager")
 			os.Exit(1)
@@ -119,7 +117,7 @@ var listenCmd = &cobra.Command{
 		reconcilerOpts := kcp.ReconcilerOpts{
 			Scheme:                 scheme,
 			Client:                 clt,
-			Config:                 cfg,
+			Config:                 restCfg,
 			OpenAPIDefinitionsPath: appCfg.OpenApiDefinitionsPath,
 		}
 
