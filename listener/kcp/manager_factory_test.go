@@ -17,12 +17,11 @@ import (
 func TestNewManager(t *testing.T) {
 
 	tests := map[string]struct {
-		cfg          *rest.Config
 		isKCPEnabled bool
 		expectErr    bool
 	}{
-		"successful_KCP_manager_creation": {cfg: &rest.Config{Host: validAPIServerHost}, isKCPEnabled: true, expectErr: false},
-		"successful_manager_creation":     {cfg: &rest.Config{Host: validAPIServerHost}, isKCPEnabled: false, expectErr: false},
+		"successful_KCP_manager_creation": {isKCPEnabled: true, expectErr: false},
+		"successful_manager_creation":     {isKCPEnabled: false, expectErr: false},
 	}
 
 	for name, tc := range tests {
@@ -49,7 +48,7 @@ func TestNewManager(t *testing.T) {
 
 			f := NewManagerFactory(appCfg)
 
-			mgr, err := f.NewManager(tc.cfg, ctrl.Options{
+			mgr, err := f.NewManager(&rest.Config{}, ctrl.Options{
 				Scheme: scheme,
 			}, fakeClient)
 

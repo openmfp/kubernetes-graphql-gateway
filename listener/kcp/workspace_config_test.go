@@ -1,6 +1,7 @@
 package kcp
 
 import (
+	"errors"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"testing"
 
@@ -14,22 +15,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	validAPIServerHost      = "https://192.168.1.13:6443"
-	schemelessAPIServerHost = "://192.168.1.13:6443"
-)
-
 func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 	scheme := runtime.NewScheme()
-	err := kcpapis.AddToScheme(scheme)
-	assert.NoError(t, err)
+	assert.NoError(t, kcpapis.AddToScheme(scheme))
+
 	tests := map[string]struct {
-		cfg           *rest.Config
 		clientObjects func(appCfg *config.Config) []client.Object
-		expectErr     bool
+		err           error
 	}{
 		"successful_configuration_update": {
-			cfg: &rest.Config{Host: validAPIServerHost},
 			clientObjects: func(appCfg *config.Config) []client.Object {
 				return []client.Object{
 					&kcpapis.APIExport{
@@ -45,18 +39,11 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 					},
 				}
 			},
-			expectErr: false,
-		},
-		"invalid_config_host_url": {
-			cfg:       &rest.Config{Host: schemelessAPIServerHost},
-			expectErr: true,
 		},
 		"error_retrieving_APIExport": {
-			cfg:       &rest.Config{Host: validAPIServerHost},
-			expectErr: true,
+			err: errors.New("failed to get kubernetes.graphql.gateway APIExport in :root workspace: apiexports.apis.kcp.io \"kubernetes.graphql.gateway\" not found "),
 		},
 		"empty_virtual_workspace_list": {
-			cfg: &rest.Config{Host: validAPIServerHost},
 			clientObjects: func(appCfg *config.Config) []client.Object {
 				return []client.Object{
 					&kcpapis.APIExport{
@@ -67,7 +54,7 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 					},
 				}
 			},
-			expectErr: true,
+			err: errors.New("no virtual URLs found for APIExport kubernetes.graphql.gateway in :root"),
 		},
 	}
 
@@ -82,16 +69,15 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 			}
 			fakeClient := fakeClientBuilder.Build()
 
-			resultCfg, err := virtualWorkspaceConfigFromCfg(appCfg, tc.cfg, fakeClient)
+			resultCfg, err := virtualWorkspaceConfigFromCfg(appCfg, &rest.Config{}, fakeClient)
 
-			if tc.expectErr {
-				assert.Error(t, err)
+			if tc.err != nil {
+				assert.Equal(t, tc.err.Error(), err.Error())
 				assert.Nil(t, resultCfg)
-				return
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.clientObjects(appCfg)[0].(*kcpapis.APIExport).Status.VirtualWorkspaces[0].URL, resultCfg.Host) // nolint: staticcheck
 			}
-
-			assert.NoError(t, err)
-			assert.NotNil(t, resultCfg)
 		})
 	}
 }

@@ -22,6 +22,11 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
 )
 
+const (
+	validAPIServerHost      = "https://192.168.1.13:6443"
+	schemalessAPIServerHost = "://192.168.1.13:6443"
+)
+
 func TestNewReconciler(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -29,50 +34,47 @@ func TestNewReconciler(t *testing.T) {
 		cfg             *rest.Config
 		definitionsPath string
 		isKCPEnabled    bool
-		expectErr       bool
+		err             error
 	}{
 		"standard_reconciler_creation": {
 			cfg:             &rest.Config{Host: validAPIServerHost},
 			definitionsPath: tempDir,
 			isKCPEnabled:    false,
-			expectErr:       false,
 		},
 		"kcp_reconciler_creation": {
 			cfg:             &rest.Config{Host: validAPIServerHost},
 			definitionsPath: tempDir,
 			isKCPEnabled:    true,
-			expectErr:       false,
 		},
-		"failure_in_discovery_client_creation": {
+		"failure_in_discovery_client_creation_with_kcp_disabled": {
 			cfg:             nil,
 			definitionsPath: tempDir,
 			isKCPEnabled:    false,
-			expectErr:       true,
+			err:             errors.New("failed to create discovery client: config cannot be nil"),
+		},
+		"failure_in_creation_cluster_path_resolver_due_to_nil_config_with_kcp_enabled": {
+			cfg:             nil,
+			definitionsPath: tempDir,
+			isKCPEnabled:    true,
+			err:             errors.New("failed to create cluster path resolver: config should not be nil"),
 		},
 		"success_in_non-existent-dir": {
 			cfg:             &rest.Config{Host: validAPIServerHost},
 			definitionsPath: path.Join(tempDir, "non-existent"),
 			isKCPEnabled:    false,
-			expectErr:       false,
 		},
 		"failure_in_rest_mapper_creation": {
-			cfg:             &rest.Config{Host: schemelessAPIServerHost},
+			cfg:             &rest.Config{Host: schemalessAPIServerHost},
 			definitionsPath: tempDir,
 			isKCPEnabled:    false,
-			expectErr:       true,
-		},
-		"failure_in_kcp_discovery_client_factory_creation": {
-			cfg:             nil,
-			definitionsPath: tempDir,
-			isKCPEnabled:    true,
-			expectErr:       true,
+			err:             errors.New("failed to create rest mapper from config: failed to create rest mapper: host must be a URL or a host:port pair: \"://192.168.1.13:6443\""),
 		},
 	}
 
 	for name, tc := range tests {
 		scheme := runtime.NewScheme()
-		err := kcpapis.AddToScheme(scheme)
-		assert.NoError(t, err)
+		assert.NoError(t, kcpapis.AddToScheme(scheme))
+
 		t.Run(name, func(t *testing.T) {
 			appCfg, err := config.NewFromEnv()
 			assert.NoError(t, err)
@@ -111,14 +113,13 @@ func TestNewReconciler(t *testing.T) {
 				OpenAPIDefinitionsPath: tc.definitionsPath,
 			})
 
-			if tc.expectErr {
-				assert.Error(t, err)
+			if tc.err != nil {
+				assert.Equal(t, tc.err.Error(), err.Error())
 				assert.Nil(t, reconciler)
-				return
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, reconciler)
 			}
-
-			assert.NoError(t, err)
-			assert.NotNil(t, reconciler)
 		})
 	}
 }
