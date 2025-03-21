@@ -69,6 +69,12 @@ func TestNewReconciler(t *testing.T) {
 			isKCPEnabled:    false,
 			err:             errors.New("failed to create rest mapper from config: failed to create rest mapper: host must be a URL or a host:port pair: \"://192.168.1.13:6443\""),
 		},
+		"failure_in_definition_dir_creation": {
+			cfg:             &rest.Config{Host: validAPIServerHost},
+			definitionsPath: "/dev/null/schemas",
+			isKCPEnabled:    false,
+			err:             errors.New("failed to create IO Handler: failed to create or access schemas directory: mkdir /dev/null: not a directory"),
+		},
 	}
 
 	for name, tc := range tests {
