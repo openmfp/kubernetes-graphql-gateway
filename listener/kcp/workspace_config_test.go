@@ -1,6 +1,8 @@
 package kcp
 
 import (
+	"errors"
+	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,82 +15,87 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	tenancyAPIExportName    = "tenancy.kcp.io"
-	validAPIServerHost      = "https://192.168.1.13:6443"
-	schemelessAPIServerHost = "://192.168.1.13:6443"
-)
-
 func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 	scheme := runtime.NewScheme()
-	err := kcpapis.AddToScheme(scheme)
-	assert.NoError(t, err)
+	assert.NoError(t, kcpapis.AddToScheme(scheme))
+
 	tests := map[string]struct {
-		cfg           *rest.Config
-		clientObjects []client.Object
-		expectErr     bool
+		clientObjects func(appCfg *config.Config) []client.Object
+		err           error
 	}{
 		"successful_configuration_update": {
-			cfg: &rest.Config{Host: validAPIServerHost},
-			clientObjects: []client.Object{
-				&kcpapis.APIExport{
-					ObjectMeta: metav1.ObjectMeta{Name: tenancyAPIExportName},
-					Status: kcpapis.APIExportStatus{
-						VirtualWorkspaces: []kcpapis.VirtualWorkspace{
-							{URL: "https://192.168.1.13:6443/services/apiexport/root/tenancy.kcp.io"},
+			clientObjects: func(appCfg *config.Config) []client.Object {
+				return []client.Object{
+					&kcpapis.APIExport{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: appCfg.ApiExportWorkspace,
+							Name:      appCfg.ApiExportName,
+						},
+						Status: kcpapis.APIExportStatus{
+							VirtualWorkspaces: []kcpapis.VirtualWorkspace{
+								{URL: "https://192.168.1.13:6443/services/apiexport/root/tenancy.kcp.io"},
+							},
 						},
 					},
-				},
+				}
 			},
-			expectErr: false,
-		},
-		"invalid_config_host_url": {
-			cfg:       &rest.Config{Host: schemelessAPIServerHost},
-			expectErr: true,
 		},
 		"error_retrieving_APIExport": {
-			cfg:       &rest.Config{Host: validAPIServerHost},
-			expectErr: true,
+			err: errors.New("failed to get kubernetes.graphql.gateway APIExport in :root workspace: apiexports.apis.kcp.io \"kubernetes.graphql.gateway\" not found "),
 		},
 		"empty_virtual_workspace_list": {
-			cfg: &rest.Config{Host: validAPIServerHost},
-			clientObjects: []client.Object{
-				&kcpapis.APIExport{
-					ObjectMeta: metav1.ObjectMeta{Name: tenancyAPIExportName},
-				},
-			},
-			expectErr: true,
-		},
-		"invalid_virtual_workspace_url": {
-			cfg: &rest.Config{Host: validAPIServerHost},
-			clientObjects: []client.Object{
-				&kcpapis.APIExport{
-					ObjectMeta: metav1.ObjectMeta{Name: tenancyAPIExportName},
-					Status: kcpapis.APIExportStatus{
-						VirtualWorkspaces: []kcpapis.VirtualWorkspace{
-							{URL: schemelessAPIServerHost},
+			clientObjects: func(appCfg *config.Config) []client.Object {
+				return []client.Object{
+					&kcpapis.APIExport{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: appCfg.ApiExportWorkspace,
+							Name:      appCfg.ApiExportName,
 						},
 					},
-				},
+				}
 			},
-			expectErr: true,
+			err: errors.New("no virtual URLs found for APIExport kubernetes.graphql.gateway in :root"),
+		},
+		"empty_virtual_workspace_url": {
+			clientObjects: func(appCfg *config.Config) []client.Object {
+				return []client.Object{
+					&kcpapis.APIExport{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: appCfg.ApiExportWorkspace,
+							Name:      appCfg.ApiExportName,
+						},
+						Status: kcpapis.APIExportStatus{
+							VirtualWorkspaces: []kcpapis.VirtualWorkspace{
+								{URL: ""},
+							},
+						},
+					},
+				}
+			},
+			err: errors.New("empty URL in virtual workspace for APIExport kubernetes.graphql.gateway"),
 		},
 	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tc.clientObjects...).Build()
-
-			resultCfg, err := virtualWorkspaceConfigFromCfg(tc.cfg, fakeClient)
-
-			if tc.expectErr {
-				assert.Error(t, err)
-				assert.Nil(t, resultCfg)
-				return
-			}
-
+			appCfg, err := config.NewFromEnv()
 			assert.NoError(t, err)
-			assert.NotNil(t, resultCfg)
+
+			fakeClientBuilder := fake.NewClientBuilder().WithScheme(scheme)
+			if tc.clientObjects != nil {
+				fakeClientBuilder.WithObjects(tc.clientObjects(appCfg)...)
+			}
+			fakeClient := fakeClientBuilder.Build()
+
+			resultCfg, err := virtualWorkspaceConfigFromCfg(appCfg, &rest.Config{}, fakeClient)
+
+			if tc.err != nil {
+				assert.Equal(t, tc.err.Error(), err.Error())
+				assert.Nil(t, resultCfg)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.clientObjects(appCfg)[0].(*kcpapis.APIExport).Status.VirtualWorkspaces[0].URL, resultCfg.Host) // nolint: staticcheck
+			}
 		})
 	}
 }

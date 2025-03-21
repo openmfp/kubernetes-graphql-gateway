@@ -38,6 +38,8 @@ type Listener struct {
 	ProbeAddr            string `envconfig:"default=:8081,optional"`
 	SecureMetrics        bool   `envconfig:"default=true,optional"`
 	EnableHTTP2          bool   `envconfig:"default=false,optional"`
+	ApiExportWorkspace   string `envconfig:"default=:root,optional"`
+	ApiExportName        string `envconfig:"default=kubernetes.graphql.gateway,optional"`
 }
 
 // NewFromEnv creates a Gateway from environment values

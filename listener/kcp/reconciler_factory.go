@@ -34,41 +34,46 @@ type ReconcilerOpts struct {
 	OpenAPIDefinitionsPath string
 }
 
-type newDiscoveryFactoryFunc func(cfg *rest.Config) (*discoveryclient.Factory, error)
+type NewDiscoveryFactoryFunc func(cfg *rest.Config) (*discoveryclient.Factory, error)
 
-type preReconcileFunc func(cr *apischema.CRDResolver, io *workspacefile.IOHandler) error
+type PreReconcileFunc func(cr *apischema.CRDResolver, io *workspacefile.IOHandler) error
 
-type newDiscoveryIFFunc func(cfg *rest.Config) (discovery.DiscoveryInterface, error)
+type NewDiscoveryIFFunc func(cfg *rest.Config) (discovery.DiscoveryInterface, error)
 
-func discoveryCltFactory(cfg *rest.Config) (discovery.DiscoveryInterface, error) {
+func DiscoveryCltFactory(cfg *rest.Config) (discovery.DiscoveryInterface, error) {
 	return discovery.NewDiscoveryClientForConfig(cfg)
 }
 
 type ReconcilerFactory struct {
-	IsKCPEnabled bool
-	newDiscoveryIFFunc
-	preReconcileFunc
-	newDiscoveryFactoryFunc
+	AppCfg *config.Config
+	NewDiscoveryIFFunc
+	PreReconcileFunc
+	NewDiscoveryFactoryFunc
 }
 
-func NewReconcilerFactory(opFlags *config.Config) *ReconcilerFactory {
+func NewReconcilerFactory(
+	appCfg *config.Config,
+	newDiscoveryIFFunc func(cfg *rest.Config) (discovery.DiscoveryInterface, error),
+	preReconcileFunc func(cr *apischema.CRDResolver, io *workspacefile.IOHandler) error,
+	newDiscoveryFactoryFunc func(cfg *rest.Config) (*discoveryclient.Factory, error),
+) *ReconcilerFactory {
 	return &ReconcilerFactory{
-		IsKCPEnabled:            opFlags.EnableKcp,
-		newDiscoveryIFFunc:      discoveryCltFactory,
-		preReconcileFunc:        preReconcile,
-		newDiscoveryFactoryFunc: discoveryclient.NewFactory,
+		AppCfg:                  appCfg,
+		NewDiscoveryIFFunc:      newDiscoveryIFFunc,
+		PreReconcileFunc:        preReconcileFunc,
+		NewDiscoveryFactoryFunc: newDiscoveryFactoryFunc,
 	}
 }
 
 func (f *ReconcilerFactory) NewReconciler(opts ReconcilerOpts) (CustomReconciler, error) {
-	if !f.IsKCPEnabled {
+	if !f.AppCfg.EnableKcp {
 		return f.newStdReconciler(opts)
 	}
 	return f.newKcpReconciler(opts)
 }
 
 func (f *ReconcilerFactory) newStdReconciler(opts ReconcilerOpts) (CustomReconciler, error) {
-	dc, err := f.newDiscoveryIFFunc(opts.Config)
+	dc, err := f.NewDiscoveryIFFunc(opts.Config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create discovery client: %w", err)
 	}
@@ -88,7 +93,7 @@ func (f *ReconcilerFactory) newStdReconciler(opts ReconcilerOpts) (CustomReconci
 		RESTMapper:         rm,
 	}
 
-	if err := f.preReconcileFunc(schemaResolver, ioHandler); err != nil {
+	if err := f.PreReconcileFunc(schemaResolver, ioHandler); err != nil {
 		return nil, fmt.Errorf("failed to generate OpenAPI Schema for cluster: %w", err)
 	}
 
@@ -108,7 +113,7 @@ func restMapperFromConfig(cfg *rest.Config) (meta.RESTMapper, error) {
 	return rm, nil
 }
 
-func preReconcile(
+func PreReconcile(
 	cr *apischema.CRDResolver,
 	io *workspacefile.IOHandler,
 ) error {
@@ -127,18 +132,22 @@ func (f *ReconcilerFactory) newKcpReconciler(opts ReconcilerOpts) (CustomReconci
 	if err != nil {
 		return nil, fmt.Errorf("failed to create IO Handler: %w", err)
 	}
+
 	pr, err := clusterpath.NewResolver(opts.Config, opts.Scheme)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cluster path resolver: %w", err)
 	}
-	virtualWorkspaceCfg, err := virtualWorkspaceConfigFromCfg(opts.Config, opts.Client)
+
+	virtualWorkspaceCfg, err := virtualWorkspaceConfigFromCfg(f.AppCfg, opts.Config, opts.Client)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get virtual workspace config: %w", err)
 	}
-	df, err := f.newDiscoveryFactoryFunc(virtualWorkspaceCfg)
+
+	df, err := f.NewDiscoveryFactoryFunc(virtualWorkspaceCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Discovery client factory: %w", err)
 	}
+
 	return controller.NewAPIBindingReconciler(
 		ioHandler, df, apischema.NewResolver(), pr,
 	), nil
