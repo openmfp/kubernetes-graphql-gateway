@@ -58,13 +58,10 @@ func NewReconcilerFactory(
 	newDiscoveryFactoryFunc func(cfg *rest.Config) (*discoveryclient.Factory, error),
 ) *ReconcilerFactory {
 	return &ReconcilerFactory{
-		AppCfg: appCfg,
-		//newDiscoveryIFFunc:      discoveryCltFactory,
+		AppCfg:                  appCfg,
 		NewDiscoveryIFFunc:      newDiscoveryIFFunc,
 		PreReconcileFunc:        preReconcileFunc,
 		NewDiscoveryFactoryFunc: newDiscoveryFactoryFunc,
-		//preReconcileFunc:        preReconcile,
-		//newDiscoveryFactoryFunc: discoveryclient.NewFactory,
 	}
 }
 
