@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"crypto/tls"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
 	"os"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
@@ -121,7 +122,12 @@ var listenCmd = &cobra.Command{
 			OpenAPIDefinitionsPath: appCfg.OpenApiDefinitionsPath,
 		}
 
-		reconciler, err := kcp.NewReconcilerFactory(appCfg).NewReconciler(reconcilerOpts)
+		reconciler, err := kcp.NewReconcilerFactory(
+			appCfg,
+			kcp.DiscoveryCltFactory,
+			kcp.PreReconcile,
+			discoveryclient.NewFactory,
+		).NewReconciler(reconcilerOpts)
 		if err != nil {
 			setupLog.Error(err, "unable to instantiate reconciler")
 			os.Exit(1)

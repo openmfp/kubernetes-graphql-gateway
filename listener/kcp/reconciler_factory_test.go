@@ -93,19 +93,20 @@ func TestNewReconciler(t *testing.T) {
 					},
 				},
 			}...).Build()
-			f := &ReconcilerFactory{
-				AppCfg:             appCfg,
-				newDiscoveryIFFunc: fakeClientFactory,
-				preReconcileFunc: func(cr *apischema.CRDResolver, io *workspacefile.IOHandler) error {
+
+			f := NewReconcilerFactory(
+				appCfg,
+				fakeClientFactory,
+				func(cr *apischema.CRDResolver, io *workspacefile.IOHandler) error {
 					return nil
 				},
-				newDiscoveryFactoryFunc: func(cfg *rest.Config) (*discoveryclient.Factory, error) {
+				func(cfg *rest.Config) (*discoveryclient.Factory, error) {
 					return &discoveryclient.Factory{
 						Config:             cfg,
 						NewDiscoveryIFFunc: fakeClientFactory,
 					}, nil
-				},
-			}
+				})
+
 			reconciler, err := f.NewReconciler(ReconcilerOpts{
 				Config:                 tc.cfg,
 				Scheme:                 scheme,

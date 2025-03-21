@@ -19,7 +19,7 @@ func virtualWorkspaceConfigFromCfg(appCfg *config.Config, restCfg *rest.Config, 
 	}
 
 	var apiExport kcpapis.APIExport
-	ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancelFn := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancelFn()
 
 	if err := clt.Get(ctx, key, &apiExport); err != nil {
