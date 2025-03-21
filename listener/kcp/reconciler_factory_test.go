@@ -55,6 +55,12 @@ func TestNewReconciler(t *testing.T) {
 			isKCPEnabled:    false,
 			expectErr:       false,
 		},
+		"failure_in_rest_mapper_creation": {
+			cfg:             &rest.Config{Host: schemelessAPIServerHost},
+			definitionsPath: tempDir,
+			isKCPEnabled:    false,
+			expectErr:       true,
+		},
 		"failure_in_kcp_discovery_client_factory_creation": {
 			cfg:             nil,
 			definitionsPath: tempDir,
@@ -70,6 +76,7 @@ func TestNewReconciler(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			appCfg, err := config.NewFromEnv()
 			assert.NoError(t, err)
+			appCfg.EnableKcp = tc.isKCPEnabled
 
 			fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects([]client.Object{
 				&kcpapis.APIExport{
