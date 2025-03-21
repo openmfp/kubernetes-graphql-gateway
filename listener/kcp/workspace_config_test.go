@@ -56,6 +56,24 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 			},
 			err: errors.New("no virtual URLs found for APIExport kubernetes.graphql.gateway in :root"),
 		},
+		"empty_virtual_workspace_url": {
+			clientObjects: func(appCfg *config.Config) []client.Object {
+				return []client.Object{
+					&kcpapis.APIExport{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: appCfg.ApiExportWorkspace,
+							Name:      appCfg.ApiExportName,
+						},
+						Status: kcpapis.APIExportStatus{
+							VirtualWorkspaces: []kcpapis.VirtualWorkspace{
+								{URL: ""},
+							},
+						},
+					},
+				}
+			},
+			err: errors.New("empty URL in virtual workspace for APIExport kubernetes.graphql.gateway"),
+		},
 	}
 
 	for name, tc := range tests {
