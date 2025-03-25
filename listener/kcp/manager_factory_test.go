@@ -1,6 +1,7 @@
 package kcp
 
 import (
+	"context"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"testing"
 
@@ -48,9 +49,12 @@ func TestNewManager(t *testing.T) {
 
 			f := NewManagerFactory(appCfg)
 
-			mgr, err := f.NewManager(&rest.Config{}, ctrl.Options{
-				Scheme: scheme,
-			}, fakeClient)
+			mgr, err := f.NewManager(
+				context.Background(),
+				&rest.Config{},
+				ctrl.Options{Scheme: scheme},
+				fakeClient,
+			)
 
 			if tc.expectErr {
 				assert.Error(t, err)

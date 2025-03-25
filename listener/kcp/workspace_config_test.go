@@ -1,6 +1,7 @@
 package kcp
 
 import (
+	"context"
 	"errors"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"testing"
@@ -83,18 +84,18 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 
 			fakeClientBuilder := fake.NewClientBuilder().WithScheme(scheme)
 			if tc.clientObjects != nil {
-				fakeClientBuilder.WithObjects(tc.clientObjects(appCfg)...)
+				fakeClientBuilder.WithObjects(tc.clientObjects(&appCfg)...)
 			}
 			fakeClient := fakeClientBuilder.Build()
 
-			resultCfg, err := virtualWorkspaceConfigFromCfg(appCfg, &rest.Config{}, fakeClient)
+			resultCfg, err := virtualWorkspaceConfigFromCfg(context.Background(), appCfg, &rest.Config{}, fakeClient)
 
 			if tc.err != nil {
 				assert.Equal(t, tc.err.Error(), err.Error())
 				assert.Nil(t, resultCfg)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tc.clientObjects(appCfg)[0].(*kcpapis.APIExport).Status.VirtualWorkspaces[0].URL, resultCfg.Host) // nolint: staticcheck
+				assert.Equal(t, tc.clientObjects(&appCfg)[0].(*kcpapis.APIExport).Status.VirtualWorkspaces[0].URL, resultCfg.Host) // nolint: staticcheck
 			}
 		})
 	}

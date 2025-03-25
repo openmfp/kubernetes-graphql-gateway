@@ -2,6 +2,7 @@ package kcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -20,7 +21,13 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
 )
 
-const kubernetesClusterName = "kubernetes"
+const (
+	kubernetesClusterName = "kubernetes" // is used as a name for the schema file in case of a standard k8s cluster.
+)
+
+var (
+	ErrCreateDiscoveryClient = errors.New("failed to create discovery client")
+)
 
 type CustomReconciler interface {
 	Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
@@ -34,48 +41,48 @@ type ReconcilerOpts struct {
 	OpenAPIDefinitionsPath string
 }
 
-type NewDiscoveryFactoryFunc func(cfg *rest.Config) (*discoveryclient.Factory, error)
+type newDiscoveryFactoryFunc func(cfg *rest.Config) (*discoveryclient.Factory, error)
 
-type PreReconcileFunc func(cr *apischema.CRDResolver, io *workspacefile.IOHandler) error
+type preReconcileFunc func(cr *apischema.CRDResolver, io *workspacefile.IOHandler) error
 
-type NewDiscoveryIFFunc func(cfg *rest.Config) (discovery.DiscoveryInterface, error)
+type newDiscoveryIFFunc func(cfg *rest.Config) (discovery.DiscoveryInterface, error)
 
 func DiscoveryCltFactory(cfg *rest.Config) (discovery.DiscoveryInterface, error) {
 	return discovery.NewDiscoveryClientForConfig(cfg)
 }
 
 type ReconcilerFactory struct {
-	AppCfg *config.Config
-	NewDiscoveryIFFunc
-	PreReconcileFunc
-	NewDiscoveryFactoryFunc
+	appCfg config.Config
+	newDiscoveryIFFunc
+	preReconcileFunc
+	newDiscoveryFactoryFunc
 }
 
 func NewReconcilerFactory(
-	appCfg *config.Config,
+	appCfg config.Config,
 	newDiscoveryIFFunc func(cfg *rest.Config) (discovery.DiscoveryInterface, error),
 	preReconcileFunc func(cr *apischema.CRDResolver, io *workspacefile.IOHandler) error,
 	newDiscoveryFactoryFunc func(cfg *rest.Config) (*discoveryclient.Factory, error),
 ) *ReconcilerFactory {
 	return &ReconcilerFactory{
-		AppCfg:                  appCfg,
-		NewDiscoveryIFFunc:      newDiscoveryIFFunc,
-		PreReconcileFunc:        preReconcileFunc,
-		NewDiscoveryFactoryFunc: newDiscoveryFactoryFunc,
+		appCfg:                  appCfg,
+		newDiscoveryIFFunc:      newDiscoveryIFFunc,
+		preReconcileFunc:        preReconcileFunc,
+		newDiscoveryFactoryFunc: newDiscoveryFactoryFunc,
 	}
 }
 
-func (f *ReconcilerFactory) NewReconciler(opts ReconcilerOpts) (CustomReconciler, error) {
-	if !f.AppCfg.EnableKcp {
+func (f *ReconcilerFactory) NewReconciler(ctx context.Context, opts ReconcilerOpts) (CustomReconciler, error) {
+	if !f.appCfg.EnableKcp {
 		return f.newStdReconciler(opts)
 	}
-	return f.newKcpReconciler(opts)
+	return f.newKcpReconciler(ctx, opts)
 }
 
 func (f *ReconcilerFactory) newStdReconciler(opts ReconcilerOpts) (CustomReconciler, error) {
-	dc, err := f.NewDiscoveryIFFunc(opts.Config)
+	dc, err := f.newDiscoveryIFFunc(opts.Config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create discovery client: %w", err)
+		return nil, errors.Join(ErrCreateDiscoveryClient, err)
 	}
 
 	ioHandler, err := workspacefile.NewIOHandler(opts.OpenAPIDefinitionsPath)
@@ -93,7 +100,7 @@ func (f *ReconcilerFactory) newStdReconciler(opts ReconcilerOpts) (CustomReconci
 		RESTMapper:         rm,
 	}
 
-	if err := f.PreReconcileFunc(schemaResolver, ioHandler); err != nil {
+	if err := f.preReconcileFunc(schemaResolver, ioHandler); err != nil {
 		return nil, fmt.Errorf("failed to generate OpenAPI Schema for cluster: %w", err)
 	}
 
@@ -127,7 +134,7 @@ func PreReconcile(
 	return nil
 }
 
-func (f *ReconcilerFactory) newKcpReconciler(opts ReconcilerOpts) (CustomReconciler, error) {
+func (f *ReconcilerFactory) newKcpReconciler(ctx context.Context, opts ReconcilerOpts) (CustomReconciler, error) {
 	ioHandler, err := workspacefile.NewIOHandler(opts.OpenAPIDefinitionsPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create IO Handler: %w", err)
@@ -138,12 +145,12 @@ func (f *ReconcilerFactory) newKcpReconciler(opts ReconcilerOpts) (CustomReconci
 		return nil, fmt.Errorf("failed to create cluster path resolver: %w", err)
 	}
 
-	virtualWorkspaceCfg, err := virtualWorkspaceConfigFromCfg(f.AppCfg, opts.Config, opts.Client)
+	virtualWorkspaceCfg, err := virtualWorkspaceConfigFromCfg(ctx, f.appCfg, opts.Config, opts.Client)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get virtual workspace config: %w", err)
 	}
 
-	df, err := f.NewDiscoveryFactoryFunc(virtualWorkspaceCfg)
+	df, err := f.newDiscoveryFactoryFunc(virtualWorkspaceCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Discovery client factory: %w", err)
 	}

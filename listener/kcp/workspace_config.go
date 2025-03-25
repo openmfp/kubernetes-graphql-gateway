@@ -2,6 +2,7 @@ package kcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,17 +13,21 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 )
 
-func virtualWorkspaceConfigFromCfg(appCfg *config.Config, restCfg *rest.Config, clt client.Client) (*rest.Config, error) {
+func virtualWorkspaceConfigFromCfg(ctx context.Context, appCfg config.Config, restCfg *rest.Config, clt client.Client) (*rest.Config, error) {
+	timeOutDuration := 10 * time.Second
+	ctx, cancelFn := context.WithTimeout(ctx, timeOutDuration)
+	defer cancelFn()
+
+	var apiExport kcpapis.APIExport
 	key := client.ObjectKey{
 		Namespace: appCfg.ApiExportWorkspace,
 		Name:      appCfg.ApiExportName,
 	}
-
-	var apiExport kcpapis.APIExport
-	ctx, cancelFn := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancelFn()
-
 	if err := clt.Get(ctx, key, &apiExport); err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return nil, fmt.Errorf("timeout fetching APIExport %s in %s workspace after %v seconds", appCfg.ApiExportName, appCfg.ApiExportWorkspace, timeOutDuration)
+		}
+
 		return nil, fmt.Errorf("failed to get %s APIExport in %s workspace: %v ", appCfg.ApiExportName, appCfg.ApiExportWorkspace, err)
 	}
 

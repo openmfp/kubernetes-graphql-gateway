@@ -37,7 +37,7 @@ var (
 	setupLog             = ctrl.Log.WithName("setup")
 	webhookServer        webhook.Server
 	metricsServerOptions metricsserver.Options
-	appCfg               *config.Config
+	appCfg               config.Config
 )
 
 var listenCmd = &cobra.Command{
@@ -88,6 +88,7 @@ var listenCmd = &cobra.Command{
 		}
 	},
 	Run: func(cmd *cobra.Command, args []string) {
+		ctx := ctrl.SetupSignalHandler()
 		restCfg := ctrl.GetConfigOrDie()
 
 		mgrOpts := ctrl.Options{
@@ -109,7 +110,7 @@ var listenCmd = &cobra.Command{
 
 		mf := kcp.NewManagerFactory(appCfg)
 
-		mgr, err := mf.NewManager(restCfg, mgrOpts, clt)
+		mgr, err := mf.NewManager(ctx, restCfg, mgrOpts, clt)
 		if err != nil {
 			setupLog.Error(err, "unable to start manager")
 			os.Exit(1)
@@ -127,7 +128,7 @@ var listenCmd = &cobra.Command{
 			kcp.DiscoveryCltFactory,
 			kcp.PreReconcile,
 			discoveryclient.NewFactory,
-		).NewReconciler(reconcilerOpts)
+		).NewReconciler(ctx, reconcilerOpts)
 		if err != nil {
 			setupLog.Error(err, "unable to instantiate reconciler")
 			os.Exit(1)
@@ -148,8 +149,7 @@ var listenCmd = &cobra.Command{
 		}
 
 		setupLog.Info("starting manager")
-		signalHandler := ctrl.SetupSignalHandler()
-		if err := mgr.Start(signalHandler); err != nil {
+		if err := mgr.Start(ctx); err != nil {
 			setupLog.Error(err, "problem running manager")
 			os.Exit(1)
 		}

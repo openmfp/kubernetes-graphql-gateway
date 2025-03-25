@@ -43,8 +43,8 @@ type Listener struct {
 }
 
 // NewFromEnv creates a Gateway from environment values
-func NewFromEnv() (*Config, error) {
+func NewFromEnv() (Config, error) {
 	cfg := &Config{}
 	err := envconfig.Init(cfg)
-	return cfg, err
+	return *cfg, err
 }

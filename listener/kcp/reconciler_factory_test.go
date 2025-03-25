@@ -1,6 +1,7 @@
 package kcp
 
 import (
+	"context"
 	"errors"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"path"
@@ -113,12 +114,14 @@ func TestNewReconciler(t *testing.T) {
 					}, nil
 				})
 
-			reconciler, err := f.NewReconciler(ReconcilerOpts{
-				Config:                 tc.cfg,
-				Scheme:                 scheme,
-				Client:                 fakeClient,
-				OpenAPIDefinitionsPath: tc.definitionsPath,
-			})
+			reconciler, err := f.NewReconciler(
+				context.Background(),
+				ReconcilerOpts{
+					Config:                 tc.cfg,
+					Scheme:                 scheme,
+					Client:                 fakeClient,
+					OpenAPIDefinitionsPath: tc.definitionsPath,
+				})
 
 			if tc.err != nil {
 				assert.Equal(t, tc.err.Error(), err.Error())

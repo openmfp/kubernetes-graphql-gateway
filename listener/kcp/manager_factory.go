@@ -1,6 +1,7 @@
 package kcp
 
 import (
+	"context"
 	"fmt"
 
 	"k8s.io/client-go/rest"
@@ -13,21 +14,21 @@ import (
 )
 
 type ManagerFactory struct {
-	AppConfig *config.Config
+	appConfig config.Config
 }
 
-func NewManagerFactory(appCfg *config.Config) *ManagerFactory {
+func NewManagerFactory(appCfg config.Config) *ManagerFactory {
 	return &ManagerFactory{
-		AppConfig: appCfg,
+		appConfig: appCfg,
 	}
 }
 
-func (f *ManagerFactory) NewManager(restCfg *rest.Config, opts ctrl.Options, clt client.Client) (manager.Manager, error) {
-	if !f.AppConfig.EnableKcp {
+func (f *ManagerFactory) NewManager(ctx context.Context, restCfg *rest.Config, opts ctrl.Options, clt client.Client) (manager.Manager, error) {
+	if !f.appConfig.EnableKcp {
 		return ctrl.NewManager(restCfg, opts)
 	}
 
-	virtualWorkspaceCfg, err := virtualWorkspaceConfigFromCfg(f.AppConfig, restCfg, clt)
+	virtualWorkspaceCfg, err := virtualWorkspaceConfigFromCfg(ctx, f.appConfig, restCfg, clt)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get virtual workspace config: %w", err)
 	}
