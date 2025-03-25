@@ -2,7 +2,7 @@ package kcp
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -30,7 +30,7 @@ func (f *ManagerFactory) NewManager(ctx context.Context, restCfg *rest.Config, o
 
 	virtualWorkspaceCfg, err := virtualWorkspaceConfigFromCfg(ctx, f.appConfig, restCfg, clt)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get virtual workspace config: %w", err)
+		return nil, errors.Join(ErrGetVWConfig, err)
 	}
 
 	return kcpctrl.NewClusterAwareManager(virtualWorkspaceCfg, opts)

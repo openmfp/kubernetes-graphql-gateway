@@ -3,8 +3,6 @@ package kcp
 import (
 	"context"
 	"errors"
-	"fmt"
-
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/discovery"
@@ -27,6 +25,14 @@ const (
 
 var (
 	ErrCreateDiscoveryClient = errors.New("failed to create discovery client")
+	ErrCreateIOHandler       = errors.New("failed to create IO Handler")
+	ErrCreateRestMapper      = errors.New("failed to create rest mapper")
+	ErrGenerateSchema        = errors.New("failed to generate OpenAPI Schema")
+	ErrResolveSchema         = errors.New("failed to resolve server JSON schema")
+	ErrWriteJSON             = errors.New("failed to write JSON to filesystem")
+	ErrCreatePathResolver    = errors.New("failed to create cluster path resolver")
+	ErrGetVWConfig           = errors.New("unable to get virtual workspace config")
+	ErrCreateHTTPClient      = errors.New("failed to create http client")
 )
 
 type CustomReconciler interface {
@@ -87,12 +93,12 @@ func (f *ReconcilerFactory) newStdReconciler(opts ReconcilerOpts) (CustomReconci
 
 	ioHandler, err := workspacefile.NewIOHandler(opts.OpenAPIDefinitionsPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create IO Handler: %w", err)
+		return nil, errors.Join(ErrCreateIOHandler, err)
 	}
 
 	rm, err := restMapperFromConfig(opts.Config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create rest mapper from config: %w", err)
+		return nil, err
 	}
 
 	schemaResolver := &apischema.CRDResolver{
@@ -101,21 +107,20 @@ func (f *ReconcilerFactory) newStdReconciler(opts ReconcilerOpts) (CustomReconci
 	}
 
 	if err := f.preReconcileFunc(schemaResolver, ioHandler); err != nil {
-		return nil, fmt.Errorf("failed to generate OpenAPI Schema for cluster: %w", err)
+		return nil, errors.Join(ErrGenerateSchema, err)
 	}
 
 	return controller.NewCRDReconciler(kubernetesClusterName, opts.Client, schemaResolver, ioHandler), nil
-
 }
 
 func restMapperFromConfig(cfg *rest.Config) (meta.RESTMapper, error) {
 	httpClt, err := rest.HTTPClientFor(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create http client: %w", err)
+		return nil, errors.Join(ErrCreateHTTPClient, err)
 	}
 	rm, err := apiutil.NewDynamicRESTMapper(cfg, httpClt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create rest mapper: %w", err)
+		return nil, errors.Join(ErrCreateRestMapper, err)
 	}
 	return rm, nil
 }
@@ -126,10 +131,10 @@ func PreReconcile(
 ) error {
 	JSON, err := cr.Resolve()
 	if err != nil {
-		return fmt.Errorf("failed to resolve server JSON schema: %w", err)
+		return errors.Join(ErrResolveSchema, err)
 	}
 	if err := io.Write(JSON, kubernetesClusterName); err != nil {
-		return fmt.Errorf("failed to write JSON to filesystem: %w", err)
+		return errors.Join(ErrWriteJSON, err)
 	}
 	return nil
 }
@@ -137,22 +142,22 @@ func PreReconcile(
 func (f *ReconcilerFactory) newKcpReconciler(ctx context.Context, opts ReconcilerOpts) (CustomReconciler, error) {
 	ioHandler, err := workspacefile.NewIOHandler(opts.OpenAPIDefinitionsPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create IO Handler: %w", err)
+		return nil, errors.Join(ErrCreateIOHandler, err)
 	}
 
 	pr, err := clusterpath.NewResolver(opts.Config, opts.Scheme)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create cluster path resolver: %w", err)
+		return nil, errors.Join(ErrCreatePathResolver, err)
 	}
 
 	virtualWorkspaceCfg, err := virtualWorkspaceConfigFromCfg(ctx, f.appCfg, opts.Config, opts.Client)
 	if err != nil {
-		return nil, fmt.Errorf("unable to get virtual workspace config: %w", err)
+		return nil, errors.Join(ErrGetVWConfig, err)
 	}
 
 	df, err := f.newDiscoveryFactoryFunc(virtualWorkspaceCfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Discovery client factory: %w", err)
+		return nil, errors.Join(ErrCreateDiscoveryClient, err)
 	}
 
 	return controller.NewAPIBindingReconciler(

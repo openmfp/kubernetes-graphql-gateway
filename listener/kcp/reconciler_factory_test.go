@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/clusterpath"
 	"path"
 	"testing"
 
@@ -51,13 +52,13 @@ func TestNewReconciler(t *testing.T) {
 			cfg:             nil,
 			definitionsPath: tempDir,
 			isKCPEnabled:    false,
-			err:             errors.New("failed to create discovery client: config cannot be nil"),
+			err:             errors.Join(ErrCreateDiscoveryClient, discoveryclient.ErrNilConfig),
 		},
 		"failure_in_creation_cluster_path_resolver_due_to_nil_config_with_kcp_enabled": {
 			cfg:             nil,
 			definitionsPath: tempDir,
 			isKCPEnabled:    true,
-			err:             errors.New("failed to create cluster path resolver: config should not be nil"),
+			err:             errors.Join(ErrCreatePathResolver, clusterpath.ErrNilConfig),
 		},
 		"success_in_non-existent-dir": {
 			cfg:             &rest.Config{Host: validAPIServerHost},
@@ -68,13 +69,13 @@ func TestNewReconciler(t *testing.T) {
 			cfg:             &rest.Config{Host: schemalessAPIServerHost},
 			definitionsPath: tempDir,
 			isKCPEnabled:    false,
-			err:             errors.New("failed to create rest mapper from config: failed to create rest mapper: host must be a URL or a host:port pair: \"://192.168.1.13:6443\""),
+			err:             errors.Join(ErrCreateRestMapper, errors.New("host must be a URL or a host:port pair: \"://192.168.1.13:6443\"")),
 		},
 		"failure_in_definition_dir_creation": {
 			cfg:             &rest.Config{Host: validAPIServerHost},
 			definitionsPath: "/dev/null/schemas",
 			isKCPEnabled:    false,
-			err:             errors.New("failed to create IO Handler: failed to create or access schemas directory: mkdir /dev/null: not a directory"),
+			err:             errors.Join(ErrCreateIOHandler, workspacefile.ErrCreateSchemasDir, errors.New("mkdir /dev/null: not a directory")),
 		},
 	}
 
@@ -124,7 +125,7 @@ func TestNewReconciler(t *testing.T) {
 				})
 
 			if tc.err != nil {
-				assert.Equal(t, tc.err.Error(), err.Error())
+				assert.EqualError(t, err, tc.err.Error())
 				assert.Nil(t, reconciler)
 			} else {
 				assert.NoError(t, err)

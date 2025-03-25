@@ -42,7 +42,7 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 			},
 		},
 		"error_retrieving_APIExport": {
-			err: errors.New("failed to get kubernetes.graphql.gateway APIExport in :root workspace: apiexports.apis.kcp.io \"kubernetes.graphql.gateway\" not found "),
+			err: errors.Join(ErrFailedToGetAPIExport, errors.New("apiexports.apis.kcp.io \"kubernetes.graphql.gateway\" not found")),
 		},
 		"empty_virtual_workspace_list": {
 			clientObjects: func(appCfg *config.Config) []client.Object {
@@ -55,7 +55,7 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 					},
 				}
 			},
-			err: errors.New("no virtual URLs found for APIExport kubernetes.graphql.gateway in :root"),
+			err: ErrNoVirtualURLsFound,
 		},
 		"empty_virtual_workspace_url": {
 			clientObjects: func(appCfg *config.Config) []client.Object {
@@ -73,7 +73,7 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 					},
 				}
 			},
-			err: errors.New("empty URL in virtual workspace for APIExport kubernetes.graphql.gateway"),
+			err: ErrEmptyVirtualWorkspaceURL,
 		},
 	}
 
@@ -91,7 +91,7 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 			resultCfg, err := virtualWorkspaceConfigFromCfg(context.Background(), appCfg, &rest.Config{}, fakeClient)
 
 			if tc.err != nil {
-				assert.Equal(t, tc.err.Error(), err.Error())
+				assert.EqualError(t, err, tc.err.Error())
 				assert.Nil(t, resultCfg)
 			} else {
 				assert.NoError(t, err)
