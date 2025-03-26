@@ -19,9 +19,8 @@ type accountSpec struct {
 func createAccountMutation() string {
 	return `
 mutation {
-  core_openmfp_io {
+  core_openmfp_org {
     createAccount(
-      namespace: "default", 
       object:  {
         metadata: {
           name: "test-account"
@@ -48,8 +47,8 @@ mutation {
 func getAccountQuery() string {
 	return `
         query {
-			core_openmfp_io {
-			Account(namespace: "default", name: "test-account") {
+			core_openmfp_org {
+			Account(name: "test-account") {
 			  metadata {
 				name
 			  }
@@ -66,8 +65,8 @@ func getAccountQuery() string {
 func deleteAccountMutation() string {
 	return `
 		mutation {
-		  core_openmfp_io {
-			deleteAccount(namespace: "default", name: "test-account")
+		  core_openmfp_org {
+			deleteAccount(name: "test-account")
 		  }
 		}
     `

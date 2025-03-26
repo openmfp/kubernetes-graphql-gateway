@@ -4,23 +4,19 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: accounts.core.openmfp.io
+  name: accounts.core.openmfp.org
 spec:
-  group: core.openmfp.io
+  group: core.openmfp.org
   names:
     kind: Account
     listKind: AccountList
     plural: accounts
     singular: account
-    categories: ["openmfp"]
-  scope: Namespaced
+  scope: Cluster
   versions:
     - additionalPrinterColumns:
         - jsonPath: .spec.displayName
           name: Display Name
-          type: string
-        - jsonPath: .status.namespace
-          name: Account Namespace
           type: string
         - jsonPath: .spec.type
           name: Type
@@ -99,13 +95,10 @@ spec:
                       - specGoTemplate
                     type: object
                   type: array
-                namespace:
-                  description: Namespace is the account should take ownership of
-                  type: string
                 type:
                   description: Type specifies the intended type for this Account object.
                   enum:
-                    - folder
+                    - org
                     - account
                   type: string
               required:
@@ -184,8 +177,6 @@ spec:
                       - type
                     type: object
                   type: array
-                namespace:
-                  type: string
                 nextReconcileTime:
                   format: date-time
                   type: string

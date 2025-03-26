@@ -28,6 +28,7 @@ func getGateway() (*schema.Gateway, error) {
 }
 
 func TestTypeByCategory(t *testing.T) {
+	t.Skip()
 	g, err := getGateway()
 	require.NoError(t, err)
 

@@ -8,6 +8,8 @@ import (
 	"gopkg.in/yaml.v3"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"regexp"
+	"sort"
+	"strings"
 
 	"github.com/graphql-go/graphql"
 	"go.opentelemetry.io/otel"
@@ -108,6 +110,24 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind, scope v1.ResourceScope)
 			log.Error().Err(err).Msg("Unable to list objects")
 			return nil, err
 		}
+
+		sortBy, err := getStringArg(p.Args, SortByArg, false)
+		if err != nil {
+			return nil, err
+		}
+		if sortBy == "" {
+			sortBy = "metadata.name"
+		} else {
+			err = validateSortBy(list.Items, sortBy)
+			if err != nil {
+				log.Error().Err(err).Str(SortByArg, sortBy).Msg("Invalid sortBy field path")
+				return nil, err
+			}
+		}
+
+		sort.Slice(list.Items, func(i, j int) bool {
+			return compareUnstructured(list.Items[i], list.Items[j], sortBy) < 0
+		})
 
 		items := make([]map[string]any, len(list.Items))
 		for i, item := range list.Items {
@@ -350,4 +370,11 @@ func (r *Service) getOriginalGroupName(groupName string) string {
 	}
 
 	return groupName
+}
+
+func compareUnstructured(a, b unstructured.Unstructured, fieldPath string) int {
+	aVal, _, _ := unstructured.NestedString(a.Object, strings.Split(fieldPath, ".")...)
+	bVal, _, _ := unstructured.NestedString(b.Object, strings.Split(fieldPath, ".")...)
+
+	return strings.Compare(aVal, bVal)
 }
