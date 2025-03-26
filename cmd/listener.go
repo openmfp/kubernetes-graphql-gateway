@@ -3,6 +3,7 @@ package cmd
 import (
 	"crypto/tls"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
+	"k8s.io/client-go/discovery"
 	"os"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
@@ -116,6 +117,12 @@ var listenCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		discoveryInterface, err := discovery.NewDiscoveryClientForConfig(restCfg)
+		if err != nil {
+			setupLog.Error(err, "failed to create discovery client")
+			os.Exit(1)
+		}
+
 		reconcilerOpts := kcp.ReconcilerOpts{
 			Scheme:                 scheme,
 			Client:                 clt,
@@ -123,12 +130,15 @@ var listenCmd = &cobra.Command{
 			OpenAPIDefinitionsPath: appCfg.OpenApiDefinitionsPath,
 		}
 
-		reconciler, err := kcp.NewReconcilerFactory(
+		reconciler, err := kcp.NewReconciler(
+			ctx,
 			appCfg,
-			kcp.DiscoveryCltFactory,
+			reconcilerOpts,
+			discoveryInterface,
 			kcp.PreReconcile,
 			discoveryclient.NewFactory,
-		).NewReconciler(ctx, reconcilerOpts)
+		)
+
 		if err != nil {
 			setupLog.Error(err, "unable to instantiate reconciler")
 			os.Exit(1)

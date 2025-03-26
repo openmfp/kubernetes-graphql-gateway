@@ -3,6 +3,7 @@ package kcp
 import (
 	"context"
 	"errors"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/discovery"
@@ -47,50 +48,26 @@ type ReconcilerOpts struct {
 	OpenAPIDefinitionsPath string
 }
 
-type newDiscoveryFactoryFunc func(cfg *rest.Config) (*discoveryclient.Factory, error)
-
-type preReconcileFunc func(cr *apischema.CRDResolver, io *workspacefile.IOHandler) error
-
-type newDiscoveryIFFunc func(cfg *rest.Config) (discovery.DiscoveryInterface, error)
-
-func DiscoveryCltFactory(cfg *rest.Config) (discovery.DiscoveryInterface, error) {
-	return discovery.NewDiscoveryClientForConfig(cfg)
-}
-
-type ReconcilerFactory struct {
-	appCfg config.Config
-	newDiscoveryIFFunc
-	preReconcileFunc
-	newDiscoveryFactoryFunc
-}
-
-func NewReconcilerFactory(
+func NewReconciler(
+	ctx context.Context,
 	appCfg config.Config,
-	newDiscoveryIFFunc func(cfg *rest.Config) (discovery.DiscoveryInterface, error),
+	opts ReconcilerOpts,
+	discoveryInterface discovery.DiscoveryInterface,
 	preReconcileFunc func(cr *apischema.CRDResolver, io *workspacefile.IOHandler) error,
-	newDiscoveryFactoryFunc func(cfg *rest.Config) (*discoveryclient.Factory, error),
-) *ReconcilerFactory {
-	return &ReconcilerFactory{
-		appCfg:                  appCfg,
-		newDiscoveryIFFunc:      newDiscoveryIFFunc,
-		preReconcileFunc:        preReconcileFunc,
-		newDiscoveryFactoryFunc: newDiscoveryFactoryFunc,
+	discoverFactory func(cfg *rest.Config) (*discoveryclient.Factory, error),
+) (CustomReconciler, error) {
+	if !appCfg.EnableKcp {
+		return newStandardReconciler(opts, discoveryInterface, preReconcileFunc)
 	}
+
+	return newKcpReconciler(ctx, appCfg, opts, discoverFactory)
 }
 
-func (f *ReconcilerFactory) NewReconciler(ctx context.Context, opts ReconcilerOpts) (CustomReconciler, error) {
-	if !f.appCfg.EnableKcp {
-		return f.newStdReconciler(opts)
-	}
-	return f.newKcpReconciler(ctx, opts)
-}
-
-func (f *ReconcilerFactory) newStdReconciler(opts ReconcilerOpts) (CustomReconciler, error) {
-	dc, err := f.newDiscoveryIFFunc(opts.Config)
-	if err != nil {
-		return nil, errors.Join(ErrCreateDiscoveryClient, err)
-	}
-
+func newStandardReconciler(
+	opts ReconcilerOpts,
+	discoveryInterface discovery.DiscoveryInterface,
+	preReconcileFunc func(cr *apischema.CRDResolver, io *workspacefile.IOHandler) error,
+) (CustomReconciler, error) {
 	ioHandler, err := workspacefile.NewIOHandler(opts.OpenAPIDefinitionsPath)
 	if err != nil {
 		return nil, errors.Join(ErrCreateIOHandler, err)
@@ -102,11 +79,11 @@ func (f *ReconcilerFactory) newStdReconciler(opts ReconcilerOpts) (CustomReconci
 	}
 
 	schemaResolver := &apischema.CRDResolver{
-		DiscoveryInterface: dc,
+		DiscoveryInterface: discoveryInterface,
 		RESTMapper:         rm,
 	}
 
-	if err := f.preReconcileFunc(schemaResolver, ioHandler); err != nil {
+	if err = preReconcileFunc(schemaResolver, ioHandler); err != nil {
 		return nil, errors.Join(ErrGenerateSchema, err)
 	}
 
@@ -122,6 +99,7 @@ func restMapperFromConfig(cfg *rest.Config) (meta.RESTMapper, error) {
 	if err != nil {
 		return nil, errors.Join(ErrCreateRestMapper, err)
 	}
+
 	return rm, nil
 }
 
@@ -136,10 +114,16 @@ func PreReconcile(
 	if err := io.Write(JSON, kubernetesClusterName); err != nil {
 		return errors.Join(ErrWriteJSON, err)
 	}
+
 	return nil
 }
 
-func (f *ReconcilerFactory) newKcpReconciler(ctx context.Context, opts ReconcilerOpts) (CustomReconciler, error) {
+func newKcpReconciler(
+	ctx context.Context,
+	appCfg config.Config,
+	opts ReconcilerOpts,
+	newDiscoveryFactoryFunc func(cfg *rest.Config) (*discoveryclient.Factory, error),
+) (CustomReconciler, error) {
 	ioHandler, err := workspacefile.NewIOHandler(opts.OpenAPIDefinitionsPath)
 	if err != nil {
 		return nil, errors.Join(ErrCreateIOHandler, err)
@@ -150,12 +134,12 @@ func (f *ReconcilerFactory) newKcpReconciler(ctx context.Context, opts Reconcile
 		return nil, errors.Join(ErrCreatePathResolver, err)
 	}
 
-	virtualWorkspaceCfg, err := virtualWorkspaceConfigFromCfg(ctx, f.appCfg, opts.Config, opts.Client)
+	virtualWorkspaceCfg, err := virtualWorkspaceConfigFromCfg(ctx, appCfg, opts.Config, opts.Client)
 	if err != nil {
 		return nil, errors.Join(ErrGetVWConfig, err)
 	}
 
-	df, err := f.newDiscoveryFactoryFunc(virtualWorkspaceCfg)
+	df, err := newDiscoveryFactoryFunc(virtualWorkspaceCfg)
 	if err != nil {
 		return nil, errors.Join(ErrCreateDiscoveryClient, err)
 	}
