@@ -29,7 +29,7 @@ type GraphQLResponse struct {
 
 type graphQLData struct {
 	Core                   *core                   `json:"core,omitempty"`
-	CoreOpenmfpOrg         *coreOpenmfpIo          `json:"core_openmfp_org,omitempty"`
+	CoreOpenmfpOrg         *coreOpenmfpOrg         `json:"core_openmfp_org,omitempty"`
 	RbacAuthorizationK8sIo *RbacAuthorizationK8sIo `json:"rbac_authorization_k8s_io,omitempty"`
 }
 
@@ -72,7 +72,7 @@ func sendRequest(url, query string) (*GraphQLResponse, int, error) {
 	return &bodyResp, resp.StatusCode, err
 }
 
-// writeToFile adds a new file to the watched directory which will trigger schema generation
+// writeToFile adds a new file to the watched directory which will trigger graphqlSchema generation
 func writeToFile(from, to string) error {
 	specContent, err := os.ReadFile(from)
 	if err != nil {

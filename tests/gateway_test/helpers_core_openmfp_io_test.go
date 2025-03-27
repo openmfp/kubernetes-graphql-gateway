@@ -1,9 +1,10 @@
 package gateway_test
 
-type coreOpenmfpIo struct {
-	Account       *account `json:"Account,omitempty"`
-	CreateAccount *account `json:"createAccount,omitempty"`
-	DeleteAccount *bool    `json:"deleteAccount,omitempty"`
+type coreOpenmfpOrg struct {
+	Account       *account   `json:"Account,omitempty"`
+	Accounts      []*account `json:"Accounts,omitempty"`
+	CreateAccount *account   `json:"createAccount,omitempty"`
+	DeleteAccount *bool      `json:"deleteAccount,omitempty"`
 }
 
 type account struct {
@@ -60,6 +61,42 @@ func getAccountQuery() string {
 			}
 		}
     `
+}
+
+func listAccountsQuery(sorted bool) string {
+	if !sorted {
+		return `
+        query {
+			core_openmfp_org {
+			Accounts {
+			  metadata {
+				name
+			  }
+			  spec {
+				type,
+				displayName
+			  }
+			}
+			}
+		}
+    `
+	} else {
+		return `
+        query {
+			core_openmfp_org {
+			Accounts(sortBy: "spec.displayName") {
+			  metadata {
+				name
+			  }
+			  spec {
+				type,
+				displayName
+			  }
+			}
+			}
+		}
+    `
+	}
 }
 
 func deleteAccountMutation() string {
