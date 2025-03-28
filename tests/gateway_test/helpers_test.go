@@ -72,7 +72,7 @@ func sendRequest(url, query string) (*GraphQLResponse, int, error) {
 	return &bodyResp, resp.StatusCode, err
 }
 
-// writeToFile adds a new file to the watched directory which will trigger graphqlSchema generation
+// writeToFile adds a new file to the watched directory which will trigger schema generation
 func writeToFile(from, to string) error {
 	specContent, err := os.ReadFile(from)
 	if err != nil {

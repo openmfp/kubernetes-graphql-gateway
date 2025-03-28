@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 )
 
-// TestCreateGetAndDeletePod generates a graphqlSchema then creates a Pod, gets it and deletes it.
+// TestCreateGetAndDeletePod generates a schema then creates a Pod, gets it and deletes it.
 func (suite *CommonTestSuite) TestCreateGetAndDeletePod() {
 	workspaceName := "myWorkspace"
 

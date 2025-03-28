@@ -36,7 +36,6 @@ func (r *Service) SubscribeItems(gvk schema.GroupVersionKind, scope v1.ResourceS
 	}
 }
 
-// runWatch handles the watch logic for subscriptions.
 func (r *Service) runWatch(
 	p graphql.ResolveParams,
 	gvk schema.GroupVersionKind,
@@ -110,9 +109,6 @@ func (r *Service) runWatch(
 		r.log.Error().Err(err).Msg("Failed to get sortBy argument")
 		return
 	}
-	if sortBy == "" {
-		sortBy = "metadata.name"
-	}
 
 	watcher, err := r.runtimeClient.Watch(ctx, list, opts...)
 	if err != nil {
@@ -174,13 +170,14 @@ func (r *Service) runWatch(
 						items = append(items, *item.DeepCopy())
 					}
 
-					if err = validateSortBy(items, sortBy); err != nil {
+					sortByFieldType, err := validateSortBy(items, sortBy)
+					if err != nil {
 						r.log.Error().Err(err).Str(SortByArg, sortBy).Msg("Invalid sortBy field path")
 						return
 					}
 
 					sort.Slice(items, func(i, j int) bool {
-						return compareUnstructured(items[i], items[j], sortBy) < 0
+						return compareUnstructured(items[i], items[j], sortBy, sortByFieldType) < 0
 					})
 
 					sortedItems := make([]map[string]any, len(items))

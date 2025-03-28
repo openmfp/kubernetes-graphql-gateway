@@ -18,6 +18,11 @@ const (
 	ObjectArg         = "object"
 	SubscribeToAllArg = "subscribeToAll"
 	SortByArg         = "sortBy"
+
+	typeString = "string"
+	typeInt    = "int"
+	typeBool   = "bool"
+	typeFloat  = "float"
 )
 
 // FieldConfigArgumentsBuilder helps construct GraphQL field config arguments
@@ -76,8 +81,9 @@ func (b *FieldConfigArgumentsBuilder) WithSubscribeToAll() *FieldConfigArguments
 
 func (b *FieldConfigArgumentsBuilder) WithSortBy() *FieldConfigArgumentsBuilder {
 	b.arguments[SortByArg] = &graphql.ArgumentConfig{
-		Type:        graphql.String, // Nullable string for flexibility
-		Description: "The field to sort the results by",
+		Type:         graphql.String,
+		Description:  "The field to sort the results by",
+		DefaultValue: "metadata.name",
 	}
 	return b
 }
@@ -141,16 +147,29 @@ func isResourceNamespaceScoped(resourceScope apiextensionsv1.ResourceScope) bool
 	return resourceScope == apiextensionsv1.NamespaceScoped
 }
 
-func validateSortBy(items []unstructured.Unstructured, fieldPath string) error {
+func validateSortBy(items []unstructured.Unstructured, fieldPath string) (string, error) {
 	if len(items) == 0 {
-		return nil // No items to validate against, assume valid
+		return "", nil // No items to validate against, assume valid
 	}
 
 	sample := items[0]
-	_, found, err := unstructured.NestedString(sample.Object, strings.Split(fieldPath, ".")...)
-	if err != nil || !found {
-		return errors.New("specified sortBy field path does not exist or is not a string")
+	segments := strings.Split(fieldPath, ".")
+
+	if _, found, err := unstructured.NestedString(sample.Object, segments...); err == nil && found {
+		return typeString, nil
 	}
 
-	return nil
+	if _, found, err := unstructured.NestedInt64(sample.Object, segments...); err == nil && found {
+		return typeInt, nil
+	}
+
+	if _, found, err := unstructured.NestedFloat64(sample.Object, segments...); err == nil && found {
+		return typeFloat, nil
+	}
+
+	if _, found, err := unstructured.NestedBool(sample.Object, segments...); err == nil && found {
+		return typeBool, nil
+	}
+
+	return "", errors.New("specified sortBy field does not exist or is not a sortable type (string/int/bool/float)")
 }

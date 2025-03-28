@@ -54,7 +54,6 @@ func (suite *CommonTestSuite) TestSortByListItems() {
 		accounts := listResp.Data.CoreOpenmfpOrg.Accounts
 		require.Len(t, accounts, 4, "Expected 4 accounts")
 
-		// Verify accounts are sorted by displayName in ascending order
 		expectedOrder := []string{"account-d", "account-c", "account-b", "account-a"}
 		for i, oneAccount := range accounts {
 			displayName := oneAccount.Metadata.Name
