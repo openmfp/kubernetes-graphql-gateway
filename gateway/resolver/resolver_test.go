@@ -38,6 +38,7 @@ func TestListItems(t *testing.T) {
 			args: map[string]interface{}{
 				resolver.NamespaceArg:     "test-namespace",
 				resolver.LabelSelectorArg: "key=value",
+				resolver.SortByArg:        "metadata.name",
 			},
 			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
 				runtimeClientMock.EXPECT().
@@ -119,6 +120,7 @@ func TestGetItem(t *testing.T) {
 			args: map[string]interface{}{
 				resolver.NameArg:      "test-object",
 				resolver.NamespaceArg: "test-namespace",
+				resolver.SortByArg:    "metadata.name",
 			},
 			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
 				runtimeClientMock.EXPECT().
@@ -144,6 +146,7 @@ func TestGetItem(t *testing.T) {
 			args: map[string]interface{}{
 				resolver.NameArg:      "test-object",
 				resolver.NamespaceArg: "test-namespace",
+				resolver.SortByArg:    "metadata.name",
 			},
 			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
 				runtimeClientMock.EXPECT().
