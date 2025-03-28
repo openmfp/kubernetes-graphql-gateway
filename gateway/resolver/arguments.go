@@ -155,21 +155,24 @@ func validateSortBy(items []unstructured.Unstructured, fieldPath string) (string
 	sample := items[0]
 	segments := strings.Split(fieldPath, ".")
 
-	if _, found, err := unstructured.NestedString(sample.Object, segments...); err == nil && found {
+	val, found, err := unstructured.NestedFieldNoCopy(sample.Object, segments...)
+	if !found {
+		return "", errors.New("specified sortBy field does not exist")
+	}
+	if err != nil {
+		return "", errors.Join(errors.New("error accessing specified sortBy field"), err)
+	}
+
+	switch val.(type) {
+	case string:
 		return typeString, nil
-	}
-
-	if _, found, err := unstructured.NestedInt64(sample.Object, segments...); err == nil && found {
+	case int64:
 		return typeInt, nil
-	}
-
-	if _, found, err := unstructured.NestedFloat64(sample.Object, segments...); err == nil && found {
+	case float64:
 		return typeFloat, nil
-	}
-
-	if _, found, err := unstructured.NestedBool(sample.Object, segments...); err == nil && found {
+	case bool:
 		return typeBool, nil
+	default:
+		return "", errors.New("specified sortBy field is not a sortable type (string/int/float/bool)")
 	}
-
-	return "", errors.New("specified sortBy field does not exist or is not a sortable type (string/int/bool/float)")
 }
