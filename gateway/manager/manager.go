@@ -199,7 +199,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// as all graphql methods are part of the cors safelisted methods
 		// https://fetch.spec.whatwg.org/#cors-safelisted-method
 
-		if (*r).Method == "OPTIONS" {
+		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
