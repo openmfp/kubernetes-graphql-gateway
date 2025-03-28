@@ -38,6 +38,7 @@ func TestListItems(t *testing.T) {
 			args: map[string]interface{}{
 				resolver.NamespaceArg:     "test-namespace",
 				resolver.LabelSelectorArg: "key=value",
+				resolver.SortByArg:        "metadata.name",
 			},
 			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
 				runtimeClientMock.EXPECT().
@@ -119,6 +120,7 @@ func TestGetItem(t *testing.T) {
 			args: map[string]interface{}{
 				resolver.NameArg:      "test-object",
 				resolver.NamespaceArg: "test-namespace",
+				resolver.SortByArg:    "metadata.name",
 			},
 			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
 				runtimeClientMock.EXPECT().
@@ -144,6 +146,7 @@ func TestGetItem(t *testing.T) {
 			args: map[string]interface{}{
 				resolver.NameArg:      "test-object",
 				resolver.NamespaceArg: "test-namespace",
+				resolver.SortByArg:    "metadata.name",
 			},
 			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
 				runtimeClientMock.EXPECT().
@@ -192,6 +195,77 @@ func TestGetItem(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tt.expectedObj, result)
+			}
+		})
+	}
+}
+
+func TestGetItemAsYAML(t *testing.T) {
+	tests := []struct {
+		name         string
+		args         map[string]interface{}
+		mockSetup    func(runtimeClientMock *mocks.MockWithWatch)
+		expectedYAML string
+		expectError  bool
+	}{
+		{
+			name: "getItemAsYAML_OK",
+			args: map[string]interface{}{
+				resolver.NameArg:      "test-object",
+				resolver.NamespaceArg: "test-namespace",
+			},
+			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
+				runtimeClientMock.EXPECT().
+					Get(
+						mock.Anything,
+						client.ObjectKey{Namespace: "test-namespace", Name: "test-object"},
+						mock.AnythingOfType("*unstructured.Unstructured"),
+					).
+					Run(func(_ context.Context, _ client.ObjectKey, obj client.Object, _ ...client.GetOption) {
+						unstructuredObj := obj.(*unstructured.Unstructured)
+						unstructuredObj.Object = map[string]interface{}{
+							"metadata": map[string]interface{}{"name": "test-object"},
+						}
+					}).
+					Return(nil)
+			},
+			expectedYAML: "metadata:\n    name: test-object\n",
+		},
+		{
+			name: "getItemAsYAML_ERROR",
+			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
+				runtimeClientMock.EXPECT().
+					Get(mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+					Return(assert.AnError)
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runtimeClientMock := &mocks.MockWithWatch{}
+			if tt.mockSetup != nil {
+				tt.mockSetup(runtimeClientMock)
+			}
+
+			r, err := getResolver(runtimeClientMock)
+			require.NoError(t, err)
+
+			result, err := r.GetItemAsYAML(schema.GroupVersionKind{
+				Group:   "group",
+				Version: "version",
+				Kind:    "kind",
+			}, v1.NamespaceScoped)(graphql.ResolveParams{
+				Context: context.Background(),
+				Args:    tt.args,
+			})
+
+			if tt.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expectedYAML, result)
 			}
 		})
 	}

@@ -16,6 +16,12 @@ tasks:
     internal: true
     cmds:
       - test -s {{.LOCAL_BIN}}/setup-envtest || GOBIN=$(pwd)/{{.LOCAL_BIN}} go install sigs.k8s.io/controller-runtime/tools/setup-envtest@{{.ENVTEST_VERSION}}
+  update:crd:
+    desc: "Download the latest CRD from OpenMFP"
+    cmds:
+      - mkdir -p tests/gateway_test/testdata/crd
+      - curl -sSLo tests/gateway_test/testdata/crd/core.openmfp.org_accounts.yaml https://raw.githubusercontent.com/openmfp/account-operator/main/config/crd/core.openmfp.org_accounts.yaml
+      - echo "CRD updated successfully."
   setup:golangci-lint:
     internal: true
     cmds:
@@ -50,7 +56,7 @@ tasks:
     cmds:
       - go test ./... {{.ADDITIONAL_COMMAND_ARGS}}
   test:
-    deps: [setup:envtest]
+    deps: [setup:envtest, update:crd]
     cmds:
       - task: envtest
         vars:
