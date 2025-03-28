@@ -203,7 +203,7 @@ func (r *Service) GetItemAsYAML(gvk schema.GroupVersionKind, scope v1.ResourceSc
 		}
 
 		var returnYaml bytes.Buffer
-		if err := yaml.NewEncoder(&returnYaml).Encode(out); err != nil {
+		if err = yaml.NewEncoder(&returnYaml).Encode(out); err != nil {
 			return "", err
 		}
 
