@@ -3,7 +3,7 @@ package resolver
 import (
 	"fmt"
 	"reflect"
-	"slices"
+	"sort"
 	"strings"
 
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -20,9 +20,7 @@ import (
 
 func (r *Service) SubscribeItem(gvk schema.GroupVersionKind, scope v1.ResourceScope) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-
 		resultChannel := make(chan interface{})
-
 		go r.runWatch(p, gvk, resultChannel, true, scope)
 
 		return resultChannel, nil
@@ -31,15 +29,14 @@ func (r *Service) SubscribeItem(gvk schema.GroupVersionKind, scope v1.ResourceSc
 
 func (r *Service) SubscribeItems(gvk schema.GroupVersionKind, scope v1.ResourceScope) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-
 		resultChannel := make(chan interface{})
-
 		go r.runWatch(p, gvk, resultChannel, false, scope)
 
 		return resultChannel, nil
 	}
 }
 
+// runWatch handles the watch logic for subscriptions.
 func (r *Service) runWatch(
 	p graphql.ResolveParams,
 	gvk schema.GroupVersionKind,
@@ -108,6 +105,15 @@ func (r *Service) runWatch(
 		opts = append(opts, client.MatchingFields{"metadata.name": name})
 	}
 
+	sortBy, err := getStringArg(p.Args, SortByArg, false)
+	if err != nil {
+		r.log.Error().Err(err).Msg("Failed to get sortBy argument")
+		return
+	}
+	if sortBy == "" {
+		sortBy = "metadata.name"
+	}
+
 	watcher, err := r.runtimeClient.Watch(ctx, list, opts...)
 	if err != nil {
 		r.log.Error().Err(err).Str("gvk", gvk.String()).Msg("Failed to start watch")
@@ -153,7 +159,6 @@ func (r *Service) runWatch(
 
 			if sendUpdate {
 				if singleItem {
-					// Single item mode: return just that one object (or nil if not found)
 					var singleObj *unstructured.Unstructured
 					if name != "" {
 						singleObj = previousObjects[namespace+"/"+name]
@@ -164,22 +169,29 @@ func (r *Service) runWatch(
 					case resultChannel <- singleObj.Object:
 					}
 				} else {
-					// Multiple items mode
-					items := make([]map[string]any, 0, len(previousObjects))
+					items := make([]unstructured.Unstructured, 0, len(previousObjects))
 					for _, item := range previousObjects {
-						items = append(items, item.DeepCopy().Object)
+						items = append(items, *item.DeepCopy())
 					}
 
-					slices.SortFunc(items, func(i, j map[string]any) int {
-						nameA, _, _ := unstructured.NestedString(i, "metadata", "name")
-						nameB, _, _ := unstructured.NestedString(j, "metadata", "name")
-						return strings.Compare(nameA, nameB)
+					if err = validateSortBy(items, sortBy); err != nil {
+						r.log.Error().Err(err).Str(SortByArg, sortBy).Msg("Invalid sortBy field path")
+						return
+					}
+
+					sort.Slice(items, func(i, j int) bool {
+						return compareUnstructured(items[i], items[j], sortBy) < 0
 					})
+
+					sortedItems := make([]map[string]any, len(items))
+					for i, item := range items {
+						sortedItems[i] = item.Object
+					}
 
 					select {
 					case <-ctx.Done():
 						return
-					case resultChannel <- items:
+					case resultChannel <- sortedItems:
 					}
 				}
 			}
