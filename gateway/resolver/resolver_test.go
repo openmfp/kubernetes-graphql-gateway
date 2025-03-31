@@ -609,3 +609,130 @@ func TestGetOriginalGroupName(t *testing.T) {
 		})
 	}
 }
+
+func TestCompareUnstructured(t *testing.T) {
+	tests := []struct {
+		name      string
+		a         map[string]interface{}
+		b         map[string]interface{}
+		fieldPath string
+		expected  int
+	}{
+		{
+			name:      "equal_strings",
+			a:         map[string]interface{}{"key": "abc"},
+			b:         map[string]interface{}{"key": "abc"},
+			fieldPath: "key",
+			expected:  0,
+		},
+		{
+			name:      "different_strings",
+			a:         map[string]interface{}{"key": "abc"},
+			b:         map[string]interface{}{"key": "xyz"},
+			fieldPath: "key",
+			expected:  -1,
+		},
+		{
+			name:      "equal_int64",
+			a:         map[string]interface{}{"key": int64(42)},
+			b:         map[string]interface{}{"key": int64(42)},
+			fieldPath: "key",
+			expected:  0,
+		},
+		{
+			name:      "different_int64",
+			a:         map[string]interface{}{"key": int64(10)},
+			b:         map[string]interface{}{"key": int64(20)},
+			fieldPath: "key",
+			expected:  -1,
+		},
+		{
+			name:      "equal_int32",
+			a:         map[string]interface{}{"key": int32(42)},
+			b:         map[string]interface{}{"key": int32(42)},
+			fieldPath: "key",
+			expected:  0,
+		},
+		{
+			name:      "different_int32",
+			a:         map[string]interface{}{"key": int32(10)},
+			b:         map[string]interface{}{"key": int32(20)},
+			fieldPath: "key",
+			expected:  -1,
+		},
+		{
+			name:      "int32_vs_int64",
+			a:         map[string]interface{}{"key": int32(10)},
+			b:         map[string]interface{}{"key": int64(20)},
+			fieldPath: "key",
+			expected:  -1,
+		},
+		{
+			name:      "equal_float64",
+			a:         map[string]interface{}{"key": float64(3.14)},
+			b:         map[string]interface{}{"key": float64(3.14)},
+			fieldPath: "key",
+			expected:  0,
+		},
+		{
+			name:      "different_float64",
+			a:         map[string]interface{}{"key": float64(1.5)},
+			b:         map[string]interface{}{"key": float64(2.5)},
+			fieldPath: "key",
+			expected:  -1,
+		},
+		{
+			name:      "equal_float32",
+			a:         map[string]interface{}{"key": float32(3.14)},
+			b:         map[string]interface{}{"key": float32(3.14)},
+			fieldPath: "key",
+			expected:  0,
+		},
+		{
+			name:      "different_float32",
+			a:         map[string]interface{}{"key": float32(1.5)},
+			b:         map[string]interface{}{"key": float32(2.5)},
+			fieldPath: "key",
+			expected:  -1,
+		},
+		{
+			name:      "float32_vs_float64",
+			a:         map[string]interface{}{"key": float32(1.5)},
+			b:         map[string]interface{}{"key": float64(2.5)},
+			fieldPath: "key",
+			expected:  -1,
+		},
+		{
+			name:      "equal_bool",
+			a:         map[string]interface{}{"key": true},
+			b:         map[string]interface{}{"key": true},
+			fieldPath: "key",
+			expected:  0,
+		},
+		{
+			name:      "different_bool",
+			a:         map[string]interface{}{"key": true},
+			b:         map[string]interface{}{"key": false},
+			fieldPath: "key",
+			expected:  -1,
+		},
+		{
+			name:      "missing_field",
+			a:         map[string]interface{}{},
+			b:         map[string]interface{}{"key": "abc"},
+			fieldPath: "key",
+			expected:  0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := unstructured.Unstructured{Object: tt.a}
+			b := unstructured.Unstructured{Object: tt.b}
+			got := resolver.CompareUnstructured(a, b, tt.fieldPath)
+			if got != tt.expected {
+				t.Errorf("compareUnstructured() = %d, want %d", got, tt.expected)
+			}
+		})
+	}
+}

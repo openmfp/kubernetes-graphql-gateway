@@ -1,5 +1,7 @@
 package resolver
 
+import "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
 func (r *Service) GetOriginalGroupName(key string) string {
 	return r.getOriginalGroupName(key)
 }
@@ -18,4 +20,8 @@ func GetStringArg(args map[string]interface{}, key string, required bool) (strin
 
 func GetBoolArg(args map[string]interface{}, key string, required bool) (bool, error) {
 	return getBoolArg(args, key, required)
+}
+
+func CompareUnstructured(a, b unstructured.Unstructured, fieldPath string) int {
+	return compareUnstructured(a, b, fieldPath)
 }

@@ -380,48 +380,51 @@ func compareUnstructured(a, b unstructured.Unstructured, fieldPath string) int {
 
 	switch av := aVal.(type) {
 	case string:
-		bv, ok := bVal.(string)
-		if !ok {
-			return 0
+		if bv, ok := bVal.(string); ok {
+			return strings.Compare(av, bv)
 		}
-		return strings.Compare(av, bv)
 	case int64:
-		bv, ok := bVal.(int64)
-		if !ok {
-			return 0
+		if bv, ok := bVal.(int64); ok {
+			return compareNumbers(av, bv)
 		}
-		switch {
-		case av < bv:
-			return -1
-		case av > bv:
-			return 1
+	case int32:
+		if bv, ok := bVal.(int32); ok {
+			return compareNumbers(int64(av), int64(bv))
+		} else if bv, ok := bVal.(int64); ok {
+			return compareNumbers(int64(av), bv)
 		}
-		return 0
 	case float64:
-		bv, ok := bVal.(float64)
-		if !ok {
-			return 0
+		if bv, ok := bVal.(float64); ok {
+			return compareNumbers(av, bv)
 		}
-		switch {
-		case av < bv:
-			return -1
-		case av > bv:
-			return 1
+	case float32:
+		if bv, ok := bVal.(float32); ok {
+			return compareNumbers(float64(av), float64(bv))
+		} else if bv, ok := bVal.(float64); ok {
+			return compareNumbers(float64(av), bv)
 		}
-		return 0
 	case bool:
-		bv, ok := bVal.(bool)
-		if !ok {
-			return 0
+		if bv, ok := bVal.(bool); ok {
+			switch {
+			case av && !bv:
+				return -1
+			case !av && bv:
+				return 1
+			default:
+				return 0
+			}
 		}
-		switch {
-		case av && !bv:
-			return -1
-		case !av && bv:
-			return 1
-		}
-		return 0
+	}
+	return 0 // unhandled or non-comparable types
+}
+
+func compareNumbers[T int64 | float64](a, b T) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
 	default:
-		return 0 // unhandled or non-comparable types
+		return 0
 	}
 }
