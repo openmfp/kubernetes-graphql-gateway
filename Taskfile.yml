@@ -69,13 +69,9 @@ tasks:
           ADDITIONAL_COMMAND_ARGS: -coverprofile=./cover.out -covermode=atomic -coverpkg=./...
       - "{{.LOCAL_BIN}}/go-test-coverage --profile cover.out --config ./.testcoverage.yml"
   cover-html:
-    desc: "Generate and open HTML coverage report with .testcoverage.yml config"
-    deps: [setup:envtest, setup:go-test-coverage]
+    desc: "Generate and open HTML coverage report"
+    deps: [setup:tool, setup:coverage, cover]
     cmds:
-      - task: envtest
-        vars:
-          ADDITIONAL_COMMAND_ARGS: -coverprofile=./cover.out -covermode=atomic -coverpkg=./...
-      - "{{.LOCAL_BIN}}/go-test-coverage --profile cover.out --config ./.testcoverage.yml"
       - go tool cover -html=cover.out -o coverage.html
       - echo "Coverage report generated at coverage.html"
       - open coverage.html || xdg-open coverage.html || start coverage.html
