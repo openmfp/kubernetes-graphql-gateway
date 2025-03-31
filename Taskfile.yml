@@ -70,7 +70,7 @@ tasks:
       - "{{.LOCAL_BIN}}/go-test-coverage --profile cover.out --config ./.testcoverage.yml"
   cover-html:
     desc: "Generate and open HTML coverage report"
-    deps: [setup:tool, setup:coverage, cover]
+    deps: [cover]
     cmds:
       - go tool cover -html=cover.out -o coverage.html
       - echo "Coverage report generated at coverage.html"
