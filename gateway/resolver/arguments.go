@@ -18,11 +18,6 @@ const (
 	ObjectArg         = "object"
 	SubscribeToAllArg = "subscribeToAll"
 	SortByArg         = "sortBy"
-
-	typeString = "string"
-	typeInt    = "int"
-	typeBool   = "bool"
-	typeFloat  = "float"
 )
 
 // FieldConfigArgumentsBuilder helps construct GraphQL field config arguments

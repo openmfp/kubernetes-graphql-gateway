@@ -61,19 +61,23 @@ tasks:
       - task: envtest
         vars:
           ADDITIONAL_COMMAND_ARGS: -coverprofile=./cover.out -covermode=atomic -coverpkg=./...
-  cover:
+  cover-html:
+    desc: "Generate and open HTML coverage report with .testcoverage.yml config"
     deps: [setup:envtest, setup:go-test-coverage]
     cmds:
       - task: envtest
         vars:
           ADDITIONAL_COMMAND_ARGS: -coverprofile=./cover.out -covermode=atomic -coverpkg=./...
       - "{{.LOCAL_BIN}}/go-test-coverage --profile cover.out --config ./.testcoverage.yml"
+      - go tool cover -html=cover.out -o coverage.html
+      - echo "Coverage report generated at coverage.html"
+      - open coverage.html || xdg-open coverage.html || start coverage.html
   validate:
     cmds:
       - task: mockery
       - task: lint
       - task: test
-        
+
   # start uses deprecated gateway
   start:
     cmds:
