@@ -170,14 +170,14 @@ func (r *Service) runWatch(
 						items = append(items, *item.DeepCopy())
 					}
 
-					sortByFieldType, err := validateSortBy(items, sortBy)
+					err := validateSortBy(items, sortBy)
 					if err != nil {
 						r.log.Error().Err(err).Str(SortByArg, sortBy).Msg("Invalid sortBy field path")
 						return
 					}
 
 					sort.Slice(items, func(i, j int) bool {
-						return compareUnstructured(items[i], items[j], sortBy, sortByFieldType) < 0
+						return compareUnstructured(items[i], items[j], sortBy) < 0
 					})
 
 					sortedItems := make([]map[string]any, len(items))

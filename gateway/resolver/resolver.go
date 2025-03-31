@@ -116,14 +116,14 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind, scope v1.ResourceScope)
 			return nil, err
 		}
 
-		sortByFieldType, err := validateSortBy(list.Items, sortBy)
+		err = validateSortBy(list.Items, sortBy)
 		if err != nil {
 			log.Error().Err(err).Str(SortByArg, sortBy).Msg("Invalid sortBy field path")
 			return nil, err
 		}
 
 		sort.Slice(list.Items, func(i, j int) bool {
-			return compareUnstructured(list.Items[i], list.Items[j], sortBy, sortByFieldType) < 0
+			return compareUnstructured(list.Items[i], list.Items[j], sortBy) < 0
 		})
 
 		items := make([]map[string]any, len(list.Items))
@@ -369,42 +369,59 @@ func (r *Service) getOriginalGroupName(groupName string) string {
 	return groupName
 }
 
-func compareUnstructured(a, b unstructured.Unstructured, fieldPath, fieldType string) int {
+func compareUnstructured(a, b unstructured.Unstructured, fieldPath string) int {
 	segments := strings.Split(fieldPath, ".")
 
-	switch fieldType {
-	case typeString:
-		aVal, _, _ := unstructured.NestedString(a.Object, segments...)
-		bVal, _, _ := unstructured.NestedString(b.Object, segments...)
-		return strings.Compare(aVal, bVal)
-	case typeInt:
-		aVal, _, _ := unstructured.NestedInt64(a.Object, segments...)
-		bVal, _, _ := unstructured.NestedInt64(b.Object, segments...)
-		if aVal < bVal {
+	aVal, foundA, errA := unstructured.NestedFieldNoCopy(a.Object, segments...)
+	bVal, foundB, errB := unstructured.NestedFieldNoCopy(b.Object, segments...)
+	if errA != nil || errB != nil || !foundA || !foundB {
+		return 0 // fallback if fields are missing or inaccessible
+	}
+
+	switch av := aVal.(type) {
+	case string:
+		bv, ok := bVal.(string)
+		if !ok {
+			return 0
+		}
+		return strings.Compare(av, bv)
+	case int64:
+		bv, ok := bVal.(int64)
+		if !ok {
+			return 0
+		}
+		switch {
+		case av < bv:
 			return -1
-		} else if aVal > bVal {
+		case av > bv:
 			return 1
 		}
 		return 0
-	case typeFloat:
-		aVal, _, _ := unstructured.NestedFloat64(a.Object, segments...)
-		bVal, _, _ := unstructured.NestedFloat64(b.Object, segments...)
-		if aVal < bVal {
+	case float64:
+		bv, ok := bVal.(float64)
+		if !ok {
+			return 0
+		}
+		switch {
+		case av < bv:
 			return -1
-		} else if aVal > bVal {
+		case av > bv:
 			return 1
 		}
 		return 0
-	case typeBool:
-		aVal, _, _ := unstructured.NestedBool(a.Object, segments...)
-		bVal, _, _ := unstructured.NestedBool(b.Object, segments...)
-		if aVal && !bVal {
+	case bool:
+		bv, ok := bVal.(bool)
+		if !ok {
+			return 0
+		}
+		switch {
+		case av && !bv:
 			return -1
-		} else if !aVal && bVal {
+		case !av && bv:
 			return 1
 		}
 		return 0
 	default:
-		return 0 // Return 0 if type is unknown
+		return 0 // unhandled or non-comparable types
 	}
 }

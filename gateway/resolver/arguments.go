@@ -147,32 +147,21 @@ func isResourceNamespaceScoped(resourceScope apiextensionsv1.ResourceScope) bool
 	return resourceScope == apiextensionsv1.NamespaceScoped
 }
 
-func validateSortBy(items []unstructured.Unstructured, fieldPath string) (string, error) {
+func validateSortBy(items []unstructured.Unstructured, fieldPath string) error {
 	if len(items) == 0 {
-		return "", nil // No items to validate against, assume valid
+		return nil // No items to validate against, assume valid
 	}
 
 	sample := items[0]
 	segments := strings.Split(fieldPath, ".")
 
-	val, found, err := unstructured.NestedFieldNoCopy(sample.Object, segments...)
+	_, found, err := unstructured.NestedFieldNoCopy(sample.Object, segments...)
 	if !found {
-		return "", errors.New("specified sortBy field does not exist")
+		return errors.New("specified sortBy field does not exist")
 	}
 	if err != nil {
-		return "", errors.Join(errors.New("error accessing specified sortBy field"), err)
+		return errors.Join(errors.New("error accessing specified sortBy field"), err)
 	}
 
-	switch val.(type) {
-	case string:
-		return typeString, nil
-	case int64:
-		return typeInt, nil
-	case float64:
-		return typeFloat, nil
-	case bool:
-		return typeBool, nil
-	default:
-		return "", errors.New("specified sortBy field is not a sortable type (string/int/float/bool)")
-	}
+	return nil
 }
