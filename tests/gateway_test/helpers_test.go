@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const sleepTime = 1000 * time.Millisecond
+const sleepTime = 500 * time.Millisecond
 
 type core struct {
 	Pod       *podData `json:"Pod,omitempty"`

@@ -73,7 +73,6 @@ tasks:
     deps: [cover]
     cmds:
       - go tool cover -html=cover.out -o coverage.html
-      - echo "Coverage report generated at coverage.html"
       - open coverage.html || xdg-open coverage.html || start coverage.html
   validate:
     cmds:
