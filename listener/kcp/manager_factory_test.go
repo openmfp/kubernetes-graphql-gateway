@@ -51,7 +51,7 @@ func TestNewManager(t *testing.T) {
 
 			mgr, err := f.NewManager(
 				context.Background(),
-				&rest.Config{},
+				&rest.Config{Host: validAPIServerHost},
 				ctrl.Options{Scheme: scheme},
 				fakeClient,
 			)
