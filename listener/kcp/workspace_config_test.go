@@ -75,6 +75,24 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 			},
 			err: ErrEmptyVirtualWorkspaceURL,
 		},
+		"wrong_url_in_virtual_ws": {
+			clientObjects: func(appCfg *config.Config) []client.Object {
+				return []client.Object{
+					&kcpapis.APIExport{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: appCfg.ApiExportWorkspace,
+							Name:      appCfg.ApiExportName,
+						},
+						Status: kcpapis.APIExportStatus{
+							VirtualWorkspaces: []kcpapis.VirtualWorkspace{
+								{URL: "ht@tp://bad_url"},
+							},
+						},
+					},
+				}
+			},
+			err: errors.Join(ErrInvalidURL, errors.New("parse \"ht@tp://bad_url\": first path segment in URL cannot contain colon")),
+		},
 	}
 
 	for name, tc := range tests {
@@ -88,7 +106,7 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 			}
 			fakeClient := fakeClientBuilder.Build()
 
-			resultCfg, err := virtualWorkspaceConfigFromCfg(context.Background(), appCfg, &rest.Config{}, fakeClient)
+			resultCfg, err := virtualWorkspaceConfigFromCfg(context.Background(), appCfg, &rest.Config{Host: "https://192.168.1.13:6443"}, fakeClient)
 
 			if tc.err != nil {
 				assert.EqualError(t, err, tc.err.Error())
@@ -96,6 +114,71 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.clientObjects(&appCfg)[0].(*kcpapis.APIExport).Status.VirtualWorkspaces[0].URL, resultCfg.Host) // nolint: staticcheck
+			}
+		})
+	}
+}
+
+func TestCombineBaseURLAndPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		baseURL  string
+		pathURL  string
+		expected string
+		err      error
+	}{
+		{
+			name:     "success",
+			baseURL:  "https://openmfp-kcp-front-proxy.openmfp-system:8443/clusters/root",
+			pathURL:  "https://kcp.dev.local:8443/services/apiexport/root/kubernetes.graphql.gateway",
+			expected: "https://openmfp-kcp-front-proxy.openmfp-system:8443/services/apiexport/root/kubernetes.graphql.gateway",
+		},
+		{
+			name:     "success_base_with_port",
+			baseURL:  "https://example.com:8080",
+			pathURL:  "/api/resource",
+			expected: "https://example.com:8080/api/resource",
+		},
+		{
+			name:     "success_base_with_subpath_relative_path",
+			baseURL:  "https://example.com/base",
+			pathURL:  "api/resource",
+			expected: "https://example.com/api/resource",
+		},
+		{
+			name:     "success_base_with_subpath_absolute_path",
+			baseURL:  "https://example.com/base",
+			pathURL:  "/api/resource",
+			expected: "https://example.com/api/resource",
+		},
+		{
+			name:     "success_empty_path_url",
+			baseURL:  "https://example.com",
+			pathURL:  "",
+			expected: "https://example.com/",
+		},
+		{
+			name:    "error_invalid_base_url",
+			baseURL: "ht@tp://bad_url",
+			pathURL: "/api/resource",
+			err:     errors.Join(ErrInvalidURL, errors.New("parse \"ht@tp://bad_url\": first path segment in URL cannot contain colon")),
+		},
+		{
+			name:    "error_invalid_path_url",
+			baseURL: "https://example.com",
+			pathURL: "ht@tp://bad_url",
+			err:     errors.Join(ErrInvalidURL, errors.New("parse \"ht@tp://bad_url\": first path segment in URL cannot contain colon")),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := combineBaseURLAndPath(tt.baseURL, tt.pathURL)
+
+			if tt.err != nil {
+				assert.EqualError(t, err, tt.err.Error())
+			} else {
+				assert.Equal(t, tt.expected, result)
 			}
 		})
 	}

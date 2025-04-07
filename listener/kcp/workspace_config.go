@@ -3,6 +3,8 @@ package kcp
 import (
 	"context"
 	"errors"
+	"net/url"
+	"strings"
 	"time"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
@@ -17,6 +19,7 @@ var (
 	ErrFailedToGetAPIExport     = errors.New("failed to get APIExport")
 	ErrNoVirtualURLsFound       = errors.New("no virtual URLs found for APIExport")
 	ErrEmptyVirtualWorkspaceURL = errors.New("empty URL in virtual workspace for APIExport")
+	ErrInvalidURL               = errors.New("invalid URL format")
 )
 
 func virtualWorkspaceConfigFromCfg(ctx context.Context, appCfg config.Config, restCfg *rest.Config, clt client.Client) (*rest.Config, error) {
@@ -45,7 +48,32 @@ func virtualWorkspaceConfigFromCfg(ctx context.Context, appCfg config.Config, re
 		return nil, ErrEmptyVirtualWorkspaceURL
 	}
 
-	restCfg.Host = virtualWorkspaceURL
+	internalVirtualWorkspaceURL, err := combineBaseURLAndPath(restCfg.Host, virtualWorkspaceURL)
+	if err != nil {
+		return nil, err
+	}
+
+	restCfg.Host = internalVirtualWorkspaceURL
 
 	return restCfg, nil
+}
+
+func combineBaseURLAndPath(baseURLStr, pathURLStr string) (string, error) {
+	baseURL, err := url.Parse(baseURLStr)
+	if err != nil {
+		return "", errors.Join(ErrInvalidURL, err)
+	}
+
+	pathURL, err := url.Parse(pathURLStr)
+	if err != nil {
+		return "", errors.Join(ErrInvalidURL, err)
+	}
+
+	path := pathURL.Path
+
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+
+	return baseURL.ResolveReference(&url.URL{Path: path}).String(), nil
 }
