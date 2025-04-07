@@ -3,7 +3,9 @@ package kcp
 import (
 	"context"
 	"errors"
+	"github.com/openmfp/golang-commons/logger"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
+	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,7 +44,7 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 			},
 		},
 		"error_retrieving_APIExport": {
-			err: errors.Join(ErrFailedToGetAPIExport, errors.New("apiexports.apis.kcp.io \"kubernetes.graphql.gateway\" not found")),
+			err: errors.Join(ErrFailedToGetAPIExport, errors.New("apiexports.apis.kcp.io \"tenancy.kcp.io\" not found")),
 		},
 		"empty_virtual_workspace_list": {
 			clientObjects: func(appCfg *config.Config) []client.Object {
@@ -95,10 +97,14 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 		},
 	}
 
+	log, err := logger.New(logger.DefaultConfig())
+	require.NoError(t, err)
+
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			appCfg, err := config.NewFromEnv()
 			assert.NoError(t, err)
+			appCfg.LocalDevelopment = true
 
 			fakeClientBuilder := fake.NewClientBuilder().WithScheme(scheme)
 			if tc.clientObjects != nil {
@@ -106,9 +112,10 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 			}
 			fakeClient := fakeClientBuilder.Build()
 
-			resultCfg, err := virtualWorkspaceConfigFromCfg(context.Background(), appCfg, &rest.Config{Host: validAPIServerHost}, fakeClient)
+			resultCfg, err := virtualWorkspaceConfigFromCfg(context.Background(), log, appCfg, &rest.Config{Host: validAPIServerHost}, fakeClient)
 
 			if tc.err != nil {
+				// here it fails
 				assert.EqualError(t, err, tc.err.Error())
 				assert.Nil(t, resultCfg)
 			} else {
