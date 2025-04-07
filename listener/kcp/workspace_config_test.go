@@ -106,7 +106,7 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 			}
 			fakeClient := fakeClientBuilder.Build()
 
-			resultCfg, err := virtualWorkspaceConfigFromCfg(context.Background(), appCfg, &rest.Config{Host: "https://192.168.1.13:6443"}, fakeClient)
+			resultCfg, err := virtualWorkspaceConfigFromCfg(context.Background(), appCfg, &rest.Config{Host: validAPIServerHost}, fakeClient)
 
 			if tc.err != nil {
 				assert.EqualError(t, err, tc.err.Error())
