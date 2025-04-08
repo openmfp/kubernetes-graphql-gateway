@@ -1,6 +1,6 @@
 # Pod Queries
 
-You can use the following queries as a part of [quickstart](./quickstart.md) guide.
+You can use the following queries as a part of the [quickstart](./quickstart.md) guide.
 
 ## Create a Pod:
 ```shell

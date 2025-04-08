@@ -3,7 +3,7 @@
 You can use the following queries as a part of [quickstart](./quickstart.md) guide.
 
 ## Create a ConfigMap:
-```graphql
+```shell
 mutation {
   core {
     createConfigMap(
@@ -12,7 +12,7 @@ mutation {
         metadata: {
           name: "example-config"
         },
-        data: "key=val"
+        data: { key: "val" }
       }
     ) {
       metadata {
@@ -25,7 +25,7 @@ mutation {
 ```
 
 ## List ConfigMaps:
-```graphql
+```shell
 {
   core {
     ConfigMaps {
@@ -39,7 +39,7 @@ mutation {
 ```
 
 ## Get a ConfigMap:
-```graphql
+```shell
 {
   core {
     ConfigMap(name: "example-config", namespace: "default") {
@@ -53,29 +53,28 @@ mutation {
 ```
 
 ## Update a ConfigMap:
-```graphql
+```shell
 mutation {
   core {
     updateConfigMap(
-      name: "example-config",
+      name:"example-config"
       namespace: "default",
       object: {
-        metadata: {
-          labels: "hello=world"
-        }
+        data: { key: "new-value" }
       }
     ) {
       metadata {
         name
-        labels
+        namespace
       }
+      data
     }
   }
 }
 ```
 
 ## Delete a ConfigMap:
-```graphql
+```shell
 mutation {
   core {
     deleteConfigMap(

@@ -6,11 +6,11 @@
 - [Go](https://go.dev/doc/install)
 - [Taskfile](https://taskfile.dev/#/installation)
 
-You also may need to have a running Kubernetes cluster(either local or remote).
+You also may need a running Kubernetes cluster(either local or remote).
 
 You can use:
 - Option A: [KCP](https://docs.kcp.io/kcp/main/setup/quickstart/)
-- Option B: standard kubernetes cluster(e.g. [kind](https://kind.sigs.k8s.io/), minikube, etc.)
+- Option B: standard Kubernetes cluster(e.g. [kind](https://kind.sigs.k8s.io/), minikube, etc.)
 
 ## Usage
 1. Clone the repo and change to the directory:
@@ -33,7 +33,7 @@ KUBECONFIG=YOUR_KUBECONFIG_PATH
 task listener
 ```
 This command must result in the files being created in the `./bin/definitions` directory.
-Each file corresponds to a workspace in KCP or a standard kubernetes cluster.
+Each file corresponds to a workspace in KCP or a standard Kubernetes cluster.
 
 Gateway will watch the directory for changes and update the schema accordingly.
 
@@ -50,6 +50,10 @@ For each file in the `./bin/definitions` directory, a separate GraphQL endpoint 
 For both KCP and standard kubernetes clusters you can use [configMap queries](./configmap_queries.md)
 
 If you use a standard kubernetes cluster, you can use [pod queries](./pod_queries.md)
+
+## Custom queries
+
+Aside from queries and mutations that represent the CRUD operations, the Gateway also has [custom queries](./custom_queries.md)
 
 ## Subscriptions
 

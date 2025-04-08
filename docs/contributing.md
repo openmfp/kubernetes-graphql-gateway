@@ -10,7 +10,7 @@ We use GitHub to track issues and feature requests, as well as accept pull reque
 You are welcome to contribute with your pull requests. These steps explain the contribution process:
 
 1. Fork the repository and create your branch from `main`.
-1. Verify and test your changes see [testing](#testing).
+1. Verify and test your changes see [Testing](#testing).
 1. Sign the Developer Certificate of Origin (DCO).
 
 ## Testing
@@ -20,14 +20,14 @@ task test
 ```
 
 ### Run single test
-For this you need to export a KUBEBUILDER_ASSETS environment variable:
+For this you need to export the `KUBEBUILDER_ASSETS` environment variable:
 ```shell
 KUBEBUILDER_ASSETS=$(pwd)/bin/k8s/$DIR_WITH_ASSETS
 # where $DIR_WITH_ASSETS is the directory that contains binaries for your OS.
 ```
 ### See test coverage
 
-You can check the coverage as html report:
+You can check the coverage as HTML report:
 ```shell
 task coverage-html
 ```
