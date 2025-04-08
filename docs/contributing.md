@@ -15,7 +15,29 @@ You are welcome to contribute with your pull requests. These steps explain the c
 
 ## Testing
 
-See https://github.com/openmfp/kubernetes-graphql-gateway?tab=readme-ov-file#testing
+```shell
+task test
+```
+
+### Run single test
+For this you need to export a KUBEBUILDER_ASSETS environment variable:
+```shell
+KUBEBUILDER_ASSETS=$(pwd)/bin/k8s/$DIR_WITH_ASSETS
+# where $DIR_WITH_ASSETS is the directory that contains binaries for your OS.
+```
+### See test coverage
+
+You can check the coverage as html report:
+```shell
+task coverage-html
+```
+P.S. If you want to exclude some files from the coverage report, you can add them to the `.testcoverage.yml` file.
+
+### Linting
+
+```shell
+task lint
+```
 
 ## Issues
 We use GitHub issues to track bugs. Please ensure your description is
@@ -23,4 +45,7 @@ clear and includes sufficient instructions to reproduce the issue.
 
 ## License
 By contributing to openMFP, you agree that your contributions will be licensed
-under its [Apache-2.0 license](LICENSE).
+under its [Apache-2.0 license](../LICENSE).
+
+[back to the main readme](../README.md)
+
