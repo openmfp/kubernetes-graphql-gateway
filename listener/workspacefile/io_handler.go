@@ -39,7 +39,7 @@ func (h *IOHandler) Read(clusterName string) ([]byte, error) {
 func (h *IOHandler) Write(JSON []byte, clusterName string) error {
 	fileName := path.Join(h.schemasDir, clusterName)
 	if err := os.WriteFile(fileName, JSON, os.ModePerm); err != nil {
-		return errors.Join(ErrDeleteJSONFile, err)
+		return errors.Join(ErrWriteJSONFile, err)
 	}
 	return nil
 }
@@ -47,7 +47,7 @@ func (h *IOHandler) Write(JSON []byte, clusterName string) error {
 func (h *IOHandler) Delete(clusterName string) error {
 	fileName := path.Join(h.schemasDir, clusterName)
 	if err := os.Remove(fileName); err != nil {
-		return errors.Join(ErrWriteJSONFile, err)
+		return errors.Join(ErrDeleteJSONFile, err)
 	}
 
 	return nil
