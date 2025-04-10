@@ -10,6 +10,7 @@ var (
 	ErrCreateSchemasDir = errors.New("failed to create or access schemas directory")
 	ErrReadJSONFile     = errors.New("failed to read JSON file")
 	ErrWriteJSONFile    = errors.New("failed to write JSON to file")
+	ErrDeleteJSONFile   = errors.New("failed to delete JSON file")
 )
 
 type IOHandler struct {
@@ -38,7 +39,16 @@ func (h *IOHandler) Read(clusterName string) ([]byte, error) {
 func (h *IOHandler) Write(JSON []byte, clusterName string) error {
 	fileName := path.Join(h.schemasDir, clusterName)
 	if err := os.WriteFile(fileName, JSON, os.ModePerm); err != nil {
+		return errors.Join(ErrDeleteJSONFile, err)
+	}
+	return nil
+}
+
+func (h *IOHandler) Delete(clusterName string) error {
+	fileName := path.Join(h.schemasDir, clusterName)
+	if err := os.Remove(fileName); err != nil {
 		return errors.Join(ErrWriteJSONFile, err)
 	}
+
 	return nil
 }

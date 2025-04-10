@@ -19,6 +19,7 @@ var (
 	ErrGetLogicalCluster     = errors.New("failed to get logicalcluster resource")
 	ErrMissingPathAnnotation = errors.New("failed to get cluster path from kcp.io/path annotation")
 	ErrParseHostURL          = errors.New("failed to parse rest config's Host URL")
+	ErrClusterIsDeleted      = errors.New("cluster is deleted")
 )
 
 type clientFactory func(config *rest.Config, options client.Options) (client.Client, error)
@@ -59,10 +60,16 @@ func PathForCluster(name string, clt client.Client) (string, error) {
 	if err := clt.Get(context.TODO(), client.ObjectKey{Name: "cluster"}, lc); err != nil {
 		return "", errors.Join(ErrGetLogicalCluster, err)
 	}
+
 	path, ok := lc.GetAnnotations()["kcp.io/path"]
 	if !ok {
 		return "", ErrMissingPathAnnotation
 	}
+
+	if lc.DeletionTimestamp != nil {
+		return path, ErrClusterIsDeleted
+	}
+
 	return path, nil
 }
 

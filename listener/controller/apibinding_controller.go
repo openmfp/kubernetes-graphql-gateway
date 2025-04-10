@@ -55,6 +55,16 @@ func (r *APIBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 	clusterPath, err := clusterpath.PathForCluster(req.ClusterName, clusterClt)
 	if err != nil {
+		if errors.Is(err, clusterpath.ErrClusterIsDeleted) {
+			logger.Info("cluster is deleted, triggering cleanup")
+			if err = r.io.Delete(clusterPath); err != nil {
+				logger.Error(err, "failed to delete workspace file after cluster deletion")
+				return ctrl.Result{}, err
+			}
+
+			return ctrl.Result{}, nil
+		}
+
 		logger.Error(err, "failed to get cluster path", "cluster", req.ClusterName)
 		return ctrl.Result{}, err
 	}
