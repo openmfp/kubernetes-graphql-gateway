@@ -16,7 +16,7 @@ var stringMapScalar = graphql.NewScalar(graphql.ScalarConfig{
 		case map[string]interface{}, map[string]string:
 			return val
 		default:
-			return nil
+			return nil // to tell GraphQL that the value is invalid
 		}
 	},
 	ParseLiteral: func(valueAST ast.Value) interface{} {
@@ -30,7 +30,7 @@ var stringMapScalar = graphql.NewScalar(graphql.ScalarConfig{
 			}
 			return result
 		default:
-			return nil
+			return nil // to tell GraphQL that the value is invalid
 		}
 	},
 })
