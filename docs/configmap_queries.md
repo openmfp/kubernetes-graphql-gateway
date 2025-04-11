@@ -1,6 +1,6 @@
 # ConfigMap Queries
 
-You can use the following queries as a part of [quickstart](./quickstart.md) guide.
+You can use the following queries as a part of [Quick Start](./quickstart.md) guide.
 
 ## Create a ConfigMap:
 ```shell

@@ -1,6 +1,6 @@
 # Pod Queries
 
-You can use the following queries as a part of the [quickstart](./quickstart.md) guide.
+You can use the following queries as a part of the [Quick Start](./quickstart.md) guide.
 
 ## Create a Pod:
 ```shell
@@ -54,7 +54,7 @@ mutation {
 }
 ```
 
-## Get the created Pod:
+## Get the Created Pod:
 ```shell
 query {
   core {
@@ -75,7 +75,7 @@ query {
 }
 ```
 
-## Delete the created Pod:
+## Delete the Created Pod:
 ```shell
 mutation {
   core {

@@ -1,6 +1,6 @@
 # Listener
 
-[back to the main readme](../README.md)
+[Back to the Main Readme](../README.md)
 
 The Listener component is responsible for watching a Kubernetes cluster and generating OpenAPI specifications for discovered resources.
 

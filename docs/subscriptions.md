@@ -1,16 +1,10 @@
 # Subscriptions
 
-You can use the following queries as a part of [quickstart](./quickstart.md) guide.
+You can use the following queries as a part of [Quick Start](./quickstart.md) guide.
 
 To subscribe to events, you should use the SSE (Server-Sent Events) protocol.
 
 Since GraphQL playground doesn't support it, you should use curl.
-
-## Parameters
-- `subscribeToAll`: if true, any field change will be sent to the client.
-Otherwise, only fields defined within the `{}` brackets will be listened to.
-
-Please note that only fields specified in `{}` brackets will be returned, even if `subscribeToAll: true`
 
 ## Prerequisites
 ```shell
@@ -18,13 +12,19 @@ GRAPHQL_URL=http://localhost:8080/root/graphql # update with your actual GraphQL
 AUTHORIZATION_TOKEN=<your-token> # update this with your token, if LOCAL_DEVELOPMENT=false
 ```
 
-### Subscribe to the ConfigMap resource
+## Parameters
+- `subscribeToAll`: if true, any field change will be sent to the client.
+Otherwise, only fields defined within the `{}` brackets will be listened to.
+
+Please note that only fields specified in `{}` brackets will be returned, even if `subscribeToAll: true`
+
+## Subscribe to the ConfigMap Resource
 
 ConfigMap is present in both KCP and standard Kubernetes clusters, so we can use it right away without any additional setup.
 
-After subscription, you can run mutations from [configmap queries](./configmap_queries.md) to see the changes in the subscription.
+After subscription, you can run mutations from [Configmap Queries](./configmap_queries.md) to see the changes in the subscription.
 
-#### Subscribe to a change of a data field in all ConfigMaps:
+### Subscribe to a Change of a Data Field in All ConfigMaps:
 ```shell
 curl \
   -H "Accept: text/event-stream" \
@@ -33,7 +33,7 @@ curl \
   -d '{"query": "subscription { core_configmaps { metadata { name } data }}"}' \
   $GRAPHQL_URL
 ```
-#### Subscribe to a change of a data field in a specific ConfigMap:
+### Subscribe to a Change of a Data Field in a Specific ConfigMap:
 
 ```shell
 curl \
@@ -44,7 +44,7 @@ curl \
   $GRAPHQL_URL
 ```
 
-#### Subscribe to a change of all fields in a specific ConfigMap:
+### Subscribe to a Change of All Fields in a Specific ConfigMap:
 
 Please note that only fields specified in `{}` brackets will be returned, even if `subscribeToAll: true`
 
@@ -57,13 +57,13 @@ curl \
   $GRAPHQL_URL
 ```
 
-### Subscribe to the Account resource
+## Subscribe to the Account Resource
 
-If you have [Account](https://github.com/openmfp/account-operator/tree/main/config) CRD registered in your cluster, you can use the following queries:
+If you have the [Account](https://github.com/openmfp/account-operator/tree/main/config) CRD registered in your cluster, you can use the following queries:
 
-After subscription, you can should run mutations against accounts to see the changes in the subscription.
+After subscription, you can run mutations against accounts to see the changes in the subscription.
 
-#### Subscribe to a change of a displayName field in all accounts
+### Subscribe to a Change of a DisplayName Field in All Accounts
 ```shell
 curl \
   -H "Accept: text/event-stream" \
@@ -73,7 +73,7 @@ curl \
   $GRAPHQL_URL
 ```
 
-#### Subscribe to a change of a displayName field in a specific account
+### Subscribe to a Change of a DisplayName Field in a Specific Account
 ```shell
 curl \
   -H "Accept: text/event-stream" \
@@ -83,7 +83,7 @@ curl \
   $GRAPHQL_URL
 ```
 
-#### Subscribe to a change of a displayName field in all accounts
+### Subscribe to a Change of a DisplayName Field in All Accounts
 ```shell
 curl \
   -H "Accept: text/event-stream" \

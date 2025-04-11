@@ -1,6 +1,6 @@
 # Gateway
 
-[back to the main readme](../README.md)
+[Back to the Main Readme](../README.md)
 
 The Gateway expects a directory input to watch for files containing OpenAPI specifications with resources.
 
@@ -16,11 +16,11 @@ So, if there are two files in the directory - `root` and `root:alpha`, then we w
 
 Open the URL in the browser and you will see the GraphQL playground.
 
-See example queries in the [queries examples](./quickstart.md#queries-examples) section.
+See example queries in the [Queries Examples](./quickstart.md#queries-examples) section.
 
-## Packages overview
+## Packages Overview
 
-### Workspace manager
+### Workspace Manager
 Holds the logic for watching a directory, triggering schema generation, and binding it to an HTTP handler.
 
 ### Schema
