@@ -13,21 +13,27 @@ var (
 	ErrDeleteJSONFile   = errors.New("failed to delete JSON file")
 )
 
-type IOHandler struct {
+type IOHandler interface {
+	Read(clusterName string) ([]byte, error)
+	Write(JSON []byte, clusterName string) error
+	Delete(clusterName string) error
+}
+
+type IoHandlerProvider struct {
 	schemasDir string
 }
 
-func NewIOHandler(schemasDir string) (*IOHandler, error) {
+func NewIOHandler(schemasDir string) (*IoHandlerProvider, error) {
 	if err := os.MkdirAll(schemasDir, os.ModePerm); err != nil {
 		return nil, errors.Join(ErrCreateSchemasDir, err)
 	}
 
-	return &IOHandler{
+	return &IoHandlerProvider{
 		schemasDir: schemasDir,
 	}, nil
 }
 
-func (h *IOHandler) Read(clusterName string) ([]byte, error) {
+func (h *IoHandlerProvider) Read(clusterName string) ([]byte, error) {
 	fileName := path.Join(h.schemasDir, clusterName)
 	JSON, err := os.ReadFile(fileName)
 	if err != nil {
@@ -36,7 +42,7 @@ func (h *IOHandler) Read(clusterName string) ([]byte, error) {
 	return JSON, nil
 }
 
-func (h *IOHandler) Write(JSON []byte, clusterName string) error {
+func (h *IoHandlerProvider) Write(JSON []byte, clusterName string) error {
 	fileName := path.Join(h.schemasDir, clusterName)
 	if err := os.WriteFile(fileName, JSON, os.ModePerm); err != nil {
 		return errors.Join(ErrWriteJSONFile, err)
@@ -44,7 +50,7 @@ func (h *IOHandler) Write(JSON []byte, clusterName string) error {
 	return nil
 }
 
-func (h *IOHandler) Delete(clusterName string) error {
+func (h *IoHandlerProvider) Delete(clusterName string) error {
 	fileName := path.Join(h.schemasDir, clusterName)
 	if err := os.Remove(fileName); err != nil {
 		return errors.Join(ErrDeleteJSONFile, err)

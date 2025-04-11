@@ -28,6 +28,7 @@ require (
 	github.com/vrischmann/envconfig v1.4.1
 	go.opentelemetry.io/otel v1.35.0
 	go.opentelemetry.io/otel/trace v1.35.0
+	go.uber.org/mock v0.5.0
 	golang.org/x/text v0.23.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.32.3

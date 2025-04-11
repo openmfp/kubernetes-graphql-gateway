@@ -22,29 +22,33 @@ var (
 	ErrClusterIsDeleted      = errors.New("cluster is deleted")
 )
 
+type Resolver interface {
+	ClientForCluster(name string) (client.Client, error)
+}
+
 type clientFactory func(config *rest.Config, options client.Options) (client.Client, error)
 
-type Resolver struct {
+type ResolverProvider struct {
 	*runtime.Scheme
 	*rest.Config
 	clientFactory
 }
 
-func NewResolver(cfg *rest.Config, scheme *runtime.Scheme) (*Resolver, error) {
+func NewResolver(cfg *rest.Config, scheme *runtime.Scheme) (*ResolverProvider, error) {
 	if cfg == nil {
 		return nil, ErrNilConfig
 	}
 	if scheme == nil {
 		return nil, ErrNilScheme
 	}
-	return &Resolver{
+	return &ResolverProvider{
 		Scheme:        scheme,
 		Config:        cfg,
 		clientFactory: client.New,
 	}, nil
 }
 
-func (rf *Resolver) ClientForCluster(name string) (client.Client, error) {
+func (rf *ResolverProvider) ClientForCluster(name string) (client.Client, error) {
 	clusterConfig, err := getClusterConfig(name, rf.Config)
 	if err != nil {
 		return nil, errors.Join(ErrGetClusterConfig, err)
