@@ -26,13 +26,13 @@ var (
 type CRDReconciler struct {
 	ClusterName string
 	client.Client
-	apischema.CRDResolver
+	*apischema.CRDResolver
 	io workspacefile.IOHandler
 }
 
 func NewCRDReconciler(name string,
 	clt client.Client,
-	cr apischema.CRDResolver,
+	cr *apischema.CRDResolver,
 	io workspacefile.IOHandler,
 ) *CRDReconciler {
 	return &CRDReconciler{
