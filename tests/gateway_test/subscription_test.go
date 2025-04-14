@@ -80,6 +80,15 @@ func (suite *CommonTestSuite) TestSchemaSubscribe() {
 			},
 			expectedEvents: 65,
 		},
+		{
+			testName:       "incorrect_subscription_query",
+			subscribeQuery: `subscription: {"non_existent_field": "test"}`,
+			setupFunc: func(ctx context.Context) {
+				suite.createDeployment(ctx, "my-new-deployment", map[string]string{"app": "my-app"})
+			},
+			expectedEvents: 1,
+			expectError:    true,
+		},
 	}
 
 	for _, tt := range tests {
