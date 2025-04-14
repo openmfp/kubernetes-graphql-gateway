@@ -18,6 +18,11 @@ Otherwise, only fields defined within the `{}` brackets will be listened to.
 
 Please note that only fields specified in `{}` brackets will be returned, even if `subscribeToAll: true`
 
+### Return parameters
+
+- `data` field contains the data returned by the subscription.
+- `errors` field contains the errors if any occurred during the subscription.
+
 ## Subscribe to the ConfigMap Resource
 
 ConfigMap is present in both KCP and standard Kubernetes clusters, so we can use it right away without any additional setup.
