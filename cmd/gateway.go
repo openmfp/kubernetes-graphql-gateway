@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"net/http"
+	_ "net/http/pprof"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -28,6 +29,13 @@ var gatewayCmd = &cobra.Command{
 		appCfg, err := appConfig.NewFromEnv()
 		if err != nil {
 			log.Fatal().Err(err).Msg("Error getting app restCfg, exiting")
+		}
+
+		if appCfg.EnablePprof {
+			go func() {
+				log.Info().Msgf("Starting pprof server on port %s", appCfg.Gateway.PprofPort)
+				http.ListenAndServe(fmt.Sprintf(":%s", appCfg.Gateway.PprofPort), nil) // nolint:errcheck
+			}()
 		}
 
 		log, err := setupLogger(appCfg.LogLevel)

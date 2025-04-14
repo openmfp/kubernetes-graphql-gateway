@@ -11,10 +11,12 @@ type Config struct {
 	OpenApiDefinitionsPath string `envconfig:"default=./bin/definitions"`
 	EnableKcp              bool   `envconfig:"default=true,optional"`
 	LocalDevelopment       bool   `envconfig:"default=false,optional"`
+	EnablePprof            bool   `envconfig:"default=false,optional"`
 }
 
 type Gateway struct {
 	Port              string `envconfig:"default=8080,optional"`
+	PprofPort         string `envconfig:"default=6060,optional"`
 	LogLevel          string `envconfig:"default=INFO,optional"`
 	UserNameClaim     string `envconfig:"default=email,optional"`
 	ShouldImpersonate bool   `envconfig:"default=true,optional"`
@@ -33,6 +35,7 @@ type Gateway struct {
 }
 
 type Listener struct {
+	PprofPort            string `envconfig:"default=6061,optional"`
 	MetricsAddr          string `envconfig:"default=0,optional"`
 	EnableLeaderElection bool   `envconfig:"default=false,optional"`
 	ProbeAddr            string `envconfig:"default=:8081,optional"`

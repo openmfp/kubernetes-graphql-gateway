@@ -2,20 +2,19 @@ package cmd
 
 import (
 	"crypto/tls"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
-	"k8s.io/client-go/discovery"
+	"fmt"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
 	kcpcore "github.com/kcp-dev/kcp/sdk/apis/core/v1alpha1"
 	kcptenancy "github.com/kcp-dev/kcp/sdk/apis/tenancy/v1alpha1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-
 	"github.com/spf13/cobra"
-
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-
+	"k8s.io/client-go/discovery"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -26,6 +25,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/kcp"
 )
 
@@ -95,6 +95,13 @@ var listenCmd = &cobra.Command{
 		if err != nil {
 			setupLog.Error(err, "unable to setup logger")
 			os.Exit(1)
+		}
+
+		if appCfg.EnablePprof {
+			go func() {
+				log.Info().Msgf("Starting pprof server on port %s", appCfg.Listener.PprofPort)
+				http.ListenAndServe(fmt.Sprintf(":%s", appCfg.Listener.PprofPort), nil) // nolint:errcheck
+			}()
 		}
 
 		mgrOpts := ctrl.Options{
