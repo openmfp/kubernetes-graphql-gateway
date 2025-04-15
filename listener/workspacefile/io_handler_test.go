@@ -45,7 +45,7 @@ func TestRead(t *testing.T) {
 	err := os.WriteFile(validFile, testJSON, 0644)
 	assert.NoError(t, err)
 
-	handler := &IoHandlerProvider{
+	handler := &IOHandlerProvider{
 		schemasDir: tempDir,
 	}
 
@@ -71,7 +71,7 @@ func TestRead(t *testing.T) {
 
 func TestWrite(t *testing.T) {
 	tempDir := t.TempDir()
-	handler := &IoHandlerProvider{
+	handler := &IOHandlerProvider{
 		schemasDir: tempDir,
 	}
 
