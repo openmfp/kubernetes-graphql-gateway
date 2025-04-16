@@ -1,7 +1,5 @@
 # Gateway
 
-[Back to the Main Readme](../README.md)
-
 The Gateway expects a directory input to watch for files containing OpenAPI specifications with resources.
 
 Each file in that directory will correspond to a KCP workspace (or API server).

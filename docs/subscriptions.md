@@ -1,15 +1,13 @@
 # Subscriptions
 
-You can use the following queries as a part of [Quick Start](./quickstart.md) guide.
-
 To subscribe to events, you should use the SSE (Server-Sent Events) protocol.
-
-Since GraphQL playground doesn't support it, you should use curl.
+Since GraphQL playground doesn't support (see [Quick Start Guide](./quickstart.md)) we won't use the GraphQL playground to execute the queries.
+Instead we use the `curl` command line tool.
 
 ## Prerequisites
 ```shell
-GRAPHQL_URL=http://localhost:8080/root/graphql # update with your actual GraphQL endpoint
-AUTHORIZATION_TOKEN=<your-token> # update this with your token, if LOCAL_DEVELOPMENT=false
+export GRAPHQL_URL=http://localhost:8080/root/graphql # update with your actual GraphQL endpoint
+export AUTHORIZATION_TOKEN=<your-token> # update this with your token, if LOCAL_DEVELOPMENT=false
 ```
 
 ## Parameters

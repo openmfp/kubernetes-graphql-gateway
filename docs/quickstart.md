@@ -1,18 +1,17 @@
 # Quick Start
 
-[Back to the Main Readme](../README.md)
+This page shows you how to get started to use the GraphQL Gateway for Kubernetes.
 
 ## Prerequisites
-- [Go](https://go.dev/doc/install)
-- [Taskfile](https://taskfile.dev/#/installation)
+- Installed [Golang](https://go.dev/doc/install)
+- Installed [Taskfile](https://taskfile.dev/installation)
+- A Kubernetes cluster to connect to (some Options below)
+  - Option A: Prexisting standard Kuberentes cluster
+  - Option B: Preexisting Kuberentes cluster that is available through [Kuberentes Control Plane (KCP)](https://docs.kcp.io/kcp/main/setup/quickstart/)
+  - Option C: Create your own locally running Kuberentes cluster using [kind](https://kind.sigs.k8s.io/)
+  
 
-You also may need a running Kubernetes cluster(either local or remote).
-
-You can use:
-- Option A: [KCP](https://docs.kcp.io/kcp/main/setup/quickstart/)
-- Option B: standard Kubernetes cluster(e.g. [Kind](https://kind.sigs.k8s.io/))
-
-## Usage
+## Setup the API listener
 1. Clone the repo and change to the directory:
 ```shell
 git clone git@github.com:openmfp/kubernetes-graphql-gateway.git && cd kubernetes-graphql-gateway
@@ -20,48 +19,46 @@ git clone git@github.com:openmfp/kubernetes-graphql-gateway.git && cd kubernetes
 2. Setup the environment:
 ```shell
 # this will disable authorization
-LOCAL_DEVELOPMENT=true 
-
-# kcp is enabled by default, in case you want to run it against a standard Kubernetes cluster:
-ENABLE_KCP=false
-
-# you must point to the kubeconfig of the cluster you want to run against:
-KUBECONFIG=YOUR_KUBECONFIG_PATH
+export LOCAL_DEVELOPMENT=true 
+# kcp is enabled by default, in case you want to run it against a standard Kubernetes cluster
+export ENABLE_KCP=false
+# you must point to the config of the cluster you want to run against
+export KUBECONFIG=YOUR_KUBECONFIG_PATH
 ```
-3. Run the Listener:
+3. In the same shell, run the listener:
 ```shell
 task listener
 ```
-This command must result in the files being created in the `./bin/definitions` directory.
-Each file corresponds to a workspace in KCP or a standard Kubernetes cluster.
+This will create a directory `./bin/definitions` and start watching the cluster APIs for changes.
+In that directory a file will be created for each workspace in KCP or a standard Kubernetes cluster.
+The file will contain the API definitions for the resources in that workspace.
 
-Gateway will watch the directory for changes and update the schema accordingly.
+## Running the GraphQL Gateway
 
-4. Run the Gateway:
+In the root directory of the `kubernetes-graphql-gateway` repository, run the gateway as follows:
 ```shell
 task gateway
 ```
-Check the console output for the URLs of the GraphQL endpoints.
 
-For each file in the `./bin/definitions` directory, a separate GraphQL endpoint will be created.
+The gateway will watch the `./bin/definitions` directory for changes and update the schema accordingly.
+It will also spawn a GraphQL server that allows you to execute GraphQL queries of any kind.
+Check the console output for the URLs of the GraphQL server.
 
-## Queries Examples
+## First Steps and Basic Examples
 
-For both KCP and standard Kubernetes clusters you can use [ConfigMap Queries](./configmap_queries.md).
+As said above, the GraphQL Gateway allows you do CRUD operations on any of the Kubernetes resources in the cluster.
+You may checkout the following copy & paste examples to get started:
+- Performing [CRUD operations on ConfigMaps](./configmap_queries.md).
+- Performing [CRUD operations on Pods](./pod_queries.md) (*).
+- Performing [Custom Queries](./custom_queries.md).
+- Subscribe to events using [Subscriptions](./subscriptions.md).
 
-If you use a standard Kubernetes cluster, you can use [Pod Queries](./pod_queries.md).
+(*) Only for non-KCP-Clusters!
 
-## Custom Queries
+## Authorization with Remote Kuberenetess Clusters
 
-Aside from queries and mutations that represent the CRUD operations, the Gateway also has [Custom Queries](./custom_queries.md).
-
-## Subscriptions
-
-You can subscribe to events using the instructions provided in the [Subscriptions](./subscriptions.md) section.
-
-## Authorization
-
-If you run the gateway with `LOCAL_DEVELOPMENT=false`, you need to add the `Authorization` header:
+If you run the GraphQL gateway with an shell environment that sets `LOCAL_DEVELOPMENT=false`, you need to add the `Authorization` header to any of your GraphQL queries you are executing.
+When using the GraphQL playground, you can add the header in the `Headers` section of the playground user interface like so:
 ```shell
 {
   "Authorization": "YOUR_TOKEN"

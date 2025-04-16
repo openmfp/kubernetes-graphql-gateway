@@ -1,6 +1,7 @@
-# Pod Queries
+# Pod Queries and Mutations
 
-You can use the following queries as a part of the [Quick Start](./quickstart.md) guide.
+This page shows you examples queries and mutations for GraphQL to perform operations on the `Pod` resource. 
+For questions on how to execute them, please find our [Quick Start Guide](./quickstart.md).
 
 ## Create a Pod:
 ```shell

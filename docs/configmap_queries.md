@@ -1,6 +1,7 @@
 # ConfigMap Queries
 
-You can use the following queries as a part of [Quick Start](./quickstart.md) guide.
+This page shows you examples queries and mutations for GraphQL to perform operations on the `ConfigMap` resource. 
+For questions on how to execute them, please find our [Quick Start Guide](./quickstart.md).
 
 ## Create a ConfigMap:
 ```shell
