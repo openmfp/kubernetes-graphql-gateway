@@ -2,7 +2,7 @@
 
 To subscribe to events, you should use the SSE (Server-Sent Events) protocol.
 Since GraphQL playground doesn't support (see [Quick Start Guide](./quickstart.md)) we won't use the GraphQL playground to execute the queries.
-Instead we use the `curl` command line tool.
+Instead we use the `curl` command line tool to execute the queries.
 
 ## Prerequisites
 ```shell
