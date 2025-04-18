@@ -31,7 +31,7 @@ func init() {
 	}
 
 	cobra.OnInitialize(initConfig)
-	
+
 	fmt.Println(v.GetString("gateway-port"))
 }
 

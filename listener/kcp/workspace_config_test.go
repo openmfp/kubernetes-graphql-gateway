@@ -31,8 +31,8 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 				return []client.Object{
 					&kcpapis.APIExport{
 						ObjectMeta: metav1.ObjectMeta{
-							Namespace: appCfg.ApiExportWorkspace,
-							Name:      appCfg.ApiExportName,
+							Namespace: appCfg.Listener.ApiexportWorkspace,
+							Name:      appCfg.Listener.ApiexportName,
 						},
 						Status: kcpapis.APIExportStatus{
 							VirtualWorkspaces: []kcpapis.VirtualWorkspace{
@@ -51,8 +51,8 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 				return []client.Object{
 					&kcpapis.APIExport{
 						ObjectMeta: metav1.ObjectMeta{
-							Namespace: appCfg.ApiExportWorkspace,
-							Name:      appCfg.ApiExportName,
+							Namespace: appCfg.Listener.ApiexportWorkspace,
+							Name:      appCfg.Listener.ApiexportName,
 						},
 					},
 				}
@@ -64,8 +64,8 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 				return []client.Object{
 					&kcpapis.APIExport{
 						ObjectMeta: metav1.ObjectMeta{
-							Namespace: appCfg.ApiExportWorkspace,
-							Name:      appCfg.ApiExportName,
+							Namespace: appCfg.Listener.ApiexportWorkspace,
+							Name:      appCfg.Listener.ApiexportName,
 						},
 						Status: kcpapis.APIExportStatus{
 							VirtualWorkspaces: []kcpapis.VirtualWorkspace{
@@ -82,8 +82,8 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 				return []client.Object{
 					&kcpapis.APIExport{
 						ObjectMeta: metav1.ObjectMeta{
-							Namespace: appCfg.ApiExportWorkspace,
-							Name:      appCfg.ApiExportName,
+							Namespace: appCfg.Listener.ApiexportWorkspace,
+							Name:      appCfg.Listener.ApiexportName,
 						},
 						Status: kcpapis.APIExportStatus{
 							VirtualWorkspaces: []kcpapis.VirtualWorkspace{
@@ -102,9 +102,9 @@ func TestVirtualWorkspaceConfigFromCfg(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			appCfg, err := config.NewFromEnv()
-			assert.NoError(t, err)
-			appCfg.LocalDevelopment = true
+			appCfg := config.Config{
+				LocalDevelopment: true,
+			}
 
 			fakeClientBuilder := fake.NewClientBuilder().WithScheme(scheme)
 			if tc.clientObjects != nil {

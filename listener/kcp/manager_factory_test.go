@@ -35,14 +35,13 @@ func TestNewManager(t *testing.T) {
 		err := kcpapis.AddToScheme(scheme)
 		assert.NoError(t, err)
 		t.Run(name, func(t *testing.T) {
-			appCfg, err := config.NewFromEnv()
-			assert.NoError(t, err)
+			appCfg := config.Config{}
 
 			fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects([]client.Object{
 				&kcpapis.APIExport{
 					ObjectMeta: metav1.ObjectMeta{
-						Namespace: appCfg.ApiExportWorkspace,
-						Name:      appCfg.ApiExportName,
+						Namespace: appCfg.Listener.ApiexportWorkspace,
+						Name:      appCfg.Listener.ApiexportName,
 					},
 					Status: kcpapis.APIExportStatus{
 						VirtualWorkspaces: []kcpapis.VirtualWorkspace{
