@@ -67,7 +67,7 @@ func NewManager(log *logger.Logger, cfg *rest.Config, appCfg appConfig.Config) (
 	cfg.Host = fmt.Sprintf("%s://%s", u.Scheme, u.Host)
 
 	cfg.Wrap(func(rt http.RoundTripper) http.RoundTripper {
-		return NewRoundTripper(log, rt, appCfg.UserNameClaim, appCfg.ShouldImpersonate)
+		return NewRoundTripper(log, rt, appCfg.Gateway.UsernameClaim, appCfg.Gateway.ShouldImpersonate)
 	})
 
 	runtimeClient, err := kcp.NewClusterAwareClientWithWatch(cfg, client.Options{})
@@ -151,7 +151,7 @@ func (s *Service) OnFileChanged(filename string) {
 	s.handlers[filename] = s.createHandler(schema)
 	s.mu.Unlock()
 
-	s.log.Info().Str("endpoint", fmt.Sprintf("http://localhost:%s/%s/graphql", s.appCfg.Port, filename)).Msg("Registered endpoint")
+	s.log.Info().Str("endpoint", fmt.Sprintf("http://localhost:%s/%s/graphql", s.appCfg.Gateway.Port, filename)).Msg("Registered endpoint")
 }
 
 func (s *Service) OnFileDeleted(filename string) {
@@ -178,9 +178,9 @@ func (s *Service) loadSchemaFromFile(filename string) (*graphql.Schema, error) {
 func (s *Service) createHandler(schema *graphql.Schema) *graphqlHandler {
 	h := handler.New(&handler.Config{
 		Schema:     schema,
-		Pretty:     s.appCfg.HandlerCfg.Pretty,
-		Playground: s.appCfg.HandlerCfg.Playground,
-		GraphiQL:   s.appCfg.HandlerCfg.GraphiQL,
+		Pretty:     s.appCfg.Gateway.HandlerCfg.Pretty,
+		Playground: s.appCfg.Gateway.HandlerCfg.Playground,
+		GraphiQL:   s.appCfg.Gateway.HandlerCfg.GraphiQL,
 	})
 	return &graphqlHandler{
 		schema:  schema,
@@ -190,9 +190,9 @@ func (s *Service) createHandler(schema *graphql.Schema) *graphqlHandler {
 
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
-	if s.appCfg.Cors.Enabled {
-		allowedOrigins := strings.Join(s.appCfg.Cors.AllowedOrigins, ",")
-		allowedHeaders := strings.Join(s.appCfg.Cors.AllowedHeaders, ",")
+	if s.appCfg.Gateway.Cors.Enabled {
+		allowedOrigins := strings.Join(s.appCfg.Gateway.Cors.AllowedOrigins, ",")
+		allowedHeaders := strings.Join(s.appCfg.Gateway.Cors.AllowedHeaders, ",")
 		w.Header().Set("Access-Control-Allow-Origin", allowedOrigins)
 		w.Header().Set("Access-Control-Allow-Headers", allowedHeaders)
 		// setting cors allowed methods is not needed for this service,

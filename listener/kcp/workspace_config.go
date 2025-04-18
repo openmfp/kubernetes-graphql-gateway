@@ -37,8 +37,8 @@ func virtualWorkspaceConfigFromCfg(
 
 	var apiExport kcpapis.APIExport
 	key := client.ObjectKey{
-		Namespace: appCfg.ApiExportWorkspace,
-		Name:      appCfg.ApiExportName,
+		Namespace: appCfg.Listener.ApiexportWorkspace,
+		Name:      appCfg.Listener.ApiexportName,
 	}
 	if err := clt.Get(ctx, key, &apiExport); err != nil {
 		// if this is not a local development, we must have kubernetes.graphql.gateway apiexport
@@ -54,7 +54,7 @@ func virtualWorkspaceConfigFromCfg(
 			return nil, errors.Join(ErrFailedToGetAPIExport, err)
 		}
 
-		log.Warn().Str("apiexport", appCfg.ApiExportName).Msg("failed to find ApiExport, listener will not watch ApiBinding changes in realtime")
+		log.Warn().Str("apiexport", appCfg.Listener.ApiexportName).Msg("failed to find ApiExport, listener will not watch ApiBinding changes in realtime")
 	}
 
 	if len(apiExport.Status.VirtualWorkspaces) == 0 { // nolint: staticcheck
