@@ -5,6 +5,7 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"time"
 )
 
 var (
@@ -18,6 +19,8 @@ var (
 )
 
 func initConfig() {
+	v.SetDefault("shutdown-timeout", 5*time.Second)
+
 	// Top-level defaults
 	v.SetDefault("openapi-definitions-path", "./bin/definitions")
 	v.SetDefault("enable-kcp", true)

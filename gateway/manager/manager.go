@@ -3,7 +3,9 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/openmfp/golang-commons/sentry"
 	"net/http"
 	"net/url"
 	"os"
@@ -26,6 +28,11 @@ import (
 	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/resolver"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/schema"
+)
+
+var (
+	ErrUnknownFileEvent = errors.New("unknown file event")
+	ErrNoHandlerFound   = errors.New("no handler found for workspace")
 )
 
 type Provider interface {
@@ -117,6 +124,7 @@ func (s *Service) Start() {
 					return
 				}
 				s.log.Error().Err(err).Msg("Error watching files")
+				sentry.CaptureError(err, nil)
 			}
 		}
 	}()
@@ -136,14 +144,18 @@ func (s *Service) handleEvent(event fsnotify.Event) {
 	case fsnotify.Remove:
 		s.OnFileDeleted(filename)
 	default:
-		s.log.Info().Str("file", filename).Msg("Unknown file event")
+		err := ErrUnknownFileEvent
+		s.log.Error().Err(err).Str("filename", filename).Msg("Unknown file event")
+		sentry.CaptureError(sentry.SentryError(err), nil, sentry.Extras{"filename": filename, "event": event.String()})
 	}
 }
 
 func (s *Service) OnFileChanged(filename string) {
 	schema, err := s.loadSchemaFromFile(filename)
 	if err != nil {
-		s.log.Error().Err(err).Str("file", filename).Msg("Error loading schema from file")
+		s.log.Error().Err(err).Str("filename", filename).Msg("failed to process the file's change")
+		sentry.CaptureError(err, sentry.Tags{"filename": filename})
+
 		return
 	}
 
@@ -217,7 +229,9 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	if !ok {
-		s.log.Info().Str("workspace", workspace).Msg("no handler found for workspace")
+		err = ErrNoHandlerFound
+		s.log.Error().Str("workspace", workspace).Msg("no handler found for workspace")
+		sentry.CaptureError(ErrNoHandlerFound, sentry.Tags{"workspace": workspace})
 		http.NotFound(w, r)
 		return
 	}
