@@ -26,7 +26,7 @@ export KUBECONFIG=YOUR_KUBECONFIG_PATH
 ```
 ## Running the Listener
 
-Make sure you're done the steps from the [setup section](#setup-the-environment).
+Make sure you have done steps from the [setup section](#setup-the-environment).
 
 ```shell
 task listener
@@ -37,7 +37,7 @@ The file will contain the API definitions for the resources in that workspace.
 
 ## Running the Gateway
 
-Make sure you're done the steps from the [setup section](#setup-the-environment).
+Make sure you have done steps from the [setup section](#setup-the-environment).
 
 In the root directory of the `kubernetes-graphql-gateway` repository, open a new shell and run the Graphql gateway as follows:
 ```shell
