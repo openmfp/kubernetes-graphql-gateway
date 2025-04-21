@@ -35,7 +35,9 @@ func TestNewManager(t *testing.T) {
 		err := kcpapis.AddToScheme(scheme)
 		assert.NoError(t, err)
 		t.Run(name, func(t *testing.T) {
-			appCfg := config.Config{}
+			appCfg := config.Config{
+				EnableKcp: true,
+			}
 
 			fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects([]client.Object{
 				&kcpapis.APIExport{
