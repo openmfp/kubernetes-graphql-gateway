@@ -229,8 +229,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	if !ok {
-		err = ErrNoHandlerFound
-		s.log.Error().Str("workspace", workspace).Msg("no handler found for workspace")
+		s.log.Error().Err(ErrNoHandlerFound).Str("workspace", workspace)
 		sentry.CaptureError(ErrNoHandlerFound, sentry.Tags{"workspace": workspace})
 		http.NotFound(w, r)
 		return
