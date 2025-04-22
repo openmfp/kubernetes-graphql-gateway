@@ -19,6 +19,10 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
+func init() {
+	rootCmd.AddCommand(startCmd)
+}
+
 var startCmd = &cobra.Command{
 	Use: "start",
 	RunE: func(cmd *cobra.Command, args []string) error {
