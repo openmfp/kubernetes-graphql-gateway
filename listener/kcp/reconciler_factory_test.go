@@ -1,15 +1,13 @@
 package kcp
 
 import (
-	"context"
 	"errors"
-	"github.com/openmfp/golang-commons/logger"
+	"path"
+	"testing"
+
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/clusterpath"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/kcp/mocks"
-	"github.com/stretchr/testify/require"
-	"path"
-	"testing"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
 	"github.com/stretchr/testify/assert"
@@ -73,9 +71,6 @@ func TestNewReconciler(t *testing.T) {
 		},
 	}
 
-	log, err := logger.New(logger.DefaultConfig())
-	require.NoError(t, err)
-
 	for name, tc := range tests {
 		scheme := runtime.NewScheme()
 		assert.NoError(t, kcpapis.AddToScheme(scheme))
@@ -104,7 +99,7 @@ func TestNewReconciler(t *testing.T) {
 				Scheme:                 scheme,
 				Client:                 fakeClient,
 				OpenAPIDefinitionsPath: tc.definitionsPath,
-			}, &mocks.MockDiscoveryInterface{}, func(cr *apischema.CRDResolver, io workspacefile.IOHandler) error {
+			}, tc.cfg, &mocks.MockDiscoveryInterface{}, func(cr *apischema.CRDResolver, io workspacefile.IOHandler) error {
 				return nil
 			}, func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error) {
 				return &discoveryclient.FactoryProvider{
