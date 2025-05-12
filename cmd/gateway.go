@@ -12,34 +12,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"time"
 
-	openmfpconfig "github.com/openmfp/golang-commons/config"
 	"github.com/openmfp/golang-commons/logger"
 
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager"
 )
 
-func init() {
-	rootCmd.AddCommand(gatewayCmd)
-
-	var err error
-	v, defaultCfg, err = openmfpconfig.NewDefaultConfig(rootCmd)
-	if err != nil {
-		panic(err)
-	}
-
-	cobra.OnInitialize(initConfig)
-
-	err = openmfpconfig.BindConfigToFlags(v, gatewayCmd, &appCfg)
-	if err != nil {
-		panic(err)
-	}
-}
-
 var gatewayCmd = &cobra.Command{
 	Use:     "gateway",
 	Short:   "Run the GQL Gateway",
 	Example: "go run main.go gateway",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, _ []string) error {
+		fmt.Println("### defaultCfg.Environment", defaultCfg.Environment)
+
 		log, err := setupLogger(defaultCfg.Log.Level)
 		if err != nil {
 			return fmt.Errorf("failed to setup logger: %w", err)
@@ -47,7 +31,7 @@ var gatewayCmd = &cobra.Command{
 
 		log.Info().Str("LogLevel", log.GetLevel().String()).Msg("Starting server...")
 
-		ctx, _, shutdown := openmfpcontext.StartContext(log, defaultCfg, 1*time.Second)
+		ctx, _, shutdown := openmfpcontext.StartContext(log, appCfg, 1*time.Second)
 		defer shutdown()
 
 		if defaultCfg.Sentry.Dsn != "" {

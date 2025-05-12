@@ -9,14 +9,31 @@ import (
 )
 
 var (
-	rootCmd = &cobra.Command{
-		Use: "listener or gateway",
-	}
-
 	appCfg     config.Config
 	defaultCfg *openmfpconfig.CommonServiceConfig
 	v          *viper.Viper
 )
+
+var rootCmd = &cobra.Command{
+	Use: "listener or gateway",
+}
+
+func init() {
+	rootCmd.AddCommand(gatewayCmd)
+
+	var err error
+	v, defaultCfg, err = openmfpconfig.NewDefaultConfig(rootCmd)
+	if err != nil {
+		panic(err)
+	}
+
+	cobra.OnInitialize(initConfig)
+
+	err = openmfpconfig.BindConfigToFlags(v, gatewayCmd, &appCfg)
+	if err != nil {
+		panic(err)
+	}
+}
 
 func initConfig() {
 	v.SetDefault("shutdown-timeout", 5*time.Second)
@@ -42,15 +59,8 @@ func initConfig() {
 	v.SetDefault("gateway-cors-enabled", false)
 	v.SetDefault("gateway-cors-allowed-origins", []string{"*"})
 	v.SetDefault("gateway-cors-allowed-headers", []string{"*"})
-
-	var cfg config.Config
-	if err := v.Unmarshal(&cfg); err != nil {
-		panic("Unable to unmarshal config: " + err.Error())
-	}
 }
 
 func Execute() {
-	if err := rootCmd.Execute(); err != nil {
-		panic(err)
-	}
+	cobra.CheckErr(rootCmd.Execute())
 }
