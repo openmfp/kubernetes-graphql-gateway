@@ -99,25 +99,18 @@ func TestNewReconciler(t *testing.T) {
 				},
 			}...).Build()
 
-			reconciler, err := NewReconciler(
-				context.Background(),
-				log,
-				appCfg,
-				ReconcilerOpts{
-					Config:                 tc.cfg,
-					Scheme:                 scheme,
-					Client:                 fakeClient,
-					OpenAPIDefinitionsPath: tc.definitionsPath,
-				},
-				&mocks.MockDiscoveryInterface{},
-				func(cr *apischema.CRDResolver, io workspacefile.IOHandler) error {
-					return nil
-				},
-				func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error) {
-					return &discoveryclient.FactoryProvider{
-						Config: cfg,
-					}, nil
-				})
+			reconciler, err := NewReconciler(appCfg, ReconcilerOpts{
+				Config:                 tc.cfg,
+				Scheme:                 scheme,
+				Client:                 fakeClient,
+				OpenAPIDefinitionsPath: tc.definitionsPath,
+			}, &mocks.MockDiscoveryInterface{}, func(cr *apischema.CRDResolver, io workspacefile.IOHandler) error {
+				return nil
+			}, func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error) {
+				return &discoveryclient.FactoryProvider{
+					Config: cfg,
+				}, nil
+			})
 
 			if tc.err != nil {
 				assert.EqualError(t, err, tc.err.Error())
