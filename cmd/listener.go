@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"crypto/tls"
+	"os"
+
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
 	kcpcore "github.com/kcp-dev/kcp/sdk/apis/core/v1alpha1"
 	kcptenancy "github.com/kcp-dev/kcp/sdk/apis/tenancy/v1alpha1"
@@ -11,7 +13,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/discovery"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -19,8 +20,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
-
-	openmfpconfig "github.com/openmfp/golang-commons/config"
 
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/kcp"
@@ -35,20 +34,6 @@ var (
 
 func init() {
 	rootCmd.AddCommand(listenCmd)
-
-	var err error
-	v, defaultCfg, err = openmfpconfig.NewDefaultConfig(rootCmd)
-	if err != nil {
-		panic(err)
-	}
-
-	cobra.OnInitialize(initConfig)
-
-	err = openmfpconfig.BindConfigToFlags(v, listenCmd, &appCfg)
-	if err != nil {
-		panic(err)
-	}
-
 }
 
 var listenCmd = &cobra.Command{
