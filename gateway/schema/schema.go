@@ -33,7 +33,7 @@ type Gateway struct {
 	// inputTypesCache stores generated GraphQL input object types(input fields) to prevent redundant repeated generation.
 	inputTypesCache map[string]*graphql.InputObject
 	// Prevents naming conflict in case of the same Kind name in different groups/versions
-	typeNameRegistry map[string]string
+	typeNameRegistry map[string]string // map[Kind]GroupVersion
 
 	// categoryRegistry stores resources by category for typeByCategory query
 	typeByCategory map[string][]resolver.TypeByCategory
@@ -275,28 +275,59 @@ func (g *Gateway) processSingleResource(
 
 func (g *Gateway) getNames(gvk *schema.GroupVersionKind) (singular string, plural string) {
 	kind := gvk.Kind
-	singularName := kind
+	singular = kind
+	plural = getPluralName(singular)
 
 	// Check if the kind name has already been used for a different group/version
 	if existingGroupVersion, exists := g.typeNameRegistry[kind]; exists {
 		if existingGroupVersion != gvk.GroupVersion().String() {
 			// Conflict detected, append group and version
-			groupVersion := strings.ReplaceAll(gvk.GroupVersion().String(), "/", "")
-			singularName = kind + groupVersion
+			group := strings.ReplaceAll(gvk.Group, ".", "") // dots are allowed in k8s group, but not in graphql
+			singular = strings.Join([]string{kind, group, gvk.Version}, "_")
+			plural = strings.Join([]string{plural, group, gvk.Version}, "_")
 		}
 	} else {
 		// No conflict, register the kind with its group and version
 		g.typeNameRegistry[kind] = gvk.GroupVersion().String()
 	}
 
-	var pluralName string
-	if singularName[len(singularName)-1] == 's' {
-		pluralName = singularName + "es"
-	} else {
-		pluralName = singularName + "s"
+	return singular, plural
+}
+
+func getPluralName(singular string) string {
+	n := len(singular)
+	if n == 0 {
+		return ""
 	}
 
-	return singularName, pluralName
+	if n >= 2 {
+		suffix := singular[n-2:]
+		if suffix == "ch" || suffix == "sh" { // church -> churches, brush -> brushes
+			return singular + "es"
+		}
+	}
+
+	switch singular[n-1] {
+	case 'x':
+		fallthrough
+	case 's':
+		return singular + "es" // bus -> buses
+	case 'y':
+		if n >= 2 && isConsonant(singular[n-2]) {
+			return singular[:n-1] + "ies" // baby -> babies
+		}
+		return singular + "s" // toy -> toys
+	default:
+		return singular + "s"
+	}
+}
+
+func isConsonant(b byte) bool {
+	switch b {
+	case 'a', 'e', 'i', 'o', 'u':
+		return false
+	}
+	return true
 }
 
 func (g *Gateway) getDefinitionsByGroup(filteredDefinitions spec.Definitions) map[string]spec.Definitions {
