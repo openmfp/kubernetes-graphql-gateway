@@ -6,8 +6,7 @@ type Config struct {
 	LocalDevelopment       bool   `mapstructure:"local-development"`
 
 	Listener struct {
-		ApiexportWorkspace string `mapstructure:"listener-apiexport-workspace"`
-		ApiexportName      string `mapstructure:"listener-apiexport-name"`
+		// Listener fields will be added here
 	} `mapstructure:",squash"`
 
 	Gateway struct {

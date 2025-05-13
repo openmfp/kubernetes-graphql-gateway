@@ -22,8 +22,6 @@ var gatewayCmd = &cobra.Command{
 	Short:   "Run the GQL Gateway",
 	Example: "go run main.go gateway",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		fmt.Println("### defaultCfg.Environment", defaultCfg.Environment)
-
 		log, err := setupLogger(defaultCfg.Log.Level)
 		if err != nil {
 			return fmt.Errorf("failed to setup logger: %w", err)

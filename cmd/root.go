@@ -1,11 +1,13 @@
 package cmd
 
 import (
-	openmfpconfig "github.com/openmfp/golang-commons/config"
-	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
+	"time"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"time"
+
+	openmfpconfig "github.com/openmfp/golang-commons/config"
+	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 )
 
 var (
@@ -20,6 +22,7 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(gatewayCmd)
+	rootCmd.AddCommand(listenCmd)
 
 	var err error
 	v, defaultCfg, err = openmfpconfig.NewDefaultConfig(rootCmd)

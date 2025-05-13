@@ -9,11 +9,9 @@ import (
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
 	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
@@ -39,27 +37,13 @@ func TestNewManager(t *testing.T) {
 				EnableKcp: true,
 			}
 
-			fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects([]client.Object{
-				&kcpapis.APIExport{
-					ObjectMeta: metav1.ObjectMeta{
-						Namespace: appCfg.Listener.ApiexportWorkspace,
-						Name:      appCfg.Listener.ApiexportName,
-					},
-					Status: kcpapis.APIExportStatus{
-						VirtualWorkspaces: []kcpapis.VirtualWorkspace{
-							{URL: validAPIServerHost},
-						},
-					},
-				},
-			}...).Build()
-
 			f := NewManagerFactory(log, appCfg)
 
 			mgr, err := f.NewManager(
 				context.Background(),
 				&rest.Config{Host: validAPIServerHost},
 				ctrl.Options{Scheme: scheme},
-				fakeClient,
+				fake.NewClientBuilder().WithScheme(scheme).Build(),
 			)
 
 			if tc.expectErr {
