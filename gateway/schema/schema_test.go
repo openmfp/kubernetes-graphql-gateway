@@ -8,30 +8,6 @@ import (
 	gatewaySchema "github.com/openmfp/kubernetes-graphql-gateway/gateway/schema"
 )
 
-func TestGetPluralName(t *testing.T) {
-	tests := []struct {
-		singular string
-		want     string
-	}{
-		{"", ""},
-		{"dog", "dogs"},
-		{"bus", "buses"},
-		{"class", "classes"},
-		{"box", "boxes"},
-		{"church", "churches"},
-		{"brush", "brushes"},
-		{"baby", "babies"},
-		{"toy", "toys"},
-	}
-
-	for _, tt := range tests {
-		got := gatewaySchema.GetPluralNameForTest(tt.singular)
-		if got != tt.want {
-			t.Errorf("getPluralName(%q) = %q, want %q", tt.singular, got, tt.want)
-		}
-	}
-}
-
 func TestGateway_getNames(t *testing.T) {
 	type testCase struct {
 		name         string

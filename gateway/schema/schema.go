@@ -6,10 +6,10 @@ import (
 	"regexp"
 	"strings"
 
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-
 	"github.com/go-openapi/spec"
+	"github.com/gobuffalo/flect"
 	"github.com/graphql-go/graphql"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/openmfp/golang-commons/logger"
@@ -276,12 +276,13 @@ func (g *Gateway) processSingleResource(
 func (g *Gateway) getNames(gvk *schema.GroupVersionKind) (singular string, plural string) {
 	kind := gvk.Kind
 	singular = kind
-	plural = getPluralName(singular)
+	plural = flect.Pluralize(singular)
 
 	// Check if the kind name has already been used for a different group/version
 	if existingGroupVersion, exists := g.typeNameRegistry[kind]; exists {
 		if existingGroupVersion != gvk.GroupVersion().String() {
-			// Conflict detected, append group and version
+			// Conflict detected, append group and version to the kind for uniqueness
+			// we don't add new entry to the registry, because we already have one with the same kind
 			group := strings.ReplaceAll(gvk.Group, ".", "") // dots are allowed in k8s group, but not in graphql
 			singular = strings.Join([]string{kind, group, gvk.Version}, "_")
 			plural = strings.Join([]string{plural, group, gvk.Version}, "_")
@@ -292,42 +293,6 @@ func (g *Gateway) getNames(gvk *schema.GroupVersionKind) (singular string, plura
 	}
 
 	return singular, plural
-}
-
-func getPluralName(singular string) string {
-	n := len(singular)
-	if n == 0 {
-		return ""
-	}
-
-	if n >= 2 {
-		suffix := singular[n-2:]
-		if suffix == "ch" || suffix == "sh" { // church -> churches, brush -> brushes
-			return singular + "es"
-		}
-	}
-
-	switch singular[n-1] {
-	case 'x':
-		fallthrough
-	case 's':
-		return singular + "es" // bus -> buses
-	case 'y':
-		if n >= 2 && isConsonant(singular[n-2]) {
-			return singular[:n-1] + "ies" // baby -> babies
-		}
-		return singular + "s" // toy -> toys
-	default:
-		return singular + "s"
-	}
-}
-
-func isConsonant(b byte) bool {
-	switch b {
-	case 'a', 'e', 'i', 'o', 'u':
-		return false
-	}
-	return true
 }
 
 func (g *Gateway) getDefinitionsByGroup(filteredDefinitions spec.Definitions) map[string]spec.Definitions {
