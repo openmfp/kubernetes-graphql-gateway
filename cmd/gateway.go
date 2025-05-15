@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	openmfpcontext "github.com/openmfp/golang-commons/context"
@@ -79,9 +80,10 @@ var gatewayCmd = &cobra.Command{
 		// Wait for shutdown signal via the context
 		<-ctx.Done()
 
-		// Perform graceful shutdown of HTTP server
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second) // ctx is closed, we need a new one
+		defer cancel()
 		log.Info().Msg("Shutting down HTTP server...")
-		if err := server.Shutdown(ctx); err != nil {
+		if err := server.Shutdown(shutdownCtx); err != nil {
 			log.Fatal().Err(err).Msg("HTTP server shutdown failed")
 		}
 
