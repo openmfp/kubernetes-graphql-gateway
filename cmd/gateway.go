@@ -80,7 +80,7 @@ var gatewayCmd = &cobra.Command{
 		// Wait for shutdown signal via the context
 		<-ctx.Done()
 
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second) // ctx is closed, we need a new one
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), defaultCfg.ShutdownTimeout) // ctx is closed, we need a new one
 		defer cancel()
 		log.Info().Msg("Shutting down HTTP server...")
 		if err := server.Shutdown(shutdownCtx); err != nil {

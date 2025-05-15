@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"time"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -39,8 +37,6 @@ func init() {
 }
 
 func initConfig() {
-	v.SetDefault("shutdown-timeout", 5*time.Second)
-
 	// Top-level defaults
 	v.SetDefault("openapi-definitions-path", "./bin/definitions")
 	v.SetDefault("enable-kcp", true)
