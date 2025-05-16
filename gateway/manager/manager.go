@@ -74,7 +74,7 @@ func NewManager(log *logger.Logger, cfg *rest.Config, appCfg appConfig.Config) (
 	cfg.Host = fmt.Sprintf("%s://%s", u.Scheme, u.Host)
 
 	cfg.Wrap(func(rt http.RoundTripper) http.RoundTripper {
-		return NewRoundTripper(log, rt, appCfg.Gateway.UsernameClaim, appCfg.Gateway.ShouldImpersonate)
+		return NewRoundTripper(log, appCfg.Gateway.UsernameClaim, appCfg.Gateway.ShouldImpersonate)
 	})
 
 	runtimeClient, err := kcp.NewClusterAwareClientWithWatch(cfg, client.Options{})
@@ -201,7 +201,6 @@ func (s *Service) createHandler(schema *graphql.Schema) *graphqlHandler {
 }
 
 func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-
 	if s.appCfg.Gateway.Cors.Enabled {
 		allowedOrigins := strings.Join(s.appCfg.Gateway.Cors.AllowedOrigins, ",")
 		allowedHeaders := strings.Join(s.appCfg.Gateway.Cors.AllowedHeaders, ",")
