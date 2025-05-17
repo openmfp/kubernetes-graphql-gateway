@@ -12,6 +12,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
+	"github.com/openmfp/golang-commons/logger"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/clusterpath"
@@ -51,18 +52,21 @@ type ReconcilerOpts struct {
 func NewReconciler(appCfg config.Config, opts ReconcilerOpts, restcfg *rest.Config,
 	discoveryInterface discovery.DiscoveryInterface,
 	preReconcileFunc func(cr *apischema.CRDResolver, io workspacefile.IOHandler) error,
-	discoverFactory func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error)) (CustomReconciler, error) {
+	discoverFactory func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error),
+	log *logger.Logger,
+) (CustomReconciler, error) {
 	if !appCfg.EnableKcp {
-		return newStandardReconciler(opts, discoveryInterface, preReconcileFunc)
+		return newStandardReconciler(opts, discoveryInterface, preReconcileFunc, log)
 	}
 
-	return newKcpReconciler(opts, restcfg, discoverFactory)
+	return newKcpReconciler(opts, restcfg, discoverFactory, log)
 }
 
 func newStandardReconciler(
 	opts ReconcilerOpts,
 	discoveryInterface discovery.DiscoveryInterface,
 	preReconcileFunc func(cr *apischema.CRDResolver, io workspacefile.IOHandler) error,
+	log *logger.Logger,
 ) (CustomReconciler, error) {
 	ioHandler, err := workspacefile.NewIOHandler(opts.OpenAPIDefinitionsPath)
 	if err != nil {
@@ -83,7 +87,7 @@ func newStandardReconciler(
 		return nil, errors.Join(ErrGenerateSchema, err)
 	}
 
-	return controller.NewCRDReconciler(kubernetesClusterName, opts.Client, schemaResolver, ioHandler), nil
+	return controller.NewCRDReconciler(kubernetesClusterName, opts.Client, schemaResolver, ioHandler, log), nil
 }
 
 func restMapperFromConfig(cfg *rest.Config) (meta.RESTMapper, error) {
@@ -114,7 +118,7 @@ func PreReconcile(
 	return nil
 }
 
-func newKcpReconciler(opts ReconcilerOpts, restcfg *rest.Config, newDiscoveryFactoryFunc func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error)) (CustomReconciler, error) {
+func newKcpReconciler(opts ReconcilerOpts, restcfg *rest.Config, newDiscoveryFactoryFunc func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error), log *logger.Logger) (CustomReconciler, error) {
 	ioHandler, err := workspacefile.NewIOHandler(opts.OpenAPIDefinitionsPath)
 	if err != nil {
 		return nil, errors.Join(ErrCreateIOHandler, err)
@@ -131,6 +135,6 @@ func newKcpReconciler(opts ReconcilerOpts, restcfg *rest.Config, newDiscoveryFac
 	}
 
 	return controller.NewAPIBindingReconciler(
-		ioHandler, df, apischema.NewResolver(), pr,
+		ioHandler, df, apischema.NewResolver(), pr, log,
 	), nil
 }
