@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/openmfp/golang-commons/sentry"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,6 +19,8 @@ import (
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/handler"
 	"github.com/kcp-dev/logicalcluster/v3"
+	authv1 "k8s.io/api/authorization/v1"
+	authclient "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
@@ -241,21 +244,32 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token := r.Header.Get("Authorization")
-	if !s.appCfg.LocalDevelopment && token == "" {
-		http.Error(w, "Authorization header is required", http.StatusUnauthorized)
-		return
+	token = strings.TrimPrefix(token, "Bearer ")
+
+	if !s.appCfg.LocalDevelopment {
+		if token == "" {
+			http.Error(w, "Authorization header is required", http.StatusUnauthorized)
+			return
+		}
+
+		ok, err = s.checkTokenWithK8s(r.Context(), token)
+		if err != nil {
+			s.log.Error().Err(err).Msg("error validating token with k8s")
+			http.Error(w, "error validating token", http.StatusInternalServerError)
+			return
+		}
+
+		if !ok {
+			http.Error(w, "Provided token is not authorized to access the cluster", http.StatusUnauthorized)
+			return
+		}
 	}
 
 	if s.appCfg.EnableKcp {
 		r = r.WithContext(kontext.WithCluster(r.Context(), logicalcluster.Name(workspace)))
 	}
 
-	split := strings.Split(token, " ")
-	if len(split) == 1 {
-		r = r.WithContext(context.WithValue(r.Context(), TokenKey{}, token))
-	} else {
-		r = r.WithContext(context.WithValue(r.Context(), TokenKey{}, split[1]))
-	}
+	r = r.WithContext(context.WithValue(r.Context(), TokenKey{}, token))
 
 	if r.Header.Get("Accept") == "text/event-stream" {
 		s.handleSubscription(w, r, h.schema)
@@ -272,6 +286,36 @@ func (s *Service) parsePath(path string) (workspace string, err error) {
 	}
 
 	return parts[0], nil
+}
+
+func (s *Service) checkTokenWithK8s(ctx context.Context, token string) (bool, error) {
+	// Build a minimal rest.Config for the user token, not copying admin config
+	cfg := &rest.Config{
+		Host: s.restCfg.Host,
+		TLSClientConfig: rest.TLSClientConfig{
+			CAFile: s.restCfg.TLSClientConfig.CAFile,
+			CAData: s.restCfg.TLSClientConfig.CAData,
+		},
+		BearerToken: token,
+	}
+
+	authCli, err := authclient.NewForConfig(cfg)
+	if err != nil {
+		return false, err
+	}
+	resp, err := authCli.SelfSubjectAccessReviews().Create(ctx, &authv1.SelfSubjectAccessReview{
+		Spec: authv1.SelfSubjectAccessReviewSpec{
+			ResourceAttributes: &authv1.ResourceAttributes{
+				Verb:     "get",
+				Resource: "pods",
+			},
+		},
+	}, metav1.CreateOptions{})
+	if err != nil {
+		return false, err
+	}
+
+	return resp.Status.Allowed, nil
 }
 
 func (s *Service) handleSubscription(w http.ResponseWriter, r *http.Request, schema *graphql.Schema) {
@@ -291,7 +335,11 @@ func (s *Service) handleSubscription(w http.ResponseWriter, r *http.Request, sch
 		return
 	}
 
-	flusher := http.NewResponseController(w)
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		return
+	}
 
 	r.Body.Close()
 
