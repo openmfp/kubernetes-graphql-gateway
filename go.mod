@@ -11,6 +11,7 @@ replace github.com/graphql-go/handler => github.com/vertex451/handler v0.0.0-202
 require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-openapi/spec v0.21.0
+	github.com/gobuffalo/flect v1.0.3
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/gnostic-models v0.6.9
 	github.com/graphql-go/graphql v0.8.1
@@ -18,7 +19,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kcp-dev/kcp/sdk v0.27.1
 	github.com/kcp-dev/logicalcluster/v3 v3.0.5
-	github.com/openmfp/account-operator v0.169.4
+	github.com/openmfp/account-operator v0.169.7
 	github.com/openmfp/golang-commons v0.147.8
 	github.com/rs/zerolog v1.34.0
 	github.com/spf13/cobra v1.9.1
