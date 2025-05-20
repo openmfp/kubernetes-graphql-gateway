@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/openmfp/golang-commons/sentry"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,8 +19,6 @@ import (
 	"github.com/graphql-go/graphql"
 	"github.com/graphql-go/handler"
 	"github.com/kcp-dev/logicalcluster/v3"
-	authv1 "k8s.io/api/authorization/v1"
-	authclient "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
@@ -245,6 +243,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	token := r.Header.Get("Authorization")
 	token = strings.TrimPrefix(token, "Bearer ")
+	token = strings.TrimPrefix(token, "bearer ")
 
 	if !s.appCfg.LocalDevelopment {
 		if token == "" {
@@ -252,7 +251,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		ok, err = s.checkTokenWithK8s(r.Context(), token)
+		ok, err = s.validateToken(r.Context(), token)
 		if err != nil {
 			s.log.Error().Err(err).Msg("error validating token with k8s")
 			http.Error(w, "error validating token", http.StatusInternalServerError)
@@ -288,8 +287,8 @@ func (s *Service) parsePath(path string) (workspace string, err error) {
 	return parts[0], nil
 }
 
-func (s *Service) checkTokenWithK8s(ctx context.Context, token string) (bool, error) {
-	// Build a minimal rest.Config for the user token, not copying admin config
+// validateToken uses the /version endpoint for a general authentication check.
+func (s *Service) validateToken(ctx context.Context, token string) (bool, error) {
 	cfg := &rest.Config{
 		Host: s.restCfg.Host,
 		TLSClientConfig: rest.TLSClientConfig{
@@ -299,23 +298,34 @@ func (s *Service) checkTokenWithK8s(ctx context.Context, token string) (bool, er
 		BearerToken: token,
 	}
 
-	authCli, err := authclient.NewForConfig(cfg)
-	if err != nil {
-		return false, err
-	}
-	resp, err := authCli.SelfSubjectAccessReviews().Create(ctx, &authv1.SelfSubjectAccessReview{
-		Spec: authv1.SelfSubjectAccessReviewSpec{
-			ResourceAttributes: &authv1.ResourceAttributes{
-				Verb:     "get",
-				Resource: "pods",
-			},
-		},
-	}, metav1.CreateOptions{})
+	transport, err := rest.TransportFor(cfg)
 	if err != nil {
 		return false, err
 	}
 
-	return resp.Status.Allowed, nil
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/version", cfg.Host), nil)
+	if err != nil {
+		return false, err
+	}
+
+	resp, err := transport.RoundTrip(req)
+	if err != nil {
+		return false, err
+	}
+
+	defer resp.Body.Close()
+
+	_, err = io.ReadAll(resp.Body)
+	switch {
+	case err != nil:
+		return false, err
+	case resp.StatusCode == http.StatusUnauthorized:
+		return false, nil
+	case resp.StatusCode == http.StatusOK:
+		return true, nil
+	default:
+		return false, fmt.Errorf("unexpected status code from /version: %d", resp.StatusCode)
+	}
 }
 
 func (s *Service) handleSubscription(w http.ResponseWriter, r *http.Request, schema *graphql.Schema) {
