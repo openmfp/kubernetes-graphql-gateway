@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/openmfp/golang-commons/sentry"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -298,7 +297,7 @@ func (s *Service) validateToken(ctx context.Context, token string) (bool, error)
 		BearerToken: token,
 	}
 
-	transport, err := rest.TransportFor(cfg)
+	httpClient, err := rest.HTTPClientFor(cfg)
 	if err != nil {
 		return false, err
 	}
@@ -308,20 +307,16 @@ func (s *Service) validateToken(ctx context.Context, token string) (bool, error)
 		return false, err
 	}
 
-	resp, err := transport.RoundTrip(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return false, err
 	}
+	resp.Body.Close()
 
-	defer resp.Body.Close()
-
-	_, err = io.ReadAll(resp.Body)
-	switch {
-	case err != nil:
-		return false, err
-	case resp.StatusCode == http.StatusUnauthorized:
+	switch resp.StatusCode {
+	case http.StatusUnauthorized:
 		return false, nil
-	case resp.StatusCode == http.StatusOK:
+	case http.StatusOK:
 		return true, nil
 	default:
 		return false, fmt.Errorf("unexpected status code from /version: %d", resp.StatusCode)
@@ -345,12 +340,7 @@ func (s *Service) handleSubscription(w http.ResponseWriter, r *http.Request, sch
 		return
 	}
 
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
-		return
-	}
-
+	flusher := http.NewResponseController(w)
 	r.Body.Close()
 
 	subscriptionParams := graphql.Params{

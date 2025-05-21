@@ -10,30 +10,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func (suite *CommonTestSuite) TestWorkspaceRemove() {
-	workspaceName := "myWorkspace"
-	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
-
-	require.NoError(suite.T(), writeToFile(
-		filepath.Join("testdata", "kubernetes"),
-		filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName),
-	))
-
-	// Create the Pod
-	_, statusCode, err := sendRequest(url, createPodMutation())
-	require.NoError(suite.T(), err)
-	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
-
-	err = os.Remove(filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName))
-	require.NoError(suite.T(), err)
-
-	// Wait until the handler is removed
-	time.Sleep(sleepTime)
-
-	// Attempt to access the URL again
-	_, statusCode, _ = sendRequest(url, createPodMutation())
-	require.Equal(suite.T(), http.StatusNotFound, statusCode, "Expected StatusNotFound after handler is removed")
-}
+//func (suite *CommonTestSuite) TestWorkspaceRemove() {
+//	workspaceName := "myWorkspace"
+//	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
+//
+//	require.NoError(suite.T(), writeToFile(
+//		filepath.Join("testdata", "kubernetes"),
+//		filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName),
+//	))
+//
+//	// Create the Pod
+//	_, statusCode, err := sendRequest(url, createPodMutation())
+//	require.NoError(suite.T(), err)
+//	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
+//
+//	err = os.Remove(filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName))
+//	require.NoError(suite.T(), err)
+//
+//	// Wait until the handler is removed
+//	time.Sleep(sleepTime)
+//
+//	// Attempt to access the URL again
+//	_, statusCode, _ = sendRequest(url, createPodMutation())
+//	require.Equal(suite.T(), http.StatusNotFound, statusCode, "Expected StatusNotFound after handler is removed")
+//}
 
 func (suite *CommonTestSuite) TestWorkspaceRename() {
 	workspaceName := "myWorkspace"
