@@ -1,11 +1,13 @@
 package manager
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/openmfp/golang-commons/sentry"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -250,16 +252,35 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		ok, err = s.validateToken(r.Context(), token)
-		if err != nil {
-			s.log.Error().Err(err).Msg("error validating token with k8s")
-			http.Error(w, "error validating token", http.StatusInternalServerError)
-			return
-		}
+		if s.appCfg.AuthenticateSchemaRequests {
+			isIntrospection := false
+			var params struct {
+				Query string `json:"query"`
+			}
+			bodyBytes, err := io.ReadAll(r.Body)
+			r.Body.Close()
+			if err == nil {
+				if err = json.Unmarshal(bodyBytes, &params); err == nil {
+					if strings.Contains(params.Query, "__schema") || strings.Contains(params.Query, "__type") {
+						isIntrospection = true
+					}
+				}
+			}
+			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
-		if !ok {
-			http.Error(w, "Provided token is not authorized to access the cluster", http.StatusUnauthorized)
-			return
+			if isIntrospection {
+				ok, err = s.validateToken(r.Context(), token)
+				if err != nil {
+					s.log.Error().Err(err).Msg("error validating token with k8s")
+					http.Error(w, "error validating token", http.StatusInternalServerError)
+					return
+				}
+
+				if !ok {
+					http.Error(w, "Provided token is not authorized to access the cluster", http.StatusUnauthorized)
+					return
+				}
+			}
 		}
 	}
 
