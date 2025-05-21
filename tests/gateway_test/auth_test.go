@@ -31,8 +31,8 @@ func (suite *CommonTestSuite) TestTokenValidation() {
 	req.Header.Set("Authorization", "Bearer "+suite.restCfg.BearerToken)
 
 	resp, err := http.DefaultClient.Do(req)
-	defer resp.Body.Close()
 	require.NoError(suite.T(), err)
+	defer resp.Body.Close()
 
 	require.NotEqual(suite.T(), http.StatusUnauthorized, resp.StatusCode, "Token should be valid for test cluster")
 }
