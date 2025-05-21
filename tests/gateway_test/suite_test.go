@@ -2,14 +2,15 @@ package gateway_test
 
 import (
 	"fmt"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/graphql-go/graphql"
 	"github.com/openmfp/golang-commons/logger"

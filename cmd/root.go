@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/viper"
 
 	openmfpconfig "github.com/openmfp/golang-commons/config"
+	"github.com/openmfp/golang-commons/logger"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 )
 
@@ -12,6 +13,7 @@ var (
 	appCfg     config.Config
 	defaultCfg *openmfpconfig.CommonServiceConfig
 	v          *viper.Viper
+	log        *logger.Logger
 )
 
 var rootCmd = &cobra.Command{
@@ -28,7 +30,15 @@ func init() {
 		panic(err)
 	}
 
-	cobra.OnInitialize(initConfig)
+	cobra.OnInitialize(func() {
+		initConfig()
+
+		var err error
+		log, err = setupLogger(defaultCfg.Log.Level)
+		if err != nil {
+			panic("failed to initialize logger: " + err.Error())
+		}
+	})
 
 	err = openmfpconfig.BindConfigToFlags(v, gatewayCmd, &appCfg)
 	if err != nil {
