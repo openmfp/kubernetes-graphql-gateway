@@ -18,7 +18,7 @@ By default, introspection requests (i.e. the requests that are made to fetch the
 
 You can protect those requests by setting the following environment variable:
 ```shell
-expoprt INTROSPECTION_AUTHENTICATION=true
+export INTROSPECTION_AUTHENTICATION=true
 ```
 
 ### Error fetching schema
