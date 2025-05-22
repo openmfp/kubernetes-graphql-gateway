@@ -40,7 +40,8 @@ type CommonTestSuite struct {
 	manager       manager.Provider
 	server        *httptest.Server
 
-	LocalDevelopment bool
+	LocalDevelopment           bool
+	AuthenticateSchemaRequests bool
 
 	staticTokenFile string
 	staticToken     string
@@ -92,6 +93,7 @@ func (suite *CommonTestSuite) SetupTest() {
 
 	suite.appCfg.LocalDevelopment = suite.LocalDevelopment
 	suite.appCfg.Gateway.Cors.Enabled = true
+	suite.appCfg.AuthenticateSchemaRequests = suite.AuthenticateSchemaRequests
 
 	suite.log, err = logger.New(logger.DefaultConfig())
 	require.NoError(suite.T(), err)
