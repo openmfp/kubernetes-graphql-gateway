@@ -78,7 +78,7 @@ func (s *Service) OnFileChanged(filename string) {
 	s.handlers.registry[filename] = s.createHandler(schema)
 	s.handlers.mu.Unlock()
 
-	s.log.Info().Str("endpoint", fmt.Sprintf("http://localhost:%s/%s/graphql", s.appCfg.Gateway.Port, filename)).Msg("Registered endpoint")
+	s.log.Info().Str("endpoint", fmt.Sprintf("http://localhost:%s/%s/graphql", s.AppCfg.Gateway.Port, filename)).Msg("Registered endpoint")
 }
 
 func (s *Service) OnFileDeleted(filename string) {
@@ -89,7 +89,7 @@ func (s *Service) OnFileDeleted(filename string) {
 }
 
 func (s *Service) loadSchemaFromFile(filename string) (*graphql.Schema, error) {
-	definitions, err := ReadDefinitionFromFile(filepath.Join(s.appCfg.OpenApiDefinitionsPath, filename))
+	definitions, err := ReadDefinitionFromFile(filepath.Join(s.AppCfg.OpenApiDefinitionsPath, filename))
 	if err != nil {
 		return nil, err
 	}

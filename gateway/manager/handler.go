@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/openmfp/golang-commons/sentry"
 	"io"
 	"net/http"
 	"strings"
@@ -17,6 +16,8 @@ import (
 	"github.com/kcp-dev/logicalcluster/v3"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/kontext"
+
+	"github.com/openmfp/golang-commons/sentry"
 )
 
 var (
@@ -36,9 +37,9 @@ type graphqlHandler struct {
 func (s *Service) createHandler(schema *graphql.Schema) *graphqlHandler {
 	h := handler.New(&handler.Config{
 		Schema:     schema,
-		Pretty:     s.appCfg.Gateway.HandlerCfg.Pretty,
-		Playground: s.appCfg.Gateway.HandlerCfg.Playground,
-		GraphiQL:   s.appCfg.Gateway.HandlerCfg.GraphiQL,
+		Pretty:     s.AppCfg.Gateway.HandlerCfg.Pretty,
+		Playground: s.AppCfg.Gateway.HandlerCfg.Playground,
+		GraphiQL:   s.AppCfg.Gateway.HandlerCfg.GraphiQL,
 	})
 	return &graphqlHandler{
 		schema:  schema,
@@ -77,9 +78,9 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) handleCORS(w http.ResponseWriter, r *http.Request) bool {
-	if s.appCfg.Gateway.Cors.Enabled {
-		allowedOrigins := strings.Join(s.appCfg.Gateway.Cors.AllowedOrigins, ",")
-		allowedHeaders := strings.Join(s.appCfg.Gateway.Cors.AllowedHeaders, ",")
+	if s.AppCfg.Gateway.Cors.Enabled {
+		allowedOrigins := strings.Join(s.AppCfg.Gateway.Cors.AllowedOrigins, ",")
+		allowedHeaders := strings.Join(s.AppCfg.Gateway.Cors.AllowedHeaders, ",")
 		w.Header().Set("Access-Control-Allow-Origin", allowedOrigins)
 		w.Header().Set("Access-Control-Allow-Headers", allowedHeaders)
 		// setting cors allowed methods is not needed for this service,
@@ -129,13 +130,13 @@ func getToken(r *http.Request) string {
 }
 
 func (s *Service) handleAuth(w http.ResponseWriter, r *http.Request, token string) bool {
-	if !s.appCfg.LocalDevelopment {
+	if !s.AppCfg.LocalDevelopment {
 		if token == "" {
 			http.Error(w, "Authorization header is required", http.StatusUnauthorized)
 			return false
 		}
 
-		if s.appCfg.AuthenticateSchemaRequests {
+		if s.AppCfg.AuthenticateSchemaRequests {
 			if s.isIntrospectionQuery(r) {
 				ok, err := s.validateToken(r.Context(), token)
 				if err != nil {
@@ -210,7 +211,7 @@ func (s *Service) validateToken(ctx context.Context, token string) (bool, error)
 }
 
 func (s *Service) setContexts(r *http.Request, workspace, token string) *http.Request {
-	if s.appCfg.EnableKcp {
+	if s.AppCfg.EnableKcp {
 		r = r.WithContext(kontext.WithCluster(r.Context(), logicalcluster.Name(workspace)))
 	}
 	return r.WithContext(context.WithValue(r.Context(), TokenKey{}, token))

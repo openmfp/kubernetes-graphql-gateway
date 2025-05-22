@@ -2,12 +2,13 @@ package manager
 
 import (
 	"fmt"
-	"github.com/fsnotify/fsnotify"
-	"github.com/openmfp/golang-commons/logger"
-	"k8s.io/client-go/rest"
 	"net/http"
 	"net/url"
 	"path/filepath"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/openmfp/golang-commons/logger"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
 
@@ -21,7 +22,7 @@ type Provider interface {
 }
 
 type Service struct {
-	appCfg  appConfig.Config
+	AppCfg  appConfig.Config
 	restCfg *rest.Config
 
 	log      *logger.Logger
@@ -54,7 +55,7 @@ func NewManager(log *logger.Logger, cfg *rest.Config, appCfg appConfig.Config) (
 	}
 
 	m := &Service{
-		appCfg: appCfg,
+		AppCfg: appCfg,
 		handlers: handlerStore{
 			registry: make(map[string]*graphqlHandler),
 		},
