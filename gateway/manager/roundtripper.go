@@ -60,7 +60,7 @@ func NewUnauthorizedRoundTripper() http.RoundTripper {
 
 func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Allow unauthenticated access to /api/v1 for Kubernetes API discovery request
-	if req.URL.Path == K8S_API_V1_PATH {
+	if req.Method == http.MethodGet && req.URL.Path == K8S_API_V1_PATH {
 		return rt.adminRT.RoundTrip(req)
 	}
 
