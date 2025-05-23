@@ -2,18 +2,20 @@ package manager_test
 
 import (
 	"context"
-	"github.com/openmfp/golang-commons/logger/testlogger"
-	"github.com/stretchr/testify/mock"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
+	"github.com/openmfp/golang-commons/logger/testlogger"
+
+	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager/mocks"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"k8s.io/client-go/rest"
 )
 
 func TestRoundTripper_RoundTrip(t *testing.T) {
@@ -92,13 +94,13 @@ func TestRoundTripper_RoundTrip(t *testing.T) {
 			impersonate:   true,
 			expectedUser:  "test-user",
 			setupMocks: func(adminRT, tokenOnlyRT, unauthorizedRT *mocks.MockRoundTripper) {
-				// The impersonating roundtripper wraps tokenOnlyRT, so tokenOnlyRT should be called
 				tokenOnlyRT.EXPECT().RoundTrip(mock.Anything).Once().Return(&http.Response{}, nil)
 			},
 		},
 	}
 
 	var adminRT, tokenOnlyRT, unauthorizedRT *mocks.MockRoundTripper
+	var appCfg config.Config
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			adminRT = &mocks.MockRoundTripper{}
@@ -109,12 +111,13 @@ func TestRoundTripper_RoundTrip(t *testing.T) {
 				tt.setupMocks(adminRT, tokenOnlyRT, unauthorizedRT)
 			}
 
+			appCfg.Gateway.ShouldImpersonate = tt.impersonate
+			appCfg.Gateway.UsernameClaim = "sub"
+
 			rt := manager.NewRoundTripper(
 				testlogger.New().HideLogOutput().Logger,
+				appCfg,
 				adminRT, tokenOnlyRT, unauthorizedRT,
-				"sub",
-				tt.impersonate,
-				rest.TLSClientConfig{},
 			)
 
 			req := httptest.NewRequest(http.MethodGet, tt.requestTarget, nil)
