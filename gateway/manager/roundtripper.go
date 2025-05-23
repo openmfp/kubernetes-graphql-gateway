@@ -1,66 +1,109 @@
 package manager
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"net/http"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/openmfp/golang-commons/logger"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
 )
+
+const K8S_API_V1_PATH = "/api/v1"
 
 type TokenKey struct{}
 
 type roundTripper struct {
-	userClaim   string
-	log         *logger.Logger
-	base        http.RoundTripper // TODO change to awareBaseHttp
-	impersonate bool
+	userClaim                            string
+	log                                  *logger.Logger
+	adminRT, tokenOnlyRT, unauthorizedRT http.RoundTripper
+	impersonate                          bool
 }
 
-func NewRoundTripper(log *logger.Logger, base http.RoundTripper, userNameClaim string, impersonate bool) http.RoundTripper {
+type unauthorizedRoundTripper struct{}
+
+func NewRoundTripper(log *logger.Logger, adminRoundTripper, tokenOnlyRT, unauthorizedRT http.RoundTripper, userNameClaim string, impersonate bool, tlsConfig rest.TLSClientConfig) http.RoundTripper {
 	return &roundTripper{
-		log:         log,
-		base:        base,
+		log:            log,
+		adminRT:        adminRoundTripper,
+		tokenOnlyRT:    tokenOnlyRT,
+		unauthorizedRT: unauthorizedRT,
+
 		userClaim:   userNameClaim,
 		impersonate: impersonate,
 	}
 }
 
+// NewTokenOnlyTransport does not include any admin credentials.
+// It is intended to rely solely on token authentication.
+func NewTokenOnlyTransport(tlsConfig rest.TLSClientConfig) http.RoundTripper {
+	newTlsConfig := &tls.Config{}
+	if len(tlsConfig.CAData) > 0 || tlsConfig.CAFile != "" {
+		rootCAs := x509.NewCertPool()
+		if len(tlsConfig.CAData) > 0 {
+			rootCAs.AppendCertsFromPEM(tlsConfig.CAData)
+		}
+		newTlsConfig.RootCAs = rootCAs
+	}
+
+	return &http.Transport{
+		TLSClientConfig: newTlsConfig,
+	}
+}
+
+// NewUnauthorizedRoundTripper returns a RoundTripper that always returns 401 Unauthorized
+func NewUnauthorizedRoundTripper() http.RoundTripper {
+	return &unauthorizedRoundTripper{}
+}
+
 func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Allow unauthenticated access to /api/v1 for Kubernetes API discovery request
+	if req.URL.Path == K8S_API_V1_PATH {
+		return rt.adminRT.RoundTrip(req)
+	}
+
 	token, ok := req.Context().Value(TokenKey{}).(string)
-	if !ok {
-		rt.log.Debug().Msg("No token found in context")
-		return rt.base.RoundTrip(req)
+	if !ok || token == "" {
+		rt.log.Debug().Msg("No token found in context, denying request")
+		return rt.unauthorizedRT.RoundTrip(req)
 	}
 
 	if !rt.impersonate {
-		req.Header.Del("Authorization")
-		t := transport.NewBearerAuthRoundTripper(token, rt.base)
-		return t.RoundTrip(req)
+		return transport.NewBearerAuthRoundTripper(token, rt.tokenOnlyRT).RoundTrip(req)
 	}
 
 	claims := jwt.MapClaims{}
 	_, _, err := jwt.NewParser().ParseUnverified(token, claims)
 	if err != nil {
-		rt.log.Error().Err(err).Msg("Failed to parse token")
-		return rt.base.RoundTrip(req)
+		rt.log.Error().Err(err).Msg("Failed to parse token for impersonation, denying request")
+		return rt.unauthorizedRT.RoundTrip(req)
 	}
 
 	userNameRaw, ok := claims[rt.userClaim]
 	if !ok {
-		rt.log.Debug().Msg("No user claim found in token")
-		return rt.base.RoundTrip(req)
+		rt.log.Debug().Msg("No user claim found in token for impersonation, denying request")
+		return rt.unauthorizedRT.RoundTrip(req)
 	}
 
 	userName, ok := userNameRaw.(string)
-	if !ok {
-		rt.log.Debug().Msg("User claim is not a string")
-		return rt.base.RoundTrip(req)
+	if !ok || userName == "" {
+		rt.log.Debug().Msg("User claim is not a valid string for impersonation, denying request")
+		return rt.unauthorizedRT.RoundTrip(req)
 	}
 
-	t := transport.NewImpersonatingRoundTripper(transport.ImpersonationConfig{
+	impersonatingRT := transport.NewImpersonatingRoundTripper(transport.ImpersonationConfig{
 		UserName: userName,
-	}, rt.base)
+	}, rt.tokenOnlyRT)
 
-	return t.RoundTrip(req)
+	return transport.NewBearerAuthRoundTripper(token, impersonatingRT).RoundTrip(req)
+}
+
+func (u *unauthorizedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: http.StatusUnauthorized,
+		Request:    req,
+		Body:       http.NoBody,
+	}, nil
 }

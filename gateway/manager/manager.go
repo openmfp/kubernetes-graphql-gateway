@@ -46,7 +46,15 @@ func NewManager(log *logger.Logger, cfg *rest.Config, appCfg appConfig.Config) (
 	cfg.Host = fmt.Sprintf("%s://%s", u.Scheme, u.Host)
 
 	cfg.Wrap(func(rt http.RoundTripper) http.RoundTripper {
-		return NewRoundTripper(log, rt, appCfg.Gateway.UsernameClaim, appCfg.Gateway.ShouldImpersonate)
+		return NewRoundTripper(
+			log,
+			rt,
+			NewTokenOnlyTransport(cfg.TLSClientConfig),
+			NewUnauthorizedRoundTripper(),
+			appCfg.Gateway.UsernameClaim,
+			appCfg.Gateway.ShouldImpersonate,
+			cfg.TLSClientConfig,
+		)
 	})
 
 	runtimeClient, err := kcp.NewClusterAwareClientWithWatch(cfg, client.Options{})

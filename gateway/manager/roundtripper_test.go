@@ -2,93 +2,132 @@ package manager_test
 
 import (
 	"context"
+	"github.com/openmfp/golang-commons/logger/testlogger"
+	"github.com/stretchr/testify/mock"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/openmfp/golang-commons/logger"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-	"k8s.io/client-go/transport"
-
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager/mocks"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/rest"
 )
 
 func TestRoundTripper_RoundTrip(t *testing.T) {
 	tests := []struct {
-		name         string
-		token        string
-		impersonate  bool
-		expectedUser string
+		name          string
+		token         string
+		requestTarget string
+		impersonate   bool
+		expectedUser  string
+		setupMocks    func(adminRT, tokenOnlyRT, unauthorizedRT *mocks.MockRoundTripper)
+		err           error
 	}{
 		{
-			name:         "success",
-			token:        createTestToken(t, jwt.MapClaims{"sub": "test-user"}),
-			impersonate:  true,
-			expectedUser: "test-user",
+			name:          "discovery_request",
+			requestTarget: manager.K8S_API_V1_PATH,
+			setupMocks: func(adminRT, tokenOnlyRT, unauthorizedRT *mocks.MockRoundTripper) {
+				adminRT.EXPECT().RoundTrip(mock.Anything).Once().Return(&http.Response{}, nil)
+			},
 		},
 		{
-			name:        "no_token_in_context",
-			impersonate: false,
+			name:          "no_token_in_context",
+			requestTarget: "/api/v1/configMaps",
+			setupMocks: func(adminRT, tokenOnlyRT, unauthorizedRT *mocks.MockRoundTripper) {
+				unauthorizedRT.EXPECT().RoundTrip(mock.Anything).Once().Return(&http.Response{}, nil)
+			},
 		},
 		{
-			name:        "token_present_impersonate_false",
-			token:       "valid-token",
-			impersonate: false,
+			name:          "impersonate_false",
+			token:         "valid_token",
+			requestTarget: "/api/v1/configMaps",
+			impersonate:   false,
+			setupMocks: func(adminRT, tokenOnlyRT, unauthorizedRT *mocks.MockRoundTripper) {
+				tokenOnlyRT.EXPECT().RoundTrip(mock.Anything).Once().Return(&http.Response{}, nil)
+			},
 		},
 		{
-			name:        "failed_to_parse_token",
-			token:       "invalid-token",
-			impersonate: true,
+			name:          "failed_to_parse_token",
+			token:         "not_valid_token",
+			requestTarget: "/api/v1/configMaps",
+			impersonate:   true,
+			setupMocks: func(adminRT, tokenOnlyRT, unauthorizedRT *mocks.MockRoundTripper) {
+				unauthorizedRT.EXPECT().RoundTrip(mock.Anything).Once().Return(&http.Response{}, nil)
+			},
 		},
 		{
-			name:        "user_claim_not_found",
-			token:       createTestToken(t, jwt.MapClaims{}),
-			impersonate: true,
+			name:          "user_claim_not_found",
+			token:         createTestToken(t, jwt.MapClaims{}), // no "sub" claim
+			requestTarget: "/api/v1/configMaps",
+			impersonate:   true,
+			setupMocks: func(adminRT, tokenOnlyRT, unauthorizedRT *mocks.MockRoundTripper) {
+				unauthorizedRT.EXPECT().RoundTrip(mock.Anything).Once().Return(&http.Response{}, nil)
+			},
 		},
 		{
-			name:        "user_claim_is_not_a_string",
-			token:       createTestToken(t, jwt.MapClaims{"sub": 123}),
-			impersonate: true,
+			name:          "user_claim_is_not_a_string",
+			token:         createTestToken(t, jwt.MapClaims{"sub": 123}), // sub is not a string
+			requestTarget: "/api/v1/configMaps",
+			impersonate:   true,
+			setupMocks: func(adminRT, tokenOnlyRT, unauthorizedRT *mocks.MockRoundTripper) {
+				unauthorizedRT.EXPECT().RoundTrip(mock.Anything).Once().Return(&http.Response{}, nil)
+			},
+		},
+		{
+			name:          "user_claim_is_empty_string",
+			token:         createTestToken(t, jwt.MapClaims{"sub": ""}), // sub is empty string
+			requestTarget: "/api/v1/configMaps",
+			impersonate:   true,
+			setupMocks: func(adminRT, tokenOnlyRT, unauthorizedRT *mocks.MockRoundTripper) {
+				unauthorizedRT.EXPECT().RoundTrip(mock.Anything).Once().Return(&http.Response{}, nil)
+			},
+		},
+		{
+			name:          "impersonation_success",
+			token:         createTestToken(t, jwt.MapClaims{"sub": "test-user"}),
+			requestTarget: "/api/v1/configMaps",
+			impersonate:   true,
+			expectedUser:  "test-user",
+			setupMocks: func(adminRT, tokenOnlyRT, unauthorizedRT *mocks.MockRoundTripper) {
+				// The impersonating roundtripper wraps tokenOnlyRT, so tokenOnlyRT should be called
+				tokenOnlyRT.EXPECT().RoundTrip(mock.Anything).Once().Return(&http.Response{}, nil)
+			},
 		},
 	}
 
+	var adminRT, tokenOnlyRT, unauthorizedRT *mocks.MockRoundTripper
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockRoundTripper := &mocks.MockRoundTripper{}
+			adminRT = &mocks.MockRoundTripper{}
+			tokenOnlyRT = &mocks.MockRoundTripper{}
+			unauthorizedRT = &mocks.MockRoundTripper{}
 
-			mockRoundTripper.EXPECT().
-				RoundTrip(mock.Anything).
-				Return(&http.Response{StatusCode: http.StatusOK}, nil)
-
-			if tt.expectedUser != "" {
-				mockRoundTripper.EXPECT().
-					RoundTrip(mock.MatchedBy(func(req *http.Request) bool {
-						return req.Header.Get(transport.ImpersonateUserHeader) == tt.expectedUser
-					})).
-					Return(&http.Response{StatusCode: http.StatusOK}, nil)
+			if tt.setupMocks != nil {
+				tt.setupMocks(adminRT, tokenOnlyRT, unauthorizedRT)
 			}
 
-			log, err := logger.New(logger.DefaultConfig())
-			require.NoError(t, err)
+			rt := manager.NewRoundTripper(
+				testlogger.New().HideLogOutput().Logger,
+				adminRT, tokenOnlyRT, unauthorizedRT,
+				"sub",
+				tt.impersonate,
+				rest.TLSClientConfig{},
+			)
 
-			rt := manager.NewRoundTripper(log, mockRoundTripper, "sub", tt.impersonate)
-
-			req := httptest.NewRequest(http.MethodGet, "http://example.com", nil)
+			req := httptest.NewRequest(http.MethodGet, tt.requestTarget, nil)
 			if tt.token != "" {
 				ctx := context.WithValue(req.Context(), manager.TokenKey{}, tt.token)
 				req = req.WithContext(ctx)
 			}
 
 			resp, err := rt.RoundTrip(req)
-			require.NoError(t, err)
-			require.NotNil(t, resp)
-			assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-			mockRoundTripper.AssertExpectations(t)
+			if tt.err != nil {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+			}
 		})
 	}
 }

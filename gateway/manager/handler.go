@@ -68,7 +68,7 @@ func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.setContexts(r, workspace, token)
+	r = s.setContexts(r, workspace, token)
 
 	if r.Header.Get("Accept") == "text/event-stream" {
 		s.handleSubscription(w, r, h.schema)
@@ -214,6 +214,7 @@ func (s *Service) setContexts(r *http.Request, workspace, token string) *http.Re
 	if s.AppCfg.EnableKcp {
 		r = r.WithContext(kontext.WithCluster(r.Context(), logicalcluster.Name(workspace)))
 	}
+
 	return r.WithContext(context.WithValue(r.Context(), TokenKey{}, token))
 }
 
