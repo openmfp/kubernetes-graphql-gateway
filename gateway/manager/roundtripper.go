@@ -9,6 +9,8 @@ import (
 	"github.com/openmfp/golang-commons/logger"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
+
+	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 )
 
 const K8S_API_V1_PATH = "/api/v1"
@@ -16,23 +18,20 @@ const K8S_API_V1_PATH = "/api/v1"
 type TokenKey struct{}
 
 type roundTripper struct {
-	userClaim                            string
 	log                                  *logger.Logger
 	adminRT, tokenOnlyRT, unauthorizedRT http.RoundTripper
-	impersonate                          bool
+	appCfg                               config.Config
 }
 
 type unauthorizedRoundTripper struct{}
 
-func NewRoundTripper(log *logger.Logger, adminRoundTripper, tokenOnlyRT, unauthorizedRT http.RoundTripper, userNameClaim string, impersonate bool, tlsConfig rest.TLSClientConfig) http.RoundTripper {
+func NewRoundTripper(log *logger.Logger, appCfg config.Config, adminRoundTripper, tokenOnlyRT, unauthorizedRT http.RoundTripper) http.RoundTripper {
 	return &roundTripper{
 		log:            log,
 		adminRT:        adminRoundTripper,
 		tokenOnlyRT:    tokenOnlyRT,
 		unauthorizedRT: unauthorizedRT,
-
-		userClaim:   userNameClaim,
-		impersonate: impersonate,
+		appCfg:         appCfg,
 	}
 }
 
@@ -59,6 +58,10 @@ func NewUnauthorizedRoundTripper() http.RoundTripper {
 }
 
 func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if rt.appCfg.LocalDevelopment {
+		return rt.adminRT.RoundTrip(req)
+	}
+
 	// Allow unauthenticated access to /api/v1 for Kubernetes API discovery request
 	if req.Method == http.MethodGet && req.URL.Path == K8S_API_V1_PATH {
 		return rt.adminRT.RoundTrip(req)
@@ -70,7 +73,7 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		return rt.unauthorizedRT.RoundTrip(req)
 	}
 
-	if !rt.impersonate {
+	if !rt.appCfg.Gateway.ShouldImpersonate {
 		return transport.NewBearerAuthRoundTripper(token, rt.tokenOnlyRT).RoundTrip(req)
 	}
 
@@ -81,7 +84,7 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		return rt.unauthorizedRT.RoundTrip(req)
 	}
 
-	userNameRaw, ok := claims[rt.userClaim]
+	userNameRaw, ok := claims[rt.appCfg.Gateway.UsernameClaim]
 	if !ok {
 		rt.log.Debug().Msg("No user claim found in token for impersonation, denying request")
 		return rt.unauthorizedRT.RoundTrip(req)
