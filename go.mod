@@ -20,7 +20,7 @@ require (
 	github.com/kcp-dev/kcp/sdk v0.27.1
 	github.com/kcp-dev/logicalcluster/v3 v3.0.5
 	github.com/openmfp/account-operator v0.169.11
-	github.com/openmfp/golang-commons v0.147.8
+	github.com/openmfp/golang-commons v0.147.21
 	github.com/rs/zerolog v1.34.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
