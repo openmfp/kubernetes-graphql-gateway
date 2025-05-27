@@ -167,6 +167,14 @@ func TestIsDiscoveryRequest_AllBuiltinGroups(t *testing.T) {
 		{http.MethodGet, "/apis/security.istio.io", true},
 		{http.MethodGet, "/apis/authentication.istio.io", true},
 		{http.MethodGet, "/apis/core.openmfp.org/v1alpha1", true},
+		// Discovery requests with /clusters
+		{http.MethodGet, "/clusters/myworkspace/api", true},
+		{http.MethodGet, "/clusters/myworkspace/api/v1", true},
+		{http.MethodGet, "/clusters/myworkspace/apis", true},
+		{http.MethodGet, "/clusters/myworkspace/apis/apps", true},
+		{http.MethodGet, "/clusters/myworkspace/apis/apps/v1", true},
+		{http.MethodGet, "/clusters/myworkspace/apis/networking.k8s.io", true},
+		{http.MethodGet, "/clusters/myworkspace/apis/networking.k8s.io/v1", true},
 
 		// Non-discovery requests
 		{http.MethodPost, "/api", false},
@@ -189,16 +197,21 @@ func TestIsDiscoveryRequest_AllBuiltinGroups(t *testing.T) {
 		{http.MethodGet, "/apis/scheduling.k8s.io/v1/priorityclasses", false},
 		{http.MethodGet, "/apis/settings.k8s.io/v1/podpresets", false},
 		{http.MethodGet, "/apis/storage.k8s.io/v1/storageclasses", false},
-		// CRD resources (non-discovery)
+		// non-discovery CRD resources requests
 		{http.MethodGet, "/apis/networking.istio.io/v1alpha3/gateways", false},
 		{http.MethodGet, "/apis/security.istio.io/v1beta1/authorizationpolicies", false},
 		{http.MethodGet, "/apis/authentication.istio.io/v1alpha1/policies", false},
 		{http.MethodGet, "/apis/core.openmfp.org/v1alpha1/accounts", false},
+		{http.MethodPost, "/clusters/myworkspace/api", false},
+		{http.MethodGet, "/clusters/myworkspace/api/v1/pods", false},
+		{http.MethodGet, "/clusters/myworkspace/apis/apps/v1/deployments", false},
+		{http.MethodGet, "/clusters/myworkspace/apis/networking.k8s.io/v1/networkpolicies", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(strings.TrimPrefix(tt.path, "/"), func(t *testing.T) {
 			req, _ := http.NewRequest(tt.method, tt.path, nil)
+			req.URL.RawPath = "/clusters/myworkspace"
 			actual := manager.IsDiscoveryRequestForTest(req)
 			if actual != tt.expected {
 				t.Errorf("For method %s and path %q, expected %v, got %v", tt.method, tt.path, tt.expected, actual)

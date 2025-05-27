@@ -58,7 +58,7 @@ func initConfig() {
 	v.SetDefault("listener-apiexport-name", "kcp.io")
 
 	// Gateway
-	v.SetDefault("gateway-port", "8080")
+	v.SetDefault("gateway-port", "7080")
 	v.SetDefault("gateway-username-claim", "email")
 	v.SetDefault("gateway-should-impersonate", true)
 	// Gateway Handler config

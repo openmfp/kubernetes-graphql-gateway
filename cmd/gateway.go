@@ -74,7 +74,7 @@ var gatewayCmd = &cobra.Command{
 		go func() {
 			err := server.ListenAndServe()
 			if err != nil && !errors.Is(err, http.ErrServerClosed) {
-				log.Error().Err(err).Msg("Error starting HTTP server")
+				log.Fatal().Err(err).Msg("Error starting HTTP server")
 			}
 		}()
 

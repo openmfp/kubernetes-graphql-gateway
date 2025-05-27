@@ -117,7 +117,9 @@ func isDiscoveryRequest(req *http.Request) bool {
 		return false
 	}
 
-	parts := strings.Split(strings.Trim(req.URL.Path, "/"), "/")
+	path := strings.TrimPrefix(req.URL.Path, req.URL.RawPath) // remove /clusters/{workspace} if present
+	path = strings.Trim(path, "/")                            // remove leading and trailing slashes
+	parts := strings.Split(path, "/")
 
 	switch {
 	case len(parts) == 1 && (parts[0] == "api" || parts[0] == "apis"):

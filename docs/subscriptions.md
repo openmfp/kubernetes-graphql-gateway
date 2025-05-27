@@ -6,7 +6,7 @@ Instead we use the `curl` command line tool to execute the queries.
 
 ## Prerequisites
 ```shell
-export GRAPHQL_URL=http://localhost:8080/root/graphql # update with your actual GraphQL endpoint
+export GRAPHQL_URL=http://localhost:7080/root/graphql # update with your actual GraphQL endpoint
 export AUTHORIZATION_TOKEN=<your-token> # update this with your token, if LOCAL_DEVELOPMENT=false
 ```
 
