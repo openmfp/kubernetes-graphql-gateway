@@ -12,6 +12,20 @@ export LOCAL_DEVELOPMENT=true
 ```
 This is useful for local development and testing purposes.
 
+## Using Service Account Token
+
+For local development you can create a service account and generate token by running
+```shell
+kubectl create token app
+# where app is the name of the service account
+```
+
+To use the service account token directly, you must skip the user impersonation step:
+```shell
+export GATEWAY_SHOULD_IMPERSONATE=false
+```
+
+
 ## Introspection authentication
 
 By default, introspection requests (i.e. the requests that are made to fetch the GraphQL schema) are **not** protected by authorization.

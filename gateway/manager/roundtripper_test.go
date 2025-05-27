@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -130,6 +131,77 @@ func TestRoundTripper_RoundTrip(t *testing.T) {
 			if tt.err != nil {
 				assert.Error(t, err)
 				assert.Nil(t, resp)
+			}
+		})
+	}
+}
+
+func TestIsDiscoveryRequest_AllBuiltinGroups(t *testing.T) {
+	tests := []struct {
+		method   string
+		path     string
+		expected bool
+	}{
+		// Discovery requests
+		{http.MethodGet, "/api", true},
+		{http.MethodGet, "/api/v1", true},
+		{http.MethodGet, "/apis/admissionregistration.k8s.io", true},
+		{http.MethodGet, "/apis/apiextensions.k8s.io", true},
+		{http.MethodGet, "/apis/apiregistration.k8s.io", true},
+		{http.MethodGet, "/apis/apps", true},
+		{http.MethodGet, "/apis/authentication.k8s.io", true},
+		{http.MethodGet, "/apis/authorization.k8s.io", true},
+		{http.MethodGet, "/apis/autoscaling", true},
+		{http.MethodGet, "/apis/batch", true},
+		{http.MethodGet, "/apis/certificates.k8s.io", true},
+		{http.MethodGet, "/apis/coordination.k8s.io", true},
+		{http.MethodGet, "/apis/networking.k8s.io", true},
+		{http.MethodGet, "/apis/node.k8s.io", true},
+		{http.MethodGet, "/apis/policy", true},
+		{http.MethodGet, "/apis/rbac.authorization.k8s.io", true},
+		{http.MethodGet, "/apis/scheduling.k8s.io", true},
+		{http.MethodGet, "/apis/settings.k8s.io", true},
+		{http.MethodGet, "/apis/storage.k8s.io", true},
+		// CRD discovery
+		{http.MethodGet, "/apis/networking.istio.io", true},
+		{http.MethodGet, "/apis/security.istio.io", true},
+		{http.MethodGet, "/apis/authentication.istio.io", true},
+		{http.MethodGet, "/apis/core.openmfp.org/v1alpha1", true},
+
+		// Non-discovery requests
+		{http.MethodPost, "/api", false},
+		// for resources within each group
+		{http.MethodGet, "/api/v1/pods", false},
+		{http.MethodGet, "/apis/admissionregistration.k8s.io/v1/mutatingwebhookconfigurations", false},
+		{http.MethodGet, "/apis/apiextensions.k8s.io/v1/customresourcedefinitions", false},
+		{http.MethodGet, "/apis/apiregistration.k8s.io/v1/apiservices", false},
+		{http.MethodGet, "/apis/apps/v1/deployments", false},
+		{http.MethodGet, "/apis/authentication.k8s.io/v1/tokenreviews", false},
+		{http.MethodGet, "/apis/authorization.k8s.io/v1/subjectaccessreviews", false},
+		{http.MethodGet, "/apis/autoscaling/v1/horizontalpodautoscalers", false},
+		{http.MethodGet, "/apis/batch/v1/jobs", false},
+		{http.MethodGet, "/apis/certificates.k8s.io/v1/certificatesigningrequests", false},
+		{http.MethodGet, "/apis/coordination.k8s.io/v1/leases", false},
+		{http.MethodGet, "/apis/networking.k8s.io/v1/networkpolicies", false},
+		{http.MethodGet, "/apis/node.k8s.io/v1/runtimeclasses", false},
+		{http.MethodGet, "/apis/policy/v1/poddisruptionbudgets", false},
+		{http.MethodGet, "/apis/rbac.authorization.k8s.io/v1/roles", false},
+		{http.MethodGet, "/apis/scheduling.k8s.io/v1/priorityclasses", false},
+		{http.MethodGet, "/apis/settings.k8s.io/v1/podpresets", false},
+		{http.MethodGet, "/apis/storage.k8s.io/v1/storageclasses", false},
+		// CRD resources (non-discovery)
+		{http.MethodGet, "/apis/networking.istio.io/v1alpha3/gateways", false},
+		{http.MethodGet, "/apis/security.istio.io/v1beta1/authorizationpolicies", false},
+		{http.MethodGet, "/apis/authentication.istio.io/v1alpha1/policies", false},
+		{http.MethodGet, "/apis/core.openmfp.org/v1alpha1/accounts", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(strings.TrimPrefix(tt.path, "/"), func(t *testing.T) {
+			req, _ := http.NewRequest(tt.method, tt.path, nil)
+			actual := manager.IsDiscoveryRequestForTest(req)
+			if actual != tt.expected {
+				t.Errorf("For method %s and path %q, expected %v, got %v", tt.method, tt.path, tt.expected, actual)
 			}
 		})
 	}

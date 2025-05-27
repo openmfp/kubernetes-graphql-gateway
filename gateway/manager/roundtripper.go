@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net/http"
+	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/openmfp/golang-commons/logger"
@@ -62,8 +63,8 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		return rt.adminRT.RoundTrip(req)
 	}
 
-	// Allow unauthenticated access to /api/v1 for Kubernetes API discovery request
-	if req.Method == http.MethodGet && req.URL.Path == K8S_API_V1_PATH {
+	// Allow unauthenticated access for Kubernetes API discovery requests
+	if isDiscoveryRequest(req) {
 		return rt.adminRT.RoundTrip(req)
 	}
 
@@ -109,4 +110,25 @@ func (u *unauthorizedRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 		Request:    req,
 		Body:       http.NoBody,
 	}, nil
+}
+
+func isDiscoveryRequest(req *http.Request) bool {
+	if req.Method != http.MethodGet {
+		return false
+	}
+
+	parts := strings.Split(strings.Trim(req.URL.Path, "/"), "/")
+
+	switch {
+	case len(parts) == 1 && (parts[0] == "api" || parts[0] == "apis"):
+		return true // /api or /apis (root groups)
+	case len(parts) == 2 && parts[0] == "apis":
+		return true // /apis/<group>
+	case len(parts) == 2 && parts[0] == "api":
+		return true // /api/v1 (core group version)
+	case len(parts) == 3 && parts[0] == "apis":
+		return true // /apis/<group>/<version>
+	default:
+		return false
+	}
 }
