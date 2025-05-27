@@ -61,7 +61,9 @@ func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		return rt.adminRT.RoundTrip(req)
 	}
 
-	// Allow unauthenticated access for Kubernetes API discovery requests
+	// client-go sends discovery requests to the Kubernetes API server before any CRUD request.
+	// And it doesn't attach any authentication token to these requests, even if we put token into the context at ServeHTTP method.
+	// That is why we don't protect discovery requests with authentication.
 	if isDiscoveryRequest(req) {
 		return rt.adminRT.RoundTrip(req)
 	}
@@ -115,8 +117,9 @@ func isDiscoveryRequest(req *http.Request) bool {
 		return false
 	}
 
-	path := strings.TrimPrefix(req.URL.Path, req.URL.RawPath) // remove /clusters/{workspace} if present
-	path = strings.Trim(path, "/")                            // remove leading and trailing slashes
+	// in case of kcp, the req.URL.Path contains /clusters/<workspace> prefix, which we need to trim for further check.
+	path := strings.TrimPrefix(req.URL.Path, req.URL.RawPath)
+	path = strings.Trim(path, "/") // remove leading and trailing slashes
 	parts := strings.Split(path, "/")
 
 	switch {
