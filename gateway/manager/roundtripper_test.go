@@ -31,7 +31,7 @@ func TestRoundTripper_RoundTrip(t *testing.T) {
 	}{
 		{
 			name:          "discovery_request",
-			requestTarget: manager.K8S_API_V1_PATH,
+			requestTarget: "/api/v1",
 			setupMocks: func(adminRT, tokenOnlyRT, unauthorizedRT *mocks.MockRoundTripper) {
 				adminRT.EXPECT().RoundTrip(mock.Anything).Once().Return(&http.Response{}, nil)
 			},

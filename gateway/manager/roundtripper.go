@@ -14,8 +14,6 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 )
 
-const K8S_API_V1_PATH = "/api/v1"
-
 type TokenKey struct{}
 
 type roundTripper struct {

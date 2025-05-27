@@ -14,17 +14,29 @@ This is useful for local development and testing purposes.
 
 ## Using Service Account Token
 
-For local development you can create a service account and generate token by running
+For local development you can:
+1. Create a service account:
+```shell
+kubectl create sa app
+```
+2. Give it `admin` permissions.
+
+⚠️ Warning: This gives all permissions across the entire cluster. Be careful.
+
+```shell
+kubectl create clusterrolebinding app2-cluster-admin \
+  --clusterrole=cluster-admin \
+  --serviceaccount=default:app
+```
+3. Generate token by running
 ```shell
 kubectl create token app
-# where app is the name of the service account
 ```
 
 To use the service account token directly, you must skip the user impersonation step:
 ```shell
 export GATEWAY_SHOULD_IMPERSONATE=false
 ```
-
 
 ## Introspection authentication
 
