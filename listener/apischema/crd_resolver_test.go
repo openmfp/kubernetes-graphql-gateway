@@ -2,8 +2,10 @@ package apischema
 
 import (
 	"encoding/json"
-	"errors"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -76,17 +78,9 @@ func TestGetCRDGroupKindVersions(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			gkv := getCRDGroupKindVersions(tc.spec)
-			if gkv.Group != tc.wantG || gkv.Kind != tc.wantKind {
-				t.Errorf("GroupKind mismatch: got %v/%v, want %v/%v", gkv.Group, gkv.Kind, tc.wantG, tc.wantKind)
-			}
-			if len(gkv.Versions) != len(tc.wantVers) {
-				t.Fatalf("Versions length: got %d, want %d", len(gkv.Versions), len(tc.wantVers))
-			}
-			for i, v := range tc.wantVers {
-				if gkv.Versions[i] != v {
-					t.Errorf("Versions[%d]: got %q, want %q", i, gkv.Versions[i], v)
-				}
-			}
+			assert.Equal(t, tc.wantG, gkv.Group, "Group mismatch")
+			assert.Equal(t, tc.wantKind, gkv.Kind, "Kind mismatch")
+			assert.Equal(t, tc.wantVers, gkv.Versions, "Versions mismatch")
 		})
 	}
 }
@@ -101,47 +95,22 @@ func TestIsCRDKindIncluded(t *testing.T) {
 		want    bool
 	}{
 		{
-			name: "kind_present",
-			gkv: &GroupKindVersions{
-				GroupKind: &metav1.GroupKind{
-					Group: "g",
-					Kind:  "KindA",
-				},
-				Versions: []string{"v1"},
-			},
-			apiList: &metav1.APIResourceList{
-				GroupVersion: "g/v1",
-				APIResources: []metav1.APIResource{
-					{Kind: "KindA"},
-					{Kind: "Other"},
-				},
-			},
-			want: true,
+			name:    "kind_present",
+			gkv:     &GroupKindVersions{GroupKind: &metav1.GroupKind{Group: "g", Kind: "KindA"}, Versions: []string{"v1"}},
+			apiList: &metav1.APIResourceList{GroupVersion: "g/v1", APIResources: []metav1.APIResource{{Kind: "KindA"}, {Kind: "Other"}}},
+			want:    true,
 		},
 		{
-			name: "kind_absent",
-			gkv: &GroupKindVersions{
-				GroupKind: &metav1.GroupKind{
-					Group: "g",
-					Kind:  "KindA",
-				},
-				Versions: []string{"v1"},
-			},
-			apiList: &metav1.APIResourceList{
-				GroupVersion: "g/v1",
-				APIResources: []metav1.APIResource{
-					{Kind: "Different"},
-				},
-			},
-			want: false,
+			name:    "kind_absent",
+			gkv:     &GroupKindVersions{GroupKind: &metav1.GroupKind{Group: "g", Kind: "KindA"}, Versions: []string{"v1"}},
+			apiList: &metav1.APIResourceList{GroupVersion: "g/v1", APIResources: []metav1.APIResource{{Kind: "Different"}}},
+			want:    false,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got := isCRDKindIncluded(tc.gkv, tc.apiList)
-			if got != tc.want {
-				t.Errorf("expected %v, got %v", tc.want, got)
-			}
+			assert.Equal(t, tc.want, got, "result mismatch")
 		})
 	}
 }
@@ -160,7 +129,7 @@ func TestErrorIfCRDNotInPreferredApiGroups(t *testing.T) {
 		wantGroup []string
 	}{
 		{
-			name: "kind found",
+			name: "kind_found",
 			lists: []*metav1.APIResourceList{
 				{
 					GroupVersion: "g/v2",
@@ -185,22 +154,11 @@ func TestErrorIfCRDNotInPreferredApiGroups(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			groups, err := errorIfCRDNotInPreferredApiGroups(gkv, tc.lists)
 			if tc.wantErr != nil {
-				if !errors.Is(err, tc.wantErr) {
-					t.Fatalf("expected error %v, got %v", tc.wantErr, err)
-				}
+				assert.ErrorIs(t, err, tc.wantErr)
 				return
 			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if len(groups) != len(tc.wantGroup) {
-				t.Fatalf("group count: got %d, want %d", len(groups), len(tc.wantGroup))
-			}
-			for i := range groups {
-				if groups[i] != tc.wantGroup[i] {
-					t.Errorf("groups[%d]: got %q, want %q", i, groups[i], tc.wantGroup[i])
-				}
-			}
+			require.NoError(t, err, "unexpected error")
+			assert.Equal(t, tc.wantGroup, groups, "groups mismatch")
 		})
 	}
 }
@@ -239,7 +197,7 @@ func TestGetSchemaForPath(t *testing.T) {
 			wantErr:   ErrNotPreferred,
 		},
 		{
-			name:      "unmarshal error",
+			name:      "unmarshal_error",
 			preferred: []string{"g/v1"},
 			path:      "/g/v1",
 			gv:        fakeGV{data: []byte("bad json"), err: nil},
@@ -259,17 +217,11 @@ func TestGetSchemaForPath(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := getSchemaForPath(tc.preferred, tc.path, tc.gv)
 			if tc.wantErr != nil {
-				if !errors.Is(err, tc.wantErr) {
-					t.Fatalf("expected error %v, got %v", tc.wantErr, err)
-				}
+				assert.ErrorIs(t, err, tc.wantErr)
 				return
 			}
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if len(got) != tc.wantCount {
-				t.Errorf("schema count: got %d, want %d", len(got), tc.wantCount)
-			}
+			require.NoError(t, err, "unexpected error")
+			assert.Equal(t, tc.wantCount, len(got), "schema count mismatch")
 		})
 	}
 }
@@ -286,7 +238,7 @@ func TestResolveSchema(t *testing.T) {
 		wantErr            bool
 	}{
 		{
-			name:    "discovery error",
+			name:    "discovery_error",
 			err:     ErrGetServerPreferred,
 			wantErr: true,
 		},
@@ -310,7 +262,7 @@ func TestResolveSchema(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:               "empty resources list",
+			name:               "empty_resources_list",
 			preferredResources: []*metav1.APIResourceList{},
 			openAPIPaths: map[string]openapi.GroupVersion{
 				"/api/v1": fakeGV{},
@@ -332,12 +284,11 @@ func TestResolveSchema(t *testing.T) {
 			}
 
 			got, err := resolveSchema(resolver, resolver)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("resolveSchema() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !tt.wantErr && got == nil {
-				t.Error("resolveSchema() returned nil result when no error expected")
+			if tt.wantErr {
+				assert.Error(t, err, "expected an error")
+			} else {
+				assert.NoError(t, err, "unexpected error")
+				assert.NotNil(t, got, "expected non-nil result")
 			}
 		})
 	}
