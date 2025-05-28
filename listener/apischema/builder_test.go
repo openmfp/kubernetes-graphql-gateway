@@ -202,7 +202,6 @@ func TestWithCRDCategories(t *testing.T) {
 			assert.True(t, found, "expected CategoriesExtensionKey to be set")
 			cats, ok := ext.([]string)
 			assert.True(t, ok, "categories should be []string")
-			assert.Equal(t, len(tc.wantCats), len(cats))
 			assert.Equal(t, tc.wantCats, cats, "categories mismatch")
 		})
 	}
@@ -251,7 +250,6 @@ func TestWithApiResourceCategories(t *testing.T) {
 			assert.True(t, found, "expected CategoriesExtensionKey to be set")
 			cats, ok := ext.([]string)
 			assert.True(t, ok, "categories should be []string")
-			assert.Equal(t, len(tc.wantCats), len(cats))
 			assert.Equal(t, tc.wantCats, cats, "categories mismatch")
 		})
 	}
@@ -285,6 +283,7 @@ func TestWithScope(t *testing.T) {
 	b.WithScope(mapper)
 
 	// Validate
-	scope := b.schemas["g.v1.K"].VendorExtensible.Extensions[common.ScopeExtensionKey]
+	scope, ok := b.schemas["g.v1.K"].VendorExtensible.Extensions[common.ScopeExtensionKey]
+	assert.True(t, ok, "expected ScopeExtensionKey to be set")
 	assert.Equal(t, apiextensionsv1.NamespaceScoped, scope, "scope value mismatch")
 }
