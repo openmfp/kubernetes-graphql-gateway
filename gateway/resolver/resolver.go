@@ -292,14 +292,9 @@ func (r *Service) UpdateItem(gvk schema.GroupVersionKind, scope v1.ResourceScope
 			return nil, err
 		}
 
-		dryRun, err := getDryRunArg(p.Args, DryRunArg, false)
-		if err != nil {
-			return nil, err
-		}
-
 		// Apply the merge patch to the existing object
 		patch := client.RawPatch(types.MergePatchType, patchData)
-		if err := r.runtimeClient.Patch(ctx, existingObj, patch, &client.PatchOptions{DryRun: dryRun}); err != nil {
+		if err := r.runtimeClient.Patch(ctx, existingObj, patch); err != nil {
 			log.Error().Err(err).Msg("Failed to patch object")
 			return nil, err
 		}
@@ -335,12 +330,7 @@ func (r *Service) DeleteItem(gvk schema.GroupVersionKind, scope v1.ResourceScope
 			obj.SetNamespace(namespace)
 		}
 
-		dryRun, err := getDryRunArg(p.Args, DryRunArg, false)
-		if err != nil {
-			return nil, err
-		}
-
-		if err := r.runtimeClient.Delete(ctx, obj, &client.DeleteOptions{DryRun: dryRun}); err != nil {
+		if err := r.runtimeClient.Delete(ctx, obj); err != nil {
 			log.Error().Err(err).Msg("Failed to delete object")
 			return nil, err
 		}
