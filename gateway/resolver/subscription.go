@@ -24,12 +24,6 @@ var (
 	ErrFailedToCastEventObjectToUnstructured = fmt.Errorf("failed to cast event object to unstructured")
 )
 
-// SubscriptionResult only contains data now - errors will be handled at GraphQL level
-type SubscriptionResult struct {
-	Data interface{} `json:"data,omitempty"`
-}
-
-// Custom error type for subscription errors
 type SubscriptionError struct {
 	Message string
 }
@@ -209,7 +203,7 @@ func (r *Service) runWatch(
 					select {
 					case <-ctx.Done():
 						return
-					case resultChannel <- SubscriptionResult{Data: data}:
+					case resultChannel <- data:
 					}
 				} else {
 					items := make([]unstructured.Unstructured, 0, len(previousObjects))
@@ -236,7 +230,7 @@ func (r *Service) runWatch(
 					select {
 					case <-ctx.Done():
 						return
-					case resultChannel <- SubscriptionResult{Data: sortedItems}:
+					case resultChannel <- sortedItems:
 					}
 				}
 			}
@@ -347,26 +341,12 @@ func getFieldValue(obj *unstructured.Unstructured, fieldPath string) (interface{
 
 func CreateSubscriptionResolver(isSingle bool) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		// The source should be either a SubscriptionResult or SubscriptionError from the subscription channel
 		source := p.Source
 
-		// Check if the source is a SubscriptionError (which implements error interface)
 		if err, ok := source.(error); ok {
-			// Return the error to be handled at the GraphQL level
 			return nil, err
 		}
 
-		// Use reflection to check if the source has a Data field (SubscriptionResult)
-		sourceValue := reflect.ValueOf(source)
-		if sourceValue.Kind() == reflect.Struct {
-			dataField := sourceValue.FieldByName("Data")
-			if dataField.IsValid() {
-				// Return the actual data directly without wrapping in a "data" field
-				return dataField.Interface(), nil
-			}
-		}
-
-		// For any other case, return the source as-is (no wrapping)
 		return source, nil
 	}
 }
