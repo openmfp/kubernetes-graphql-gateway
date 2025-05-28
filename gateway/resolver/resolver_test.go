@@ -290,13 +290,7 @@ func TestCreateItem(t *testing.T) {
 			},
 			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
 				runtimeClientMock.EXPECT().
-					Create(
-						mock.Anything,
-						mock.AnythingOfType("*unstructured.Unstructured"),
-						mock.MatchedBy(func(opts client.CreateOption) bool {
-							return true
-						}),
-					).
+					Create(mock.Anything, mock.AnythingOfType("*unstructured.Unstructured")).
 					Return(nil)
 			},
 			expectedObj: map[string]interface{}{
@@ -321,13 +315,7 @@ func TestCreateItem(t *testing.T) {
 			},
 			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
 				runtimeClientMock.EXPECT().
-					Create(
-						mock.Anything,
-						mock.AnythingOfType("*unstructured.Unstructured"),
-						mock.MatchedBy(func(opts client.CreateOption) bool {
-							return true
-						}),
-					).
+					Create(mock.Anything, mock.AnythingOfType("*unstructured.Unstructured")).
 					Return(assert.AnError)
 			},
 			expectError: true,
@@ -339,38 +327,6 @@ func TestCreateItem(t *testing.T) {
 				"object":              map[string]interface{}{},
 			},
 			expectError: true,
-		},
-		{
-			name: "create_item_with_dry_run_OK",
-			args: map[string]interface{}{
-				resolver.NameArg:      "test-object",
-				resolver.NamespaceArg: "test-namespace",
-				resolver.DryRunArg:    true,
-				"object": map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"name": "test-object",
-					},
-				},
-			},
-			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
-				runtimeClientMock.EXPECT().
-					Create(
-						mock.Anything,
-						mock.AnythingOfType("*unstructured.Unstructured"),
-						mock.MatchedBy(func(opts client.CreateOption) bool {
-							return true
-						}),
-					).
-					Return(nil)
-			},
-			expectedObj: map[string]interface{}{
-				"apiVersion": "group/version",
-				"kind":       "kind",
-				"metadata": map[string]interface{}{
-					"name":      "test-object",
-					"namespace": "test-namespace",
-				},
-			},
 		},
 	}
 
@@ -424,11 +380,7 @@ func TestUpdateItem(t *testing.T) {
 			},
 			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
 				runtimeClientMock.EXPECT().
-					Get(
-						mock.Anything,
-						client.ObjectKey{Namespace: "test-namespace", Name: "test-object"},
-						mock.AnythingOfType("*unstructured.Unstructured"),
-					).
+					Get(mock.Anything, client.ObjectKey{Namespace: "test-namespace", Name: "test-object"}, mock.AnythingOfType("*unstructured.Unstructured")).
 					Run(func(_ context.Context, _ client.ObjectKey, obj client.Object, _ ...client.GetOption) {
 						unstructuredObj := obj.(*unstructured.Unstructured)
 						unstructuredObj.Object = map[string]interface{}{
@@ -440,13 +392,7 @@ func TestUpdateItem(t *testing.T) {
 					Return(nil)
 
 				runtimeClientMock.EXPECT().
-					Patch(mock.Anything,
-						mock.AnythingOfType("*unstructured.Unstructured"),
-						mock.Anything,
-						mock.MatchedBy(func(opts client.PatchOption) bool {
-							return true
-						}),
-					).
+					Patch(mock.Anything, mock.AnythingOfType("*unstructured.Unstructured"), mock.Anything).
 					Return(nil)
 			},
 			expectedObj: map[string]interface{}{
@@ -498,62 +444,10 @@ func TestUpdateItem(t *testing.T) {
 					Return(nil)
 
 				runtimeClientMock.EXPECT().
-					Patch(mock.Anything,
-						mock.AnythingOfType("*unstructured.Unstructured"),
-						mock.Anything,
-						mock.MatchedBy(func(opts client.PatchOption) bool {
-							return true
-						}),
-					).
+					Patch(mock.Anything, mock.AnythingOfType("*unstructured.Unstructured"), mock.Anything).
 					Return(assert.AnError)
 			},
 			expectError: true,
-		},
-		{
-			name: "update_item_with_dry_run_OK",
-			args: map[string]interface{}{
-				resolver.NameArg:      "test-object",
-				resolver.NamespaceArg: "test-namespace",
-				resolver.DryRunArg:    true,
-				"object": map[string]interface{}{
-					"metadata": map[string]interface{}{
-						"name": "test-object",
-					},
-				},
-			},
-			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
-				runtimeClientMock.EXPECT().
-					Get(
-						mock.Anything,
-						client.ObjectKey{Namespace: "test-namespace", Name: "test-object"},
-						mock.AnythingOfType("*unstructured.Unstructured"),
-					).
-					Run(func(_ context.Context, _ client.ObjectKey, obj client.Object, _ ...client.GetOption) {
-						unstructuredObj := obj.(*unstructured.Unstructured)
-						unstructuredObj.Object = map[string]interface{}{
-							"metadata": map[string]interface{}{
-								"name": "test-object",
-							},
-						}
-					}).
-					Return(nil)
-
-				runtimeClientMock.EXPECT().
-					Patch(
-						mock.Anything,
-						mock.AnythingOfType("*unstructured.Unstructured"),
-						mock.Anything,
-						mock.MatchedBy(func(opts client.PatchOption) bool {
-							return true
-						}),
-					).
-					Return(nil)
-			},
-			expectedObj: map[string]interface{}{
-				"metadata": map[string]interface{}{
-					"name": "test-object",
-				},
-			},
 		},
 	}
 
@@ -601,11 +495,7 @@ func TestDeleteItem(t *testing.T) {
 			},
 			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
 				runtimeClientMock.EXPECT().
-					Delete(
-						mock.Anything,
-						mock.AnythingOfType("*unstructured.Unstructured"),
-						mock.AnythingOfType("*client.DeleteOptions"),
-					).
+					Delete(mock.Anything, mock.AnythingOfType("*unstructured.Unstructured")).
 					Return(nil)
 			},
 		},
@@ -631,11 +521,7 @@ func TestDeleteItem(t *testing.T) {
 			},
 			mockSetup: func(runtimeClientMock *mocks.MockWithWatch) {
 				runtimeClientMock.EXPECT().
-					Delete(
-						mock.Anything,
-						mock.AnythingOfType("*unstructured.Unstructured"),
-						mock.AnythingOfType("*client.DeleteOptions"),
-					).
+					Delete(mock.Anything, mock.AnythingOfType("*unstructured.Unstructured")).
 					Return(assert.AnError)
 			},
 			expectError: true,

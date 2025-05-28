@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/openmfp/golang-commons/logger"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
 
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -21,23 +22,18 @@ var (
 	ErrGetReconciledObj = errors.New("failed to get reconciled object")
 )
 
-type CRDResolver interface {
-	Resolve() ([]byte, error)
-	ResolveApiSchema(crd *apiextensionsv1.CustomResourceDefinition) ([]byte, error)
-}
-
 // CRDReconciler reconciles a CustomResourceDefinition object
 type CRDReconciler struct {
 	ClusterName string
 	client.Client
-	CRDResolver
+	*apischema.CRDResolver
 	io  workspacefile.IOHandler
 	log *logger.Logger
 }
 
 func NewCRDReconciler(name string,
 	clt client.Client,
-	cr CRDResolver,
+	cr *apischema.CRDResolver,
 	io workspacefile.IOHandler,
 	log *logger.Logger,
 ) *CRDReconciler {

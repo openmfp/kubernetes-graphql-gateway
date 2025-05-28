@@ -5,12 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gopkg.in/yaml.v3"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"regexp"
 	"sort"
 	"strings"
-
-	"gopkg.in/yaml.v3"
-	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
 	"github.com/graphql-go/graphql"
 	"go.opentelemetry.io/otel"
@@ -237,16 +236,7 @@ func (r *Service) CreateItem(gvk schema.GroupVersionKind, scope v1.ResourceScope
 			return nil, errors.New("object metadata.name is required")
 		}
 
-		dryRunBool, err := getBoolArg(p.Args, DryRunArg, false)
-		if err != nil {
-			return nil, err
-		}
-		dryRun := []string{}
-		if dryRunBool {
-			dryRun = []string{"All"}
-		}
-
-		if err := r.runtimeClient.Create(ctx, obj, &client.CreateOptions{DryRun: dryRun}); err != nil {
+		if err := r.runtimeClient.Create(ctx, obj); err != nil {
 			log.Error().Err(err).Msg("Failed to create object")
 			return nil, err
 		}
@@ -296,18 +286,9 @@ func (r *Service) UpdateItem(gvk schema.GroupVersionKind, scope v1.ResourceScope
 			return nil, err
 		}
 
-		dryRunBool, err := getBoolArg(p.Args, DryRunArg, false)
-		if err != nil {
-			return nil, err
-		}
-		dryRun := []string{}
-		if dryRunBool {
-			dryRun = []string{"All"}
-		}
-
 		// Apply the merge patch to the existing object
 		patch := client.RawPatch(types.MergePatchType, patchData)
-		if err := r.runtimeClient.Patch(ctx, existingObj, patch, &client.PatchOptions{DryRun: dryRun}); err != nil {
+		if err := r.runtimeClient.Patch(ctx, existingObj, patch); err != nil {
 			log.Error().Err(err).Msg("Failed to patch object")
 			return nil, err
 		}
@@ -343,16 +324,7 @@ func (r *Service) DeleteItem(gvk schema.GroupVersionKind, scope v1.ResourceScope
 			obj.SetNamespace(namespace)
 		}
 
-		dryRunBool, err := getBoolArg(p.Args, DryRunArg, false)
-		if err != nil {
-			return nil, err
-		}
-		dryRun := []string{}
-		if dryRunBool {
-			dryRun = []string{"All"}
-		}
-
-		if err := r.runtimeClient.Delete(ctx, obj, &client.DeleteOptions{DryRun: dryRun}); err != nil {
+		if err := r.runtimeClient.Delete(ctx, obj); err != nil {
 			log.Error().Err(err).Msg("Failed to delete object")
 			return nil, err
 		}

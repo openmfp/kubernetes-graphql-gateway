@@ -201,7 +201,7 @@ func (g *Gateway) processSingleResource(
 
 	itemArgsBuilder := resolver.NewFieldConfigArguments().WithName()
 
-	creationMutationArgsBuilder := resolver.NewFieldConfigArguments().WithObject(resourceInputType).WithDryRun()
+	creationMutationArgsBuilder := resolver.NewFieldConfigArguments().WithObject(resourceInputType)
 
 	if resourceScope == apiextensionsv1.NamespaceScoped {
 		listArgsBuilder.WithNamespace()
@@ -246,7 +246,7 @@ func (g *Gateway) processSingleResource(
 
 	mutationGroupType.AddFieldConfig("delete"+singular, &graphql.Field{
 		Type:    graphql.Boolean,
-		Args:    itemArgsBuilder.WithDryRun().Complete(),
+		Args:    itemArgs,
 		Resolve: g.resolver.DeleteItem(*gvk, resourceScope),
 	})
 

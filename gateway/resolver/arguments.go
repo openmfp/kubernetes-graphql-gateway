@@ -2,10 +2,9 @@ package resolver
 
 import (
 	"errors"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"maps"
 	"strings"
-
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 	"github.com/graphql-go/graphql"
 	"github.com/rs/zerolog/log"
@@ -19,7 +18,6 @@ const (
 	ObjectArg         = "object"
 	SubscribeToAllArg = "subscribeToAll"
 	SortByArg         = "sortBy"
-	DryRunArg         = "dryRun"
 )
 
 // FieldConfigArgumentsBuilder helps construct GraphQL field config arguments
@@ -63,14 +61,6 @@ func (b *FieldConfigArgumentsBuilder) WithObject(resourceInputType *graphql.Inpu
 	b.arguments[ObjectArg] = &graphql.ArgumentConfig{
 		Type:        graphql.NewNonNull(resourceInputType),
 		Description: "The object to create or update",
-	}
-	return b
-}
-
-func (b *FieldConfigArgumentsBuilder) WithDryRun() *FieldConfigArgumentsBuilder {
-	b.arguments[DryRunArg] = &graphql.ArgumentConfig{
-		Type:        graphql.Boolean,
-		Description: "If true, the operation will be performed in dry-run mode",
 	}
 	return b
 }
