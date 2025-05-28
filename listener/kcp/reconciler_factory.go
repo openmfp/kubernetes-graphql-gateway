@@ -1,6 +1,7 @@
 package kcp
 
 import (
+	"bytes"
 	"context"
 	"errors"
 
@@ -35,6 +36,7 @@ var (
 	ErrCreatePathResolver    = errors.New("failed to create cluster path resolver")
 	ErrGetVWConfig           = errors.New("unable to get virtual workspace config, check if your kcp cluster is running")
 	ErrCreateHTTPClient      = errors.New("failed to create http client")
+	ErrReadJSON              = errors.New("failed to read JSON from filesystem")
 )
 
 type CustomReconciler interface {
@@ -107,14 +109,32 @@ func PreReconcile(
 	cr *apischema.CRDResolver,
 	io workspacefile.IOHandler,
 ) error {
-	JSON, err := cr.Resolve()
+	actualJSON, err := cr.Resolve()
 	if err != nil {
+		// If we cannot resolve the schema, we return an error.
 		return errors.Join(ErrResolveSchema, err)
 	}
-	if err := io.Write(JSON, kubernetesClusterName); err != nil {
-		return errors.Join(ErrWriteJSON, err)
+
+	savedJSON, err := io.Read(kubernetesClusterName)
+	if err != nil {
+		// If we cannot read the file, we check if it is because the file does not exist.
+		if errors.Is(err, workspacefile.ErrNotFound) {
+			// If the file does not exist, we write the actual JSON to the filesystem.
+			return io.Write(actualJSON, kubernetesClusterName)
+		}
+		// If we cannot read the file, we return an error.
+		return errors.Join(ErrReadJSON, err)
 	}
 
+	if !bytes.Equal(actualJSON, savedJSON) {
+		// If the actual JSON is different from the saved JSON, we write the actual JSON to the filesystem.
+		if err := io.Write(actualJSON, kubernetesClusterName); err != nil {
+			// If we cannot write the file, we return an error.
+			return errors.Join(ErrWriteJSON, err)
+		}
+	}
+
+	// If the actual JSON is the same as the saved JSON, we do nothing.
 	return nil
 }
 

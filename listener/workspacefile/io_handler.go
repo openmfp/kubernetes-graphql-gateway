@@ -11,6 +11,7 @@ var (
 	ErrReadJSONFile     = errors.New("failed to read JSON file")
 	ErrWriteJSONFile    = errors.New("failed to write JSON to file")
 	ErrDeleteJSONFile   = errors.New("failed to delete JSON file")
+	ErrNotFound         = errors.New("failed to find JSON file")
 )
 
 type IOHandler interface {
