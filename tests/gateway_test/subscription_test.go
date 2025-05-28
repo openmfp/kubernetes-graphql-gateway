@@ -2,6 +2,11 @@ package gateway_test
 
 import (
 	"context"
+	"strconv"
+	"sync"
+	"testing"
+	"time"
+
 	"github.com/graphql-go/graphql"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -10,10 +15,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"strconv"
-	"sync"
-	"testing"
-	"time"
 )
 
 func (suite *CommonTestSuite) TestSchemaSubscribe() {

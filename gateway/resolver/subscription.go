@@ -2,10 +2,11 @@ package resolver
 
 import (
 	"fmt"
-	"github.com/openmfp/golang-commons/sentry"
 	"reflect"
 	"sort"
 	"strings"
+
+	"github.com/openmfp/golang-commons/sentry"
 
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
@@ -23,10 +24,18 @@ var (
 	ErrFailedToCastEventObjectToUnstructured = fmt.Errorf("failed to cast event object to unstructured")
 )
 
-// SubscriptionResult wraps both data and error for subscriptions
+// SubscriptionResult only contains data now - errors will be handled at GraphQL level
 type SubscriptionResult struct {
-	Data  interface{} `json:"data,omitempty"`
-	Error string      `json:"error,omitempty"`
+	Data interface{} `json:"data,omitempty"`
+}
+
+// Custom error type for subscription errors
+type SubscriptionError struct {
+	Message string
+}
+
+func (e *SubscriptionError) Error() string {
+	return e.Message
 }
 
 func (r *Service) SubscribeItem(gvk schema.GroupVersionKind, scope v1.ResourceScope) graphql.FieldResolveFn {
@@ -47,7 +56,6 @@ func (r *Service) SubscribeItems(gvk schema.GroupVersionKind, scope v1.ResourceS
 	}
 }
 
-// Modified runWatch function that wraps results properly
 func (r *Service) runWatch(
 	p graphql.ResolveParams,
 	gvk schema.GroupVersionKind,
@@ -64,14 +72,14 @@ func (r *Service) runWatch(
 	labelSelector, err := getStringArg(p.Args, LabelSelectorArg, false)
 	if err != nil {
 		r.log.Error().Err(err).Msg("Failed to get label selector argument")
-		resultChannel <- SubscriptionResult{Error: err.Error()}
+		resultChannel <- &SubscriptionError{Message: err.Error()}
 		return
 	}
 
 	subscribeToAll, err := getBoolArg(p.Args, SubscribeToAllArg, false)
 	if err != nil {
 		r.log.Error().Err(err).Msg("Failed to get subscribeToAll argument")
-		resultChannel <- SubscriptionResult{Error: err.Error()}
+		resultChannel <- &SubscriptionError{Message: err.Error()}
 		return
 	}
 
@@ -90,7 +98,7 @@ func (r *Service) runWatch(
 		namespace, err = getStringArg(p.Args, NamespaceArg, isNamespaceRequired)
 		if err != nil {
 			r.log.Error().Err(err).Msg("Failed to get namespace argument")
-			resultChannel <- SubscriptionResult{Error: err.Error()}
+			resultChannel <- &SubscriptionError{Message: err.Error()}
 			return
 		}
 		if namespace != "" {
@@ -102,7 +110,7 @@ func (r *Service) runWatch(
 		selector, err := labels.Parse(labelSelector)
 		if err != nil {
 			r.log.Error().Err(err).Str("labelSelector", labelSelector).Msg("Invalid label selector")
-			resultChannel <- SubscriptionResult{Error: err.Error()}
+			resultChannel <- &SubscriptionError{Message: err.Error()}
 			return
 		}
 		opts = append(opts, client.MatchingLabelsSelector{Selector: selector})
@@ -113,7 +121,7 @@ func (r *Service) runWatch(
 		name, err = getStringArg(p.Args, NameArg, true)
 		if err != nil {
 			r.log.Error().Err(err).Msg("Failed to get name argument")
-			resultChannel <- SubscriptionResult{Error: err.Error()}
+			resultChannel <- &SubscriptionError{Message: err.Error()}
 			return
 		}
 		opts = append(opts, client.MatchingFields{"metadata.name": name})
@@ -122,7 +130,7 @@ func (r *Service) runWatch(
 	sortBy, err := getStringArg(p.Args, SortByArg, false)
 	if err != nil {
 		r.log.Error().Err(err).Msg("Failed to get sortBy argument")
-		resultChannel <- SubscriptionResult{Error: err.Error()}
+		resultChannel <- &SubscriptionError{Message: err.Error()}
 		return
 	}
 
@@ -132,8 +140,7 @@ func (r *Service) runWatch(
 
 		sentry.CaptureError(err, sentry.Tags{"namespace": namespace}, sentry.Extras{"gvk": gvk.String()})
 
-		resultChannel <- SubscriptionResult{Error: fmt.Sprintf("Failed to start watch: %v", err)}
-
+		resultChannel <- &SubscriptionError{Message: fmt.Sprintf("Failed to start watch: %v", err)}
 		return
 	}
 	defer watcher.Stop()
@@ -152,7 +159,7 @@ func (r *Service) runWatch(
 
 				sentry.CaptureError(err, sentry.Tags{"namespace": namespace})
 
-				resultChannel <- SubscriptionResult{Error: err.Error()}
+				resultChannel <- &SubscriptionError{Message: err.Error()}
 				return
 			}
 			key := obj.GetNamespace() + "/" + obj.GetName()
@@ -174,7 +181,7 @@ func (r *Service) runWatch(
 
 						sentry.CaptureError(err, sentry.Tags{"namespace": namespace})
 
-						resultChannel <- SubscriptionResult{Error: fmt.Sprintf("Failed to determine field changes: %v", err)}
+						resultChannel <- &SubscriptionError{Message: fmt.Sprintf("Failed to determine field changes: %v", err)}
 						return
 					}
 					sendUpdate = changed
@@ -213,7 +220,7 @@ func (r *Service) runWatch(
 					err = validateSortBy(items, sortBy)
 					if err != nil {
 						r.log.Error().Err(err).Str(SortByArg, sortBy).Msg("Invalid sortBy field path")
-						resultChannel <- SubscriptionResult{Error: fmt.Sprintf("Invalid sortBy field path: %v", err)}
+						resultChannel <- &SubscriptionError{Message: fmt.Sprintf("Invalid sortBy field path: %v", err)}
 						return
 					}
 
@@ -336,4 +343,30 @@ func getFieldValue(obj *unstructured.Unstructured, fieldPath string) (interface{
 	}
 
 	return current, true, nil
+}
+
+func CreateSubscriptionResolver(isSingle bool) graphql.FieldResolveFn {
+	return func(p graphql.ResolveParams) (interface{}, error) {
+		// The source should be either a SubscriptionResult or SubscriptionError from the subscription channel
+		source := p.Source
+
+		// Check if the source is a SubscriptionError (which implements error interface)
+		if err, ok := source.(error); ok {
+			// Return the error to be handled at the GraphQL level
+			return nil, err
+		}
+
+		// Use reflection to check if the source has a Data field (SubscriptionResult)
+		sourceValue := reflect.ValueOf(source)
+		if sourceValue.Kind() == reflect.Struct {
+			dataField := sourceValue.FieldByName("Data")
+			if dataField.IsValid() {
+				// Return the actual data directly without wrapping in a "data" field
+				return dataField.Interface(), nil
+			}
+		}
+
+		// For any other case, return the source as-is (no wrapping)
+		return source, nil
+	}
 }
