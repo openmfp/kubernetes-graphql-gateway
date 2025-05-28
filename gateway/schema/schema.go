@@ -250,11 +250,9 @@ func (g *Gateway) processSingleResource(
 		Resolve: g.resolver.DeleteItem(*gvk, resourceScope),
 	})
 
-	// Create subscription fields that use the actual resource types directly
-	// This removes the intermediate "data" field nesting
 	subscriptionSingular := strings.ToLower(fmt.Sprintf("%s_%s", gvk.Group, singular))
 	rootSubscriptionFields[subscriptionSingular] = &graphql.Field{
-		Type: resourceType, // Use the actual resource type directly
+		Type: resourceType,
 		Args: itemArgsBuilder.
 			WithSubscribeToAll().
 			Complete(),
@@ -263,10 +261,9 @@ func (g *Gateway) processSingleResource(
 		Description: fmt.Sprintf("Subscribe to changes of %s", singular),
 	}
 
-	// Create subscription fields for lists that use the actual resource list types directly
 	subscriptionPlural := strings.ToLower(fmt.Sprintf("%s_%s", gvk.Group, plural))
 	rootSubscriptionFields[subscriptionPlural] = &graphql.Field{
-		Type: graphql.NewList(resourceType), // Use the actual resource list type directly
+		Type: graphql.NewList(resourceType),
 		Args: listArgsBuilder.
 			WithSubscribeToAll().
 			Complete(),
