@@ -1,4 +1,4 @@
-package apischema_test
+package apischema
 
 import (
 	"testing"
@@ -7,18 +7,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/openapi"
 
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
 	apischemaMocks "github.com/openmfp/kubernetes-graphql-gateway/listener/apischema/mocks"
 	kcpMocks "github.com/openmfp/kubernetes-graphql-gateway/listener/kcp/mocks"
 )
 
 // Compile-time check that ResolverProvider implements Resolver interface
-var _ apischema.Resolver = (*apischema.ResolverProvider)(nil)
+var _ Resolver = (*ResolverProvider)(nil)
 
 // TestNewResolverNotNil checks if NewResolver() returns a non-nil *ResolverProvider
 // instance. This is a runtime check to ensure that the function behaves as expected.
 func TestNewResolverNotNil(t *testing.T) {
-	r := apischema.NewResolver()
+	r := NewResolver()
 	assert.NotNil(t, r, "NewResolver() should return non-nil *ResolverProvider")
 }
 
@@ -34,7 +33,7 @@ func TestResolverProvider_Resolve(t *testing.T) {
 	}{
 		{
 			name: "discovery_error",
-			err:  apischema.ErrGetServerPreferred,
+			err:  ErrGetServerPreferred,
 			openAPIPaths: map[string]openapi.GroupVersion{
 				"/api/v1": apischemaMocks.NewMockGroupVersion(t),
 			},
@@ -63,7 +62,7 @@ func TestResolverProvider_Resolve(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resolver := apischema.NewResolver()
+			resolver := NewResolver()
 			dc := kcpMocks.NewMockDiscoveryInterface(t)
 			rm := kcpMocks.NewMockRESTMapper(t)
 

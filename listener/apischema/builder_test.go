@@ -1,11 +1,10 @@
-package apischema_test
+package apischema
 
 import (
 	"errors"
 	"testing"
 
 	"github.com/openmfp/kubernetes-graphql-gateway/common"
-	apischema "github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
 	apischemaMocks "github.com/openmfp/kubernetes-graphql-gateway/listener/apischema/mocks"
 	"github.com/stretchr/testify/assert"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -34,7 +33,7 @@ func TestGetOpenAPISchemaKey(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		got := apischema.GetOpenAPISchemaKey(tc.gvk)
+		got := getOpenAPISchemaKey(tc.gvk)
 		assert.Equal(t, tc.want, got, "getOpenAPISchemaKey(%+v) result mismatch", tc.gvk)
 	}
 }
@@ -69,13 +68,13 @@ func TestGetCRDGroupVersionKind(t *testing.T) {
 				Names:    apiextensionsv1.CustomResourceDefinitionNames{Kind: "Bar"},
 			},
 			want:    nil,
-			wantErr: apischema.ErrCRDNoVersions,
+			wantErr: ErrCRDNoVersions,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := apischema.GetCRDGroupVersionKind(tc.spec)
+			got, err := getCRDGroupVersionKind(tc.spec)
 			assert.Equal(t, tc.wantErr, err, "error value mismatch")
 			if tc.wantErr != nil {
 				return
@@ -128,21 +127,21 @@ func TestNewSchemaBuilder(t *testing.T) {
 				mock.EXPECT().Paths().Return(nil, errors.New("paths error"))
 				return mock
 			}(),
-			wantErr: apischema.ErrGetOpenAPIPaths,
+			wantErr: ErrGetOpenAPIPaths,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			b := apischema.NewSchemaBuilder(tc.client, []string{"v1"})
+			b := NewSchemaBuilder(tc.client, []string{"v1"})
 			if tc.wantErr != nil {
-				assert.NotNil(t, b.GetError(), "expected error, got nil")
-				assert.Equal(t, 0, len(b.GetSchemas()), "expected 0 schemas on error")
+				assert.NotNil(t, b.err, "expected error, got nil")
+				assert.Equal(t, 0, len(b.schemas), "expected 0 schemas on error")
 				return
 			}
-			assert.Equal(t, tc.wantLen, len(b.GetSchemas()), "schema count mismatch")
+			assert.Equal(t, tc.wantLen, len(b.schemas), "schema count mismatch")
 			if tc.wantKey != "" {
-				_, ok := b.GetSchemas()[tc.wantKey]
+				_, ok := b.schemas[tc.wantKey]
 				assert.True(t, ok, "schema key %s not found in builder.schemas", tc.wantKey)
 			}
 		})
@@ -191,14 +190,11 @@ func TestWithCRDCategories(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mock := apischemaMocks.NewMockClient(t)
-			mock.EXPECT().Paths().Return(map[string]openapi.GroupVersion{}, nil)
-			b := apischema.NewSchemaBuilder(mock, nil)
-			b.SetSchemas(map[string]*spec.Schema{
+			b := &SchemaBuilder{schemas: map[string]*spec.Schema{
 				tc.key: {VendorExtensible: spec.VendorExtensible{Extensions: map[string]interface{}{}}},
-			})
+			}}
 			b.WithCRDCategories(tc.crd)
-			ext, found := b.GetSchemas()[tc.key].VendorExtensible.Extensions[common.CategoriesExtensionKey]
+			ext, found := b.schemas[tc.key].VendorExtensible.Extensions[common.CategoriesExtensionKey]
 			if tc.wantCats == nil {
 				assert.False(t, found, "expected no categories")
 				return
@@ -243,14 +239,11 @@ func TestWithApiResourceCategories(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mock := apischemaMocks.NewMockClient(t)
-			mock.EXPECT().Paths().Return(map[string]openapi.GroupVersion{}, nil)
-			b := apischema.NewSchemaBuilder(mock, nil)
-			b.SetSchemas(map[string]*spec.Schema{
+			b := &SchemaBuilder{schemas: map[string]*spec.Schema{
 				tc.key: {VendorExtensible: spec.VendorExtensible{Extensions: map[string]interface{}{}}},
-			})
+			}}
 			b.WithApiResourceCategories(tc.list)
-			ext, found := b.GetSchemas()[tc.key].VendorExtensible.Extensions[common.CategoriesExtensionKey]
+			ext, found := b.schemas[tc.key].VendorExtensible.Extensions[common.CategoriesExtensionKey]
 			if tc.wantCats == nil {
 				assert.False(t, found, "expected no categories")
 				return
@@ -279,12 +272,11 @@ func TestWithScope(t *testing.T) {
 		},
 	}
 
-	mock := apischemaMocks.NewMockClient(t)
-	mock.EXPECT().Paths().Return(map[string]openapi.GroupVersion{}, nil)
-	b := apischema.NewSchemaBuilder(mock, nil)
-	b.SetSchemas(map[string]*spec.Schema{
-		"g.v1.K": s,
-	})
+	b := &SchemaBuilder{
+		schemas: map[string]*spec.Schema{
+			"g.v1.K": s,
+		},
+	}
 
 	// Create RESTMapper and mark GVK as namespaced
 	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{gvk.GroupVersion()})
@@ -293,6 +285,6 @@ func TestWithScope(t *testing.T) {
 	b.WithScope(mapper)
 
 	// Validate
-	scope := b.GetSchemas()["g.v1.K"].VendorExtensible.Extensions[common.ScopeExtensionKey]
+	scope := b.schemas["g.v1.K"].VendorExtensible.Extensions[common.ScopeExtensionKey]
 	assert.Equal(t, apiextensionsv1.NamespaceScoped, scope, "scope value mismatch")
 }

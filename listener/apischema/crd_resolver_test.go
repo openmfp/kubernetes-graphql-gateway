@@ -1,4 +1,4 @@
-package apischema_test
+package apischema
 
 import (
 	"encoding/json"
@@ -9,7 +9,6 @@ import (
 	"k8s.io/client-go/openapi"
 	"k8s.io/kube-openapi/pkg/validation/spec"
 
-	apischema "github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
 	apischemaMocks "github.com/openmfp/kubernetes-graphql-gateway/listener/apischema/mocks"
 	kcpMocks "github.com/openmfp/kubernetes-graphql-gateway/listener/kcp/mocks"
 	"github.com/stretchr/testify/assert"
@@ -59,7 +58,7 @@ func TestGetCRDGroupKindVersions(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			gkv := apischema.GetCRDGroupKindVersions(tc.spec)
+			gkv := getCRDGroupKindVersions(tc.spec)
 			assert.Equal(t, tc.wantG, gkv.Group, "Group mismatch")
 			assert.Equal(t, tc.wantKind, gkv.Kind, "Kind mismatch")
 			assert.Equal(t, len(tc.wantVers), len(gkv.Versions), "Versions length mismatch")
@@ -73,13 +72,13 @@ func TestGetCRDGroupKindVersions(t *testing.T) {
 func TestIsCRDKindIncluded(t *testing.T) {
 	tests := []struct {
 		name    string
-		gkv     *apischema.GroupKindVersions
+		gkv     *GroupKindVersions
 		apiList *metav1.APIResourceList
 		want    bool
 	}{
 		{
 			name: "kind_present",
-			gkv: &apischema.GroupKindVersions{
+			gkv: &GroupKindVersions{
 				GroupKind: &metav1.GroupKind{
 					Group: "g",
 					Kind:  "KindA",
@@ -97,7 +96,7 @@ func TestIsCRDKindIncluded(t *testing.T) {
 		},
 		{
 			name: "kind_absent",
-			gkv: &apischema.GroupKindVersions{
+			gkv: &GroupKindVersions{
 				GroupKind: &metav1.GroupKind{
 					Group: "g",
 					Kind:  "KindA",
@@ -115,7 +114,7 @@ func TestIsCRDKindIncluded(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := apischema.IsCRDKindIncluded(tc.gkv, tc.apiList)
+			got := isCRDKindIncluded(tc.gkv, tc.apiList)
 			assert.Equal(t, tc.want, got, "isCRDKindIncluded result mismatch")
 		})
 	}
@@ -124,7 +123,7 @@ func TestIsCRDKindIncluded(t *testing.T) {
 // TestErrorIfCRDNotInPreferredApiGroups tests the errorIfCRDNotInPreferredApiGroups function.
 // It checks if the function correctly identifies if a CRD is not in the preferred API groups.
 func TestErrorIfCRDNotInPreferredApiGroups(t *testing.T) {
-	gkv := &apischema.GroupKindVersions{
+	gkv := &GroupKindVersions{
 		GroupKind: &metav1.GroupKind{Group: "g", Kind: "K"},
 		Versions:  []string{"v1", "v2"},
 	}
@@ -159,13 +158,13 @@ func TestErrorIfCRDNotInPreferredApiGroups(t *testing.T) {
 					},
 				},
 			},
-			wantErr: apischema.ErrGVKNotPreferred,
+			wantErr: ErrGVKNotPreferred,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			groups, err := apischema.ErrorIfCRDNotInPreferredApiGroups(gkv, tc.lists)
+			groups, err := errorIfCRDNotInPreferredApiGroups(gkv, tc.lists)
 			if tc.wantErr != nil {
 				assert.ErrorIs(t, err, tc.wantErr)
 				return
@@ -182,7 +181,7 @@ func TestErrorIfCRDNotInPreferredApiGroups(t *testing.T) {
 func TestGetSchemaForPath(t *testing.T) {
 	// prepare a valid schemaResponse JSON
 	validSchemas := map[string]*spec.Schema{"a.v1.K": {}}
-	resp := apischema.SchemaResponse{Components: apischema.SchemasComponentsWrapper{Schemas: validSchemas}}
+	resp := schemaResponse{Components: schemasComponentsWrapper{Schemas: validSchemas}}
 	validJSON, err := json.Marshal(&resp)
 	assert.NoError(t, err, "failed to marshal valid response")
 
@@ -199,14 +198,14 @@ func TestGetSchemaForPath(t *testing.T) {
 			preferred: []string{"g/v1"},
 			path:      "noSlash",
 			gv:        apischemaMocks.NewMockGroupVersion(t),
-			wantErr:   apischema.ErrInvalidPath,
+			wantErr:   ErrInvalidPath,
 		},
 		{
 			name:      "not_preferred",
 			preferred: []string{"x/y"},
 			path:      "/g/v1",
 			gv:        apischemaMocks.NewMockGroupVersion(t),
-			wantErr:   apischema.ErrNotPreferred,
+			wantErr:   ErrNotPreferred,
 		},
 		{
 			name:      "unmarshal_error",
@@ -217,7 +216,7 @@ func TestGetSchemaForPath(t *testing.T) {
 				mock.EXPECT().Schema("application/json").Return([]byte("bad json"), nil)
 				return mock
 			}(),
-			wantErr: apischema.ErrUnmarshalSchemaForPath,
+			wantErr: ErrUnmarshalSchemaForPath,
 		},
 		{
 			name:      "success",
@@ -234,7 +233,7 @@ func TestGetSchemaForPath(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := apischema.GetSchemaForPath(tc.preferred, tc.path, tc.gv)
+			got, err := getSchemaForPath(tc.preferred, tc.path, tc.gv)
 			if tc.wantErr != nil {
 				assert.ErrorIs(t, err, tc.wantErr)
 				return
@@ -250,7 +249,7 @@ func TestGetSchemaForPath(t *testing.T) {
 func TestResolveSchema(t *testing.T) {
 	// prepare a valid schemaResponse JSON
 	validSchemas := map[string]*spec.Schema{"a.v1.K": {}}
-	resp := apischema.SchemaResponse{Components: apischema.SchemasComponentsWrapper{Schemas: validSchemas}}
+	resp := schemaResponse{Components: schemasComponentsWrapper{Schemas: validSchemas}}
 	validJSON, err := json.Marshal(&resp)
 	assert.NoError(t, err, "failed to marshal valid response")
 
@@ -265,10 +264,10 @@ func TestResolveSchema(t *testing.T) {
 	}{
 		{
 			name:        "discovery_error",
-			err:         apischema.ErrGetServerPreferred,
+			err:         ErrGetServerPreferred,
 			openAPIPath: "/api/v1",
 			openAPIErr:  nil,
-			wantErr:     apischema.ErrGetServerPreferred,
+			wantErr:     ErrGetServerPreferred,
 			setSchema:   nil,
 		},
 		{
@@ -318,7 +317,7 @@ func TestResolveSchema(t *testing.T) {
 				dc.EXPECT().OpenAPIV3().Return(openAPIClient)
 			}
 
-			got, err := apischema.ResolveSchema(dc, rm)
+			got, err := resolveSchema(dc, rm)
 			if tc.wantErr != nil {
 				assert.ErrorIs(t, err, tc.wantErr)
 				return
