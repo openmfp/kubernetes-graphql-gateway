@@ -239,21 +239,6 @@ func (r *Service) runWatch(
 	}
 }
 
-// Update the subscription GraphQL type to handle the wrapped result
-func createSubscriptionType(resourceType *graphql.Object) *graphql.Object {
-	return graphql.NewObject(graphql.ObjectConfig{
-		Name: resourceType.Name() + "Subscription",
-		Fields: graphql.Fields{
-			"data": &graphql.Field{
-				Type: resourceType,
-			},
-			"error": &graphql.Field{
-				Type: graphql.String,
-			},
-		},
-	})
-}
-
 // extractRequestedFields uses p.Info to determine the fields requested by the client.
 // It returns a slice of strings representing the "paths" of requested fields.
 func extractRequestedFields(info graphql.ResolveInfo) []string {
@@ -351,10 +336,4 @@ func getFieldValue(obj *unstructured.Unstructured, fieldPath string) (interface{
 	}
 
 	return current, true, nil
-}
-
-func errorResult(msg string) map[string]interface{} {
-	return map[string]interface{}{
-		"error": msg,
-	}
 }

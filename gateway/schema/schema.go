@@ -596,10 +596,3 @@ func sanitizeFieldName(name string) string {
 
 	return name
 }
-
-func addErrorFieldToGraphqlObject(obj *graphql.Object) *graphql.Object {
-	obj.AddFieldConfig("error", &graphql.Field{
-		Type: graphql.String,
-	})
-	return obj
-}
