@@ -250,9 +250,22 @@ func (g *Gateway) processSingleResource(
 		Resolve: g.resolver.DeleteItem(*gvk, resourceScope),
 	})
 
+	// Create a wrapper type for the subscription that includes both data and error
+	subscriptionType := graphql.NewObject(graphql.ObjectConfig{
+		Name: singular + "Subscription",
+		Fields: graphql.Fields{
+			"data": &graphql.Field{
+				Type: resourceType,
+			},
+			"error": &graphql.Field{
+				Type: graphql.String,
+			},
+		},
+	})
+
 	subscriptionSingular := strings.ToLower(fmt.Sprintf("%s_%s", gvk.Group, singular))
 	rootSubscriptionFields[subscriptionSingular] = &graphql.Field{
-		Type: addErrorFieldToGraphqlObject(resourceType),
+		Type: subscriptionType,
 		Args: itemArgsBuilder.
 			WithSubscribeToAll().
 			Complete(),
@@ -261,9 +274,22 @@ func (g *Gateway) processSingleResource(
 		Description: fmt.Sprintf("Subscribe to changes of %s", singular),
 	}
 
+	// Create a wrapper type for the list subscription
+	subscriptionListType := graphql.NewObject(graphql.ObjectConfig{
+		Name: plural + "Subscription",
+		Fields: graphql.Fields{
+			"data": &graphql.Field{
+				Type: graphql.NewList(resourceType),
+			},
+			"error": &graphql.Field{
+				Type: graphql.String,
+			},
+		},
+	})
+
 	subscriptionPlural := strings.ToLower(fmt.Sprintf("%s_%s", gvk.Group, plural))
 	rootSubscriptionFields[subscriptionPlural] = &graphql.Field{
-		Type: graphql.NewList(addErrorFieldToGraphqlObject(resourceType)),
+		Type: subscriptionListType,
 		Args: listArgsBuilder.
 			WithSubscribeToAll().
 			Complete(),

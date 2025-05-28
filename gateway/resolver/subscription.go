@@ -23,6 +23,12 @@ var (
 	ErrFailedToCastEventObjectToUnstructured = fmt.Errorf("failed to cast event object to unstructured")
 )
 
+// SubscriptionResult wraps both data and error for subscriptions
+type SubscriptionResult struct {
+	Data  interface{} `json:"data,omitempty"`
+	Error string      `json:"error,omitempty"`
+}
+
 func (r *Service) SubscribeItem(gvk schema.GroupVersionKind, scope v1.ResourceScope) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		resultChannel := make(chan interface{})
@@ -41,6 +47,7 @@ func (r *Service) SubscribeItems(gvk schema.GroupVersionKind, scope v1.ResourceS
 	}
 }
 
+// Modified runWatch function that wraps results properly
 func (r *Service) runWatch(
 	p graphql.ResolveParams,
 	gvk schema.GroupVersionKind,
@@ -57,14 +64,14 @@ func (r *Service) runWatch(
 	labelSelector, err := getStringArg(p.Args, LabelSelectorArg, false)
 	if err != nil {
 		r.log.Error().Err(err).Msg("Failed to get label selector argument")
-		resultChannel <- errorResult("Failed to get label selector: " + err.Error())
+		resultChannel <- SubscriptionResult{Error: err.Error()}
 		return
 	}
 
 	subscribeToAll, err := getBoolArg(p.Args, SubscribeToAllArg, false)
 	if err != nil {
 		r.log.Error().Err(err).Msg("Failed to get subscribeToAll argument")
-		resultChannel <- errorResult("Failed to get subscribeToAll: " + err.Error())
+		resultChannel <- SubscriptionResult{Error: err.Error()}
 		return
 	}
 
@@ -83,7 +90,7 @@ func (r *Service) runWatch(
 		namespace, err = getStringArg(p.Args, NamespaceArg, isNamespaceRequired)
 		if err != nil {
 			r.log.Error().Err(err).Msg("Failed to get namespace argument")
-			resultChannel <- errorResult("Failed to get namespace: " + err.Error())
+			resultChannel <- SubscriptionResult{Error: err.Error()}
 			return
 		}
 		if namespace != "" {
@@ -95,7 +102,7 @@ func (r *Service) runWatch(
 		selector, err := labels.Parse(labelSelector)
 		if err != nil {
 			r.log.Error().Err(err).Str("labelSelector", labelSelector).Msg("Invalid label selector")
-			resultChannel <- errorResult("Invalid label selector: " + err.Error())
+			resultChannel <- SubscriptionResult{Error: err.Error()}
 			return
 		}
 		opts = append(opts, client.MatchingLabelsSelector{Selector: selector})
@@ -106,7 +113,7 @@ func (r *Service) runWatch(
 		name, err = getStringArg(p.Args, NameArg, true)
 		if err != nil {
 			r.log.Error().Err(err).Msg("Failed to get name argument")
-			resultChannel <- errorResult("Failed to get name: " + err.Error())
+			resultChannel <- SubscriptionResult{Error: err.Error()}
 			return
 		}
 		opts = append(opts, client.MatchingFields{"metadata.name": name})
@@ -115,7 +122,7 @@ func (r *Service) runWatch(
 	sortBy, err := getStringArg(p.Args, SortByArg, false)
 	if err != nil {
 		r.log.Error().Err(err).Msg("Failed to get sortBy argument")
-		resultChannel <- errorResult("Failed to get sortBy: " + err.Error())
+		resultChannel <- SubscriptionResult{Error: err.Error()}
 		return
 	}
 
@@ -125,7 +132,7 @@ func (r *Service) runWatch(
 
 		sentry.CaptureError(err, sentry.Tags{"namespace": namespace}, sentry.Extras{"gvk": gvk.String()})
 
-		resultChannel <- errorResult("Failed to start watch: " + err.Error())
+		resultChannel <- SubscriptionResult{Error: fmt.Sprintf("Failed to start watch: %v", err)}
 
 		return
 	}
@@ -145,7 +152,8 @@ func (r *Service) runWatch(
 
 				sentry.CaptureError(err, sentry.Tags{"namespace": namespace})
 
-				continue
+				resultChannel <- SubscriptionResult{Error: err.Error()}
+				return
 			}
 			key := obj.GetNamespace() + "/" + obj.GetName()
 
@@ -166,7 +174,7 @@ func (r *Service) runWatch(
 
 						sentry.CaptureError(err, sentry.Tags{"namespace": namespace})
 
-						resultChannel <- errorResult("Failed to determine field changes: " + err.Error())
+						resultChannel <- SubscriptionResult{Error: fmt.Sprintf("Failed to determine field changes: %v", err)}
 						return
 					}
 					sendUpdate = changed
@@ -183,15 +191,18 @@ func (r *Service) runWatch(
 					if name != "" {
 						singleObj = previousObjects[namespace+"/"+name]
 					}
+
+					var data interface{}
+					if singleObj == nil { // object will be nil in case it is deleted
+						data = nil
+					} else {
+						data = singleObj.Object
+					}
+
 					select {
 					case <-ctx.Done():
 						return
-					case resultChannel <- func() interface{} {
-						if singleObj == nil { // object will be nil in case it is deleted
-							return nil
-						}
-						return singleObj.Object
-					}():
+					case resultChannel <- SubscriptionResult{Data: data}:
 					}
 				} else {
 					items := make([]unstructured.Unstructured, 0, len(previousObjects))
@@ -202,7 +213,7 @@ func (r *Service) runWatch(
 					err = validateSortBy(items, sortBy)
 					if err != nil {
 						r.log.Error().Err(err).Str(SortByArg, sortBy).Msg("Invalid sortBy field path")
-						resultChannel <- errorResult("Invalid sortBy field path: " + err.Error())
+						resultChannel <- SubscriptionResult{Error: fmt.Sprintf("Invalid sortBy field path: %v", err)}
 						return
 					}
 
@@ -218,7 +229,7 @@ func (r *Service) runWatch(
 					select {
 					case <-ctx.Done():
 						return
-					case resultChannel <- sortedItems:
+					case resultChannel <- SubscriptionResult{Data: sortedItems}:
 					}
 				}
 			}
@@ -226,6 +237,21 @@ func (r *Service) runWatch(
 			return
 		}
 	}
+}
+
+// Update the subscription GraphQL type to handle the wrapped result
+func createSubscriptionType(resourceType *graphql.Object) *graphql.Object {
+	return graphql.NewObject(graphql.ObjectConfig{
+		Name: resourceType.Name() + "Subscription",
+		Fields: graphql.Fields{
+			"data": &graphql.Field{
+				Type: resourceType,
+			},
+			"error": &graphql.Field{
+				Type: graphql.String,
+			},
+		},
+	})
 }
 
 // extractRequestedFields uses p.Info to determine the fields requested by the client.
