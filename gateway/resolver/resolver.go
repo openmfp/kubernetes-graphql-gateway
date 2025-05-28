@@ -5,12 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gopkg.in/yaml.v3"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"regexp"
 	"sort"
 	"strings"
-
-	"gopkg.in/yaml.v3"
-	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
 	"github.com/graphql-go/graphql"
 	"go.opentelemetry.io/otel"
@@ -237,12 +236,7 @@ func (r *Service) CreateItem(gvk schema.GroupVersionKind, scope v1.ResourceScope
 			return nil, errors.New("object metadata.name is required")
 		}
 
-		dryRun, err := getDryRunArg(p.Args, DryRunArg, false)
-		if err != nil {
-			return nil, err
-		}
-
-		if err := r.runtimeClient.Create(ctx, obj, &client.CreateOptions{DryRun: dryRun}); err != nil {
+		if err := r.runtimeClient.Create(ctx, obj); err != nil {
 			log.Error().Err(err).Msg("Failed to create object")
 			return nil, err
 		}
