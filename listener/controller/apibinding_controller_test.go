@@ -43,9 +43,7 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 				clusterPathResolver *clusterpathMocks.MockResolver,
 			) {
 				controllerRuntimeClient := &controllerRuntimeMocks.MockClient{}
-				clusterPathResolver.EXPECT().
-					ClientForCluster("dev-cluster").
-					Return(controllerRuntimeClient, nil)
+				clusterPathResolver.EXPECT().ClientForCluster("dev-cluster").Return(controllerRuntimeClient, nil)
 
 				controllerRuntimeClient.EXPECT().
 					Get(mock.Anything, mock.Anything, mock.Anything).
@@ -77,9 +75,7 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 				clusterPathResolver *clusterpathMocks.MockResolver,
 			) {
 				controllerRuntimeClient := &controllerRuntimeMocks.MockClient{}
-				clusterPathResolver.EXPECT().
-					ClientForCluster("dev-cluster").
-					Return(controllerRuntimeClient, nil)
+				clusterPathResolver.EXPECT().ClientForCluster("dev-cluster").Return(controllerRuntimeClient, nil)
 				controllerRuntimeClient.EXPECT().
 					Get(mock.Anything, mock.Anything, mock.Anything).
 					Return(nil).
@@ -109,9 +105,7 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 				clusterPathResolver *clusterpathMocks.MockResolver,
 			) {
 				controllerRuntimeClient := &controllerRuntimeMocks.MockClient{}
-				clusterPathResolver.EXPECT().
-					ClientForCluster("dev-cluster").
-					Return(controllerRuntimeClient, nil)
+				clusterPathResolver.EXPECT().ClientForCluster("dev-cluster").Return(controllerRuntimeClient, nil)
 				controllerRuntimeClient.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return(nil)
 			},
 			err: errors.New("failed to get cluster path from kcp.io/path annotation"),
@@ -126,9 +120,7 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 				clusterPathResolver *clusterpathMocks.MockResolver,
 			) {
 				controllerRuntimeClient := &controllerRuntimeMocks.MockClient{}
-				clusterPathResolver.EXPECT().
-					ClientForCluster("dev-cluster").
-					Return(controllerRuntimeClient, nil)
+				clusterPathResolver.EXPECT().ClientForCluster("dev-cluster").Return(controllerRuntimeClient, nil)
 				controllerRuntimeClient.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return(nil).
 					Run(func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) {
 						// Do not set Annotations (nil)
@@ -146,9 +138,7 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 				clusterPathResolver *clusterpathMocks.MockResolver,
 			) {
 				controllerRuntimeClient := &controllerRuntimeMocks.MockClient{}
-				clusterPathResolver.EXPECT().
-					ClientForCluster("dev-cluster").
-					Return(controllerRuntimeClient, nil)
+				clusterPathResolver.EXPECT().ClientForCluster("dev-cluster").Return(controllerRuntimeClient, nil)
 				controllerRuntimeClient.EXPECT().
 					Get(mock.Anything, mock.Anything, mock.Anything).
 					Return(nil).
@@ -180,12 +170,8 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 				clusterPathResolver *clusterpathMocks.MockResolver,
 			) {
 				controllerRuntimeClient := &controllerRuntimeMocks.MockClient{}
-				clusterPathResolver.EXPECT().
-					ClientForCluster("dev-cluster").
-					Return(controllerRuntimeClient, nil)
-				controllerRuntimeClient.EXPECT().
-					Get(mock.Anything, mock.Anything, mock.Anything).
-					Return(assert.AnError)
+				clusterPathResolver.EXPECT().ClientForCluster("dev-cluster").Return(controllerRuntimeClient, nil)
+				controllerRuntimeClient.EXPECT().Get(mock.Anything, mock.Anything, mock.Anything).Return(assert.AnError)
 			},
 			err: assert.AnError,
 		},
@@ -198,9 +184,7 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 				apiSchemaResolver *apischemaMocks.MockResolver,
 				clusterPathResolver *clusterpathMocks.MockResolver,
 			) {
-				clusterPathResolver.EXPECT().
-					ClientForCluster("dev-cluster").
-					Return(nil, assert.AnError)
+				clusterPathResolver.EXPECT().ClientForCluster("dev-cluster").Return(nil, assert.AnError)
 			},
 			err: assert.AnError,
 		},
@@ -214,9 +198,7 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 				clusterPathResolver *clusterpathMocks.MockResolver,
 			) {
 				controllerRuntimeClient := &controllerRuntimeMocks.MockClient{}
-				clusterPathResolver.EXPECT().
-					ClientForCluster("dev-cluster").
-					Return(controllerRuntimeClient, nil)
+				clusterPathResolver.EXPECT().ClientForCluster("dev-cluster").Return(controllerRuntimeClient, nil)
 				controllerRuntimeClient.EXPECT().
 					Get(mock.Anything, mock.Anything, mock.Anything).
 					Return(nil).
