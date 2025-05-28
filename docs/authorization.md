@@ -12,6 +12,32 @@ export LOCAL_DEVELOPMENT=true
 ```
 This is useful for local development and testing purposes.
 
+## Using Service Account Token
+
+For local development you can:
+1. Create a service account:
+```shell
+kubectl create sa app
+```
+2. Give it `admin` permissions.
+
+⚠️ Warning: This gives all permissions across the entire cluster. Be careful.
+
+```shell
+kubectl create clusterrolebinding app2-cluster-admin \
+  --clusterrole=cluster-admin \
+  --serviceaccount=default:app
+```
+3. Generate token by running
+```shell
+kubectl create token app
+```
+
+To use the service account token directly, you must skip the user impersonation step:
+```shell
+export GATEWAY_SHOULD_IMPERSONATE=false
+```
+
 ## Introspection authentication
 
 By default, introspection requests (i.e. the requests that are made to fetch the GraphQL schema) are **not** protected by authorization.
