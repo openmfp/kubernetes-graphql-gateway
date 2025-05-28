@@ -66,7 +66,7 @@ func TestGetCRDGroupKindVersions(t *testing.T) {
 			wantVers: []string{"v1", "v2"},
 		},
 		{
-			name:     "single_version",
+			name:     "single version",
 			spec:     apiextensionsv1.CustomResourceDefinitionSpec{Group: "g", Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{Name: "v1"}}, Names: apiextensionsv1.CustomResourceDefinitionNames{Kind: "K"}},
 			wantG:    "g",
 			wantKind: "K",
@@ -101,13 +101,13 @@ func TestIsCRDKindIncluded(t *testing.T) {
 		want    bool
 	}{
 		{
-			name:    "kind_present",
+			name:    "kind present",
 			gkv:     &GroupKindVersions{GroupKind: &metav1.GroupKind{Group: "g", Kind: "KindA"}, Versions: []string{"v1"}},
 			apiList: &metav1.APIResourceList{GroupVersion: "g/v1", APIResources: []metav1.APIResource{{Kind: "KindA"}, {Kind: "Other"}}},
 			want:    true,
 		},
 		{
-			name:    "kind_absent",
+			name:    "kind absent",
 			gkv:     &GroupKindVersions{GroupKind: &metav1.GroupKind{Group: "g", Kind: "KindA"}, Versions: []string{"v1"}},
 			apiList: &metav1.APIResourceList{GroupVersion: "g/v1", APIResources: []metav1.APIResource{{Kind: "Different"}}},
 			want:    false,
@@ -137,7 +137,7 @@ func TestErrorIfCRDNotInPreferredApiGroups(t *testing.T) {
 		wantGroup []string
 	}{
 		{
-			name: "kind_found",
+			name: "kind found",
 			lists: []*metav1.APIResourceList{
 				{
 					GroupVersion: "g/v2",
@@ -152,7 +152,7 @@ func TestErrorIfCRDNotInPreferredApiGroups(t *testing.T) {
 			wantGroup: []string{"g/v2", "g/v3"},
 		},
 		{
-			name:    "kind_not_found",
+			name:    "kind not found",
 			lists:   []*metav1.APIResourceList{{GroupVersion: "g/v1", APIResources: []metav1.APIResource{{Kind: "X"}}}},
 			wantErr: ErrGVKNotPreferred,
 		},
@@ -202,21 +202,21 @@ func TestGetSchemaForPath(t *testing.T) {
 		wantCount int
 	}{
 		{
-			name:      "invalid_path",
+			name:      "invalid path",
 			preferred: []string{"g/v1"},
 			path:      "noSlash",
 			gv:        fakeGV{},
 			wantErr:   ErrInvalidPath,
 		},
 		{
-			name:      "not_preferred",
+			name:      "not preferred",
 			preferred: []string{"x/y"},
 			path:      "/g/v1",
 			gv:        fakeGV{},
 			wantErr:   ErrNotPreferred,
 		},
 		{
-			name:      "unmarshal_error",
+			name:      "unmarshal error",
 			preferred: []string{"g/v1"},
 			path:      "/g/v1",
 			gv:        fakeGV{data: []byte("bad json"), err: nil},
@@ -263,12 +263,12 @@ func TestResolveSchema(t *testing.T) {
 		wantErr            bool
 	}{
 		{
-			name:    "discovery_error",
+			name:    "discovery error",
 			err:     ErrGetServerPreferred,
 			wantErr: true,
 		},
 		{
-			name: "successful_schema_resolution",
+			name: "successful schema resolution",
 			preferredResources: []*metav1.APIResourceList{
 				{
 					GroupVersion: "v1",
@@ -287,7 +287,7 @@ func TestResolveSchema(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:               "empty_resources_list",
+			name:               "empty resources list",
 			preferredResources: []*metav1.APIResourceList{},
 			openAPIPaths: map[string]openapi.GroupVersion{
 				"/api/v1": fakeGV{},

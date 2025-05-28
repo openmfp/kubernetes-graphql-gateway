@@ -17,12 +17,12 @@ func TestConvertJSON(t *testing.T) {
 		check   func(defs map[string]map[string]any) error
 	}{
 		{
-			name:    "invalid_JSON",
+			name:    "invalid JSON",
 			input:   "not a json",
 			wantErr: ErrUnmarshalJSON,
 		},
 		{
-			name: "remove_defaults_and_rewrite_refs",
+			name: "remove defaults and rewrite refs",
 			input: map[string]any{
 				"components": map[string]any{
 					"schemas": map[string]any{
