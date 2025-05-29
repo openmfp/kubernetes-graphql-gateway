@@ -2,10 +2,11 @@ package resolver
 
 import (
 	"fmt"
-	"github.com/openmfp/golang-commons/sentry"
 	"reflect"
 	"sort"
 	"strings"
+
+	"github.com/openmfp/golang-commons/sentry"
 
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
@@ -117,6 +118,24 @@ func (r *Service) runWatch(
 		r.log.Error().Err(err).Msg("Failed to get sortBy argument")
 		resultChannel <- errorResult("Failed to get sortBy: " + err.Error())
 		return
+	}
+
+	// Check if need to send an empty set first
+	if !singleItem {
+		err = r.runtimeClient.List(ctx, list, opts...)
+		if err != nil {
+			r.log.Error().Err(err).Str("gvk", gvk.String()).Msg("Failed to list resources")
+			resultChannel <- errorResult("Failed to list resources: " + err.Error())
+			return
+		}
+
+		if len(list.Items) == 0 {
+			select {
+			case <-ctx.Done():
+				return
+			case resultChannel <- []map[string]interface{}{}:
+			}
+		}
 	}
 
 	watcher, err := r.runtimeClient.Watch(ctx, list, opts...)
