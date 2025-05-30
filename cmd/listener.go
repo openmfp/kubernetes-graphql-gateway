@@ -20,6 +20,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/gateway/v1alpha1"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/kcp"
 )
@@ -39,6 +40,7 @@ var listenCmd = &cobra.Command{
 		utilruntime.Must(kcpcore.AddToScheme(scheme))
 		utilruntime.Must(kcptenancy.AddToScheme(scheme))
 		utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
+		utilruntime.Must(gatewayv1alpha1.AddToScheme(scheme))
 
 		ctrl.SetLogger(log.ComponentLogger("controller-runtime").Logr())
 
@@ -108,7 +110,7 @@ var listenCmd = &cobra.Command{
 			OpenAPIDefinitionsPath: appCfg.OpenApiDefinitionsPath,
 		}
 
-		reconciler, err := kcp.NewReconciler(appCfg, reconcilerOpts, restCfg, discoveryInterface, kcp.PreReconcile, discoveryclient.NewFactory, log)
+		reconciler, err := kcp.NewReconciler(appCfg, reconcilerOpts, restCfg, discoveryInterface, kcp.PreReconcileWithClusterAccess, discoveryclient.NewFactory, log)
 		if err != nil {
 			log.Error().Err(err).Msg("unable to instantiate reconciler")
 			os.Exit(1)

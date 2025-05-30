@@ -24,6 +24,10 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
 )
 
+const (
+	kubernetesClusterName = "kubernetes" // Used for standard k8s cluster mode (not ClusterAccess)
+)
+
 var (
 	ErrCreateDiscoveryClient = errors.New("failed to create discovery client")
 	ErrCreateIOHandler       = errors.New("failed to create IO Handler")
@@ -48,7 +52,8 @@ type ReconcilerOpts struct {
 	OpenAPIDefinitionsPath string
 }
 
-type PreReconcileClusterAccessFunc func(cr *apischema.CRDResolver, io workspacefile.IOHandler, client client.Client, log *logger.Logger) error
+type PreReconcileFunc func(cr *apischema.CRDResolver, io workspacefile.IOHandler) error
+type PreReconcileWithClientFunc func(cr *apischema.CRDResolver, io workspacefile.IOHandler, client client.Client, log *logger.Logger) error
 
 // NoOpReconciler is a reconciler that does nothing - used when ClusterAccess is managing target clusters
 type NoOpReconciler struct {
@@ -68,21 +73,62 @@ func (r *NoOpReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 func NewReconciler(appCfg config.Config, opts ReconcilerOpts, restcfg *rest.Config,
 	discoveryInterface discovery.DiscoveryInterface,
-	preReconcileFunc PreReconcileClusterAccessFunc,
+	preReconcileFunc func(cr *apischema.CRDResolver, io workspacefile.IOHandler) error,
 	discoverFactory func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error),
 	log *logger.Logger,
 ) (CustomReconciler, error) {
 	if !appCfg.EnableKcp {
-		return newClusterAccessReconciler(opts, discoveryInterface, preReconcileFunc, log)
+		return newStandardReconciler(opts, discoveryInterface, preReconcileFunc, log)
 	}
 
 	return newKcpReconciler(opts, restcfg, discoverFactory, log)
 }
 
-func newClusterAccessReconciler(
+func NewReconcilerWithClusterAccess(appCfg config.Config, opts ReconcilerOpts, restcfg *rest.Config,
+	discoveryInterface discovery.DiscoveryInterface,
+	preReconcileFunc PreReconcileWithClientFunc,
+	discoverFactory func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error),
+	log *logger.Logger,
+) (CustomReconciler, error) {
+	if !appCfg.EnableKcp {
+		return newStandardReconcilerWithClusterAccess(opts, discoveryInterface, preReconcileFunc, log)
+	}
+
+	return newKcpReconciler(opts, restcfg, discoverFactory, log)
+}
+
+func newStandardReconciler(
 	opts ReconcilerOpts,
 	discoveryInterface discovery.DiscoveryInterface,
-	preReconcileFunc PreReconcileClusterAccessFunc,
+	preReconcileFunc func(cr *apischema.CRDResolver, io workspacefile.IOHandler) error,
+	log *logger.Logger,
+) (CustomReconciler, error) {
+	ioHandler, err := workspacefile.NewIOHandler(opts.OpenAPIDefinitionsPath)
+	if err != nil {
+		return nil, errors.Join(ErrCreateIOHandler, err)
+	}
+
+	rm, err := restMapperFromConfig(opts.Config)
+	if err != nil {
+		return nil, err
+	}
+
+	schemaResolver := &apischema.CRDResolver{
+		DiscoveryInterface: discoveryInterface,
+		RESTMapper:         rm,
+	}
+
+	if err = preReconcileFunc(schemaResolver, ioHandler); err != nil {
+		return nil, errors.Join(ErrGenerateSchema, err)
+	}
+
+	return controller.NewCRDReconciler(kubernetesClusterName, opts.Client, schemaResolver, ioHandler, log), nil
+}
+
+func newStandardReconcilerWithClusterAccess(
+	opts ReconcilerOpts,
+	discoveryInterface discovery.DiscoveryInterface,
+	preReconcileFunc PreReconcileWithClientFunc,
 	log *logger.Logger,
 ) (CustomReconciler, error) {
 	ioHandler, err := workspacefile.NewIOHandler(opts.OpenAPIDefinitionsPath)
@@ -119,6 +165,21 @@ func restMapperFromConfig(cfg *rest.Config) (meta.RESTMapper, error) {
 	}
 
 	return rm, nil
+}
+
+func PreReconcile(
+	cr *apischema.CRDResolver,
+	io workspacefile.IOHandler,
+) error {
+	JSON, err := cr.Resolve()
+	if err != nil {
+		return errors.Join(ErrResolveSchema, err)
+	}
+	if err := io.Write(JSON, kubernetesClusterName); err != nil {
+		return errors.Join(ErrWriteJSON, err)
+	}
+
+	return nil
 }
 
 func newKcpReconciler(opts ReconcilerOpts, restcfg *rest.Config, newDiscoveryFactoryFunc func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error), log *logger.Logger) (CustomReconciler, error) {

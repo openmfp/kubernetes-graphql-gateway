@@ -1,0 +1,17 @@
+apiVersion: gateway.openmfp.org/v1alpha1
+kind: ClusterAccess
+metadata:
+  name: my-cluster-access
+spec:
+  path: kubernetes # optional, if not set, the name of the resource is used
+  host: https://my-cluster.com
+  ca:
+    secretRef:
+      name: ca-secret
+      namespace: default
+      key: ca.crt
+  auth:
+    secretRef:
+      name: my-secret
+      namespace: my-namespace
+      key: token 
