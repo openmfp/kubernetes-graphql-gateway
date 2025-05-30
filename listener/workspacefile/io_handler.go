@@ -38,6 +38,9 @@ func (h *IOHandlerProvider) Read(clusterName string) ([]byte, error) {
 	fileName := path.Join(h.schemasDir, clusterName)
 	JSON, err := os.ReadFile(fileName)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrNotFound
+		}
 		return nil, errors.Join(ErrReadJSONFile, err)
 	}
 	return JSON, nil
