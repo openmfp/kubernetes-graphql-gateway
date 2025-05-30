@@ -10,9 +10,11 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/kcp/mocks"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
+	"github.com/openmfp/golang-commons/logger"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/openmfp/golang-commons/logger/testlogger"
@@ -88,7 +90,7 @@ func TestNewReconciler(t *testing.T) {
 				Scheme:                 scheme,
 				Client:                 fakeClient,
 				OpenAPIDefinitionsPath: tc.definitionsPath,
-			}, tc.cfg, &mocks.MockDiscoveryInterface{}, func(cr *apischema.CRDResolver, io workspacefile.IOHandler) error {
+			}, tc.cfg, &mocks.MockDiscoveryInterface{}, func(cr *apischema.CRDResolver, io workspacefile.IOHandler, client client.Client, log *logger.Logger) error {
 				return nil
 			}, func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error) {
 				return &discoveryclient.FactoryProvider{
