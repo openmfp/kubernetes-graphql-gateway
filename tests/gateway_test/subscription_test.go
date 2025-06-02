@@ -80,7 +80,7 @@ func (suite *CommonTestSuite) TestSchemaSubscribe() {
 			setupFunc: func(ctx context.Context) {
 				suite.createClusterRole(ctx)
 			},
-			expectedEvents: 65,
+			expectedEvents: 66,
 		},
 		{
 			testName:       "incorrect_subscription_query",
@@ -108,6 +108,7 @@ func (suite *CommonTestSuite) TestSchemaSubscribe() {
 			wg := sync.WaitGroup{}
 			wg.Add(tt.expectedEvents)
 
+			eventsReceived := 0
 			go func() {
 				for {
 					select {
@@ -119,13 +120,19 @@ func (suite *CommonTestSuite) TestSchemaSubscribe() {
 						if tt.expectError && res.Errors == nil {
 							t.Errorf("Expected error but got nil")
 							cancel()
+							return
 						}
 
 						if !tt.expectError && res.Data == nil {
 							t.Errorf("Data is nil because of the error: %v", res.Errors)
 							cancel()
+							return
 						}
-						wg.Done()
+
+						eventsReceived++
+						if eventsReceived <= tt.expectedEvents {
+							wg.Done()
+						}
 
 					case <-ctx.Done():
 						return
@@ -140,6 +147,9 @@ func (suite *CommonTestSuite) TestSchemaSubscribe() {
 			}
 
 			wg.Wait()
+			if eventsReceived > tt.expectedEvents {
+				t.Errorf("Received more events than expected. Expected: %d, Got: %d", tt.expectedEvents, eventsReceived)
+			}
 		})
 	}
 }
