@@ -1,9 +1,10 @@
 package manager
 
 import (
+	"net/http"
+
 	"github.com/openmfp/golang-commons/logger/testlogger"
 	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
-	"net/http"
 )
 
 func NewManagerForTest() *Service {
@@ -25,4 +26,12 @@ func NewManagerForTest() *Service {
 
 func IsDiscoveryRequestForTest(req *http.Request) bool {
 	return isDiscoveryRequest(req)
+}
+
+func (s *Service) SetHandlerForTest(workspace string, handler http.Handler) {
+	s.handlers.mu.Lock()
+	defer s.handlers.mu.Unlock()
+	s.handlers.registry[workspace] = &graphqlHandler{
+		handler: handler,
+	}
 }
