@@ -120,21 +120,11 @@ func (r *Service) runWatch(
 		return
 	}
 
-	// Check if need to send an empty set first
 	if !singleItem {
-		err = r.runtimeClient.List(ctx, list, opts...)
-		if err != nil {
-			r.log.Error().Err(err).Str("gvk", gvk.String()).Msg("Failed to list resources")
-			resultChannel <- errorResult("Failed to list resources: " + err.Error())
+		select {
+		case <-ctx.Done():
 			return
-		}
-
-		if len(list.Items) == 0 {
-			select {
-			case <-ctx.Done():
-				return
-			case resultChannel <- []map[string]interface{}{}:
-			}
+		case resultChannel <- []map[string]interface{}{}:
 		}
 	}
 
