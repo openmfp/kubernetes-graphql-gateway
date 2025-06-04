@@ -1,8 +1,10 @@
 package kcp
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io/fs"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,6 +37,7 @@ var (
 	ErrCreatePathResolver    = errors.New("failed to create cluster path resolver")
 	ErrGetVWConfig           = errors.New("unable to get virtual workspace config, check if your kcp cluster is running")
 	ErrCreateHTTPClient      = errors.New("failed to create http client")
+	ErrReadJSON              = errors.New("failed to read JSON from filesystem")
 )
 
 type CustomReconciler interface {
@@ -107,12 +110,23 @@ func PreReconcile(
 	cr *apischema.CRDResolver,
 	io workspacefile.IOHandler,
 ) error {
-	JSON, err := cr.Resolve()
+	actualJSON, err := cr.Resolve()
 	if err != nil {
 		return errors.Join(ErrResolveSchema, err)
 	}
-	if err := io.Write(JSON, kubernetesClusterName); err != nil {
-		return errors.Join(ErrWriteJSON, err)
+
+	savedJSON, err := io.Read(kubernetesClusterName)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return io.Write(actualJSON, kubernetesClusterName)
+		}
+		return errors.Join(ErrReadJSON, err)
+	}
+
+	if !bytes.Equal(actualJSON, savedJSON) {
+		if err := io.Write(actualJSON, kubernetesClusterName); err != nil {
+			return errors.Join(ErrWriteJSON, err)
+		}
 	}
 
 	return nil
