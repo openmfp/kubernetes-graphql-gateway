@@ -128,6 +128,14 @@ func (r *Service) runWatch(
 		return
 	}
 
+	if !singleItem {
+		select {
+		case <-ctx.Done():
+			return
+		case resultChannel <- []map[string]interface{}{}:
+		}
+	}
+
 	watcher, err := r.runtimeClient.Watch(ctx, list, opts...)
 	if err != nil {
 		r.log.Error().Err(err).Str("gvk", gvk.String()).Msg("Failed to start watch")
