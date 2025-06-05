@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/openmfp/golang-commons/sentry"
+	"github.com/pkg/errors"
 
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
@@ -23,14 +24,6 @@ import (
 var (
 	ErrFailedToCastEventObjectToUnstructured = fmt.Errorf("failed to cast event object to unstructured")
 )
-
-type SubscriptionError struct {
-	Message string
-}
-
-func (e *SubscriptionError) Error() string {
-	return e.Message
-}
 
 func (r *Service) SubscribeItem(gvk schema.GroupVersionKind, scope v1.ResourceScope) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
@@ -66,14 +59,14 @@ func (r *Service) runWatch(
 	labelSelector, err := getStringArg(p.Args, LabelSelectorArg, false)
 	if err != nil {
 		r.log.Error().Err(err).Msg("Failed to get label selector argument")
-		resultChannel <- &SubscriptionError{Message: err.Error()}
+		resultChannel <- errors.Wrap(err, "failed to get label selector argument")
 		return
 	}
 
 	subscribeToAll, err := getBoolArg(p.Args, SubscribeToAllArg, false)
 	if err != nil {
 		r.log.Error().Err(err).Msg("Failed to get subscribeToAll argument")
-		resultChannel <- &SubscriptionError{Message: err.Error()}
+		resultChannel <- errors.Wrap(err, "failed to get subscribeToAll argument")
 		return
 	}
 
@@ -92,7 +85,7 @@ func (r *Service) runWatch(
 		namespace, err = getStringArg(p.Args, NamespaceArg, isNamespaceRequired)
 		if err != nil {
 			r.log.Error().Err(err).Msg("Failed to get namespace argument")
-			resultChannel <- &SubscriptionError{Message: err.Error()}
+			resultChannel <- errors.Wrap(err, "failed to get namespace argument")
 			return
 		}
 		if namespace != "" {
@@ -104,7 +97,7 @@ func (r *Service) runWatch(
 		selector, err := labels.Parse(labelSelector)
 		if err != nil {
 			r.log.Error().Err(err).Str("labelSelector", labelSelector).Msg("Invalid label selector")
-			resultChannel <- &SubscriptionError{Message: err.Error()}
+			resultChannel <- errors.Wrap(err, "invalid label selector")
 			return
 		}
 		opts = append(opts, client.MatchingLabelsSelector{Selector: selector})
@@ -115,7 +108,7 @@ func (r *Service) runWatch(
 		name, err = getStringArg(p.Args, NameArg, true)
 		if err != nil {
 			r.log.Error().Err(err).Msg("Failed to get name argument")
-			resultChannel <- &SubscriptionError{Message: err.Error()}
+			resultChannel <- errors.Wrap(err, "failed to get name argument")
 			return
 		}
 		opts = append(opts, client.MatchingFields{"metadata.name": name})
@@ -124,7 +117,7 @@ func (r *Service) runWatch(
 	sortBy, err := getStringArg(p.Args, SortByArg, false)
 	if err != nil {
 		r.log.Error().Err(err).Msg("Failed to get sortBy argument")
-		resultChannel <- &SubscriptionError{Message: err.Error()}
+		resultChannel <- errors.Wrap(err, "failed to get sortBy argument")
 		return
 	}
 
@@ -142,7 +135,7 @@ func (r *Service) runWatch(
 
 		sentry.CaptureError(err, sentry.Tags{"namespace": namespace}, sentry.Extras{"gvk": gvk.String()})
 
-		resultChannel <- &SubscriptionError{Message: fmt.Sprintf("Failed to start watch: %v", err)}
+		resultChannel <- errors.Wrap(err, "failed to start watch")
 		return
 	}
 	defer watcher.Stop()
@@ -161,7 +154,7 @@ func (r *Service) runWatch(
 
 				sentry.CaptureError(err, sentry.Tags{"namespace": namespace})
 
-				resultChannel <- &SubscriptionError{Message: err.Error()}
+				resultChannel <- errors.Wrap(err, "failed to cast event object to unstructured")
 				return
 			}
 			key := obj.GetNamespace() + "/" + obj.GetName()
@@ -183,7 +176,7 @@ func (r *Service) runWatch(
 
 						sentry.CaptureError(err, sentry.Tags{"namespace": namespace})
 
-						resultChannel <- &SubscriptionError{Message: fmt.Sprintf("Failed to determine field changes: %v", err)}
+						resultChannel <- errors.Wrap(err, "failed to determine field changed")
 						return
 					}
 					sendUpdate = changed
@@ -202,9 +195,7 @@ func (r *Service) runWatch(
 					}
 
 					var data interface{}
-					if singleObj == nil { // object will be nil in case it is deleted
-						data = nil
-					} else {
+					if singleObj != nil { // object can be nil in case it is deleted
 						data = singleObj.Object
 					}
 
@@ -222,7 +213,7 @@ func (r *Service) runWatch(
 					err = validateSortBy(items, sortBy)
 					if err != nil {
 						r.log.Error().Err(err).Str(SortByArg, sortBy).Msg("Invalid sortBy field path")
-						resultChannel <- &SubscriptionError{Message: fmt.Sprintf("Invalid sortBy field path: %v", err)}
+						resultChannel <- errors.Wrap(err, "invalid sortBy field path")
 						return
 					}
 
