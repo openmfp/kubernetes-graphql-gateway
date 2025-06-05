@@ -30,7 +30,7 @@ o
 
 ### Live Local Test
 
-See [local_test.md](local_test.md).
+See [Local Test](local_test.md).
 
 ### See Test Coverage
 
