@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"os"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -12,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
@@ -127,22 +129,23 @@ func restMapperFromConfig(cfg *rest.Config) (meta.RESTMapper, error) {
 func PreReconcile(
 	cr *apischema.CRDResolver,
 	io workspacefile.IOHandler,
+	clusterName string,
 ) error {
 	actualJSON, err := cr.Resolve()
 	if err != nil {
 		return errors.Join(ErrResolveSchema, err)
 	}
 
-	savedJSON, err := io.Read(kubernetesClusterName)
+	savedJSON, err := io.Read(clusterName)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return io.Write(actualJSON, kubernetesClusterName)
+			return io.Write(actualJSON, clusterName)
 		}
 		return errors.Join(ErrReadJSON, err)
 	}
 
 	if !bytes.Equal(actualJSON, savedJSON) {
-		if err := io.Write(actualJSON, kubernetesClusterName); err != nil {
+		if err := io.Write(actualJSON, clusterName); err != nil {
 			return errors.Join(ErrWriteJSON, err)
 		}
 	}
@@ -407,8 +410,78 @@ func configureAuthentication(config *rest.Config, auth *gatewayv1alpha1.AuthConf
 	}
 
 	if auth.KubeconfigSecretRef != nil {
-		// TODO: Implement kubeconfig-based authentication from secret
-		return errors.New("kubeconfig authentication not yet implemented")
+		secret := &corev1.Secret{}
+		namespace := auth.KubeconfigSecretRef.Namespace
+		if namespace == "" {
+			namespace = "default"
+		}
+
+		err := k8sClient.Get(ctx, types.NamespacedName{
+			Name:      auth.KubeconfigSecretRef.Name,
+			Namespace: namespace,
+		}, secret)
+		if err != nil {
+			return errors.Join(errors.New("failed to get kubeconfig secret"), err)
+		}
+
+		kubeconfigData, ok := secret.Data["kubeconfig"]
+		if !ok {
+			return errors.New("kubeconfig not found in secret (expected key: kubeconfig)")
+		}
+
+		// Create a temporary file with the kubeconfig data
+		tmpFile, err := os.CreateTemp("", "kubeconfig-*.yaml")
+		if err != nil {
+			return errors.Join(errors.New("failed to create temporary kubeconfig file"), err)
+		}
+		defer os.Remove(tmpFile.Name())
+
+		if _, err := tmpFile.Write(kubeconfigData); err != nil {
+			tmpFile.Close()
+			return errors.Join(errors.New("failed to write kubeconfig data"), err)
+		}
+		tmpFile.Close()
+
+		// Use clientcmd to load the kubeconfig
+		kubeconfigConfig, err := clientcmd.LoadFromFile(tmpFile.Name())
+		if err != nil {
+			return errors.Join(errors.New("failed to load kubeconfig"), err)
+		}
+
+		// Build rest config from kubeconfig
+		restConfig, err := clientcmd.NewDefaultClientConfig(*kubeconfigConfig, &clientcmd.ConfigOverrides{}).ClientConfig()
+		if err != nil {
+			return errors.Join(errors.New("failed to create rest config from kubeconfig"), err)
+		}
+
+		// Copy authentication details from the kubeconfig to our config
+		config.Username = restConfig.Username
+		config.Password = restConfig.Password
+		config.BearerToken = restConfig.BearerToken
+		config.BearerTokenFile = restConfig.BearerTokenFile
+		config.Impersonate = restConfig.Impersonate
+		config.AuthProvider = restConfig.AuthProvider
+		config.AuthConfigPersister = restConfig.AuthConfigPersister
+		config.ExecProvider = restConfig.ExecProvider
+		config.TLSClientConfig.CertFile = restConfig.TLSClientConfig.CertFile
+		config.TLSClientConfig.KeyFile = restConfig.TLSClientConfig.KeyFile
+		config.TLSClientConfig.CertData = restConfig.TLSClientConfig.CertData
+		config.TLSClientConfig.KeyData = restConfig.TLSClientConfig.KeyData
+
+		// Override CA data if it was already set from ClusterAccess CA config
+		if config.TLSClientConfig.CAData == nil {
+			config.TLSClientConfig.CAData = restConfig.TLSClientConfig.CAData
+			config.TLSClientConfig.CAFile = restConfig.TLSClientConfig.CAFile
+		}
+
+		// If no CA data is available and original kubeconfig was insecure, keep insecure
+		if config.TLSClientConfig.CAData == nil && config.TLSClientConfig.CAFile == "" && restConfig.TLSClientConfig.Insecure {
+			config.TLSClientConfig.Insecure = true
+		} else if config.TLSClientConfig.CAData != nil || config.TLSClientConfig.CAFile != "" {
+			config.TLSClientConfig.Insecure = false
+		}
+
+		return nil
 	}
 
 	if auth.ServiceAccount != "" {

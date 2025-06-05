@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"os"
 
+	"path/filepath"
+
 	"github.com/fsnotify/fsnotify"
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/graphql"
-	"path/filepath"
 
 	"github.com/openmfp/golang-commons/sentry"
 
@@ -66,6 +67,12 @@ func (s *Service) handleEvent(event fsnotify.Event) {
 }
 
 func (s *Service) OnFileChanged(filename string) {
+	// Re-initialize target clusters when files change to pick up any new ClusterAccess resources
+	err := s.initializeTargetClusters()
+	if err != nil {
+		s.log.Error().Err(err).Msg("Failed to re-initialize target clusters")
+	}
+
 	schema, err := s.loadSchemaFromFile(filename)
 	if err != nil {
 		s.log.Error().Err(err).Str("filename", filename).Msg("failed to process the file's change")
@@ -94,12 +101,27 @@ func (s *Service) loadSchemaFromFile(filename string) (*graphql.Schema, error) {
 		return nil, err
 	}
 
-	g, err := schema.New(s.log, definitions, s.resolver)
+	// Get the resolver for this specific cluster
+	resolver, exists := s.getResolverForCluster(filename)
+	if !exists {
+		return nil, fmt.Errorf("no resolver found for cluster '%s'. Available clusters: %v", filename, s.getAvailableClusters())
+	}
+
+	g, err := schema.New(s.log, definitions, resolver)
 	if err != nil {
 		return nil, err
 	}
 
 	return g.GetSchema(), nil
+}
+
+// getAvailableClusters returns a list of available cluster names for debugging
+func (s *Service) getAvailableClusters() []string {
+	clusters := make([]string, 0, len(s.resolvers))
+	for clusterName := range s.resolvers {
+		clusters = append(clusters, clusterName)
+	}
+	return clusters
 }
 
 func ReadDefinitionFromFile(filePath string) (spec.Definitions, error) {
