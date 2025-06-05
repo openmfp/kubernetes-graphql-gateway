@@ -47,3 +47,5 @@ The argument `-n openmfp` is to change the default value of the cluster name, wh
 8. In k9s, go to `:pods` and delete the pod (not the container) called `kubernetes-graphql-gateway-...`.
 
 Kubernetes will immediately recreate the pod -- but this time it will use the new version of the build.
+
+9. Once the pod is recreated, go to https://portal.dev.local:8443 and check if everything works.
