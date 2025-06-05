@@ -1,6 +1,6 @@
 # Test Locally
 
-*Warning!* This test is for those who have access to `helm-charts-priv`.
+**Warning!** This test is for those who have access to `helm-charts-priv`.
 
 ## Run and check cluster
 
