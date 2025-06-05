@@ -1,8 +1,10 @@
 package kcp
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io/fs"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -34,6 +36,7 @@ var (
 	ErrCreatePathResolver    = errors.New("failed to create cluster path resolver")
 	ErrGetVWConfig           = errors.New("unable to get virtual workspace config, check if your kcp cluster is running")
 	ErrCreateHTTPClient      = errors.New("failed to create http client")
+	ErrReadJSON              = errors.New("failed to read JSON from filesystem")
 )
 
 type CustomReconciler interface {
@@ -119,6 +122,32 @@ func restMapperFromConfig(cfg *rest.Config) (meta.RESTMapper, error) {
 	}
 
 	return rm, nil
+}
+
+func PreReconcile(
+	cr *apischema.CRDResolver,
+	io workspacefile.IOHandler,
+) error {
+	actualJSON, err := cr.Resolve()
+	if err != nil {
+		return errors.Join(ErrResolveSchema, err)
+	}
+
+	savedJSON, err := io.Read(kubernetesClusterName)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return io.Write(actualJSON, kubernetesClusterName)
+		}
+		return errors.Join(ErrReadJSON, err)
+	}
+
+	if !bytes.Equal(actualJSON, savedJSON) {
+		if err := io.Write(actualJSON, kubernetesClusterName); err != nil {
+			return errors.Join(ErrWriteJSON, err)
+		}
+	}
+
+	return nil
 }
 
 func newKcpReconciler(opts ReconcilerOpts, restcfg *rest.Config, newDiscoveryFactoryFunc func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error), log *logger.Logger) (CustomReconciler, error) {
