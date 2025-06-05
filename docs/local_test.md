@@ -1,11 +1,16 @@
 # Test Locally
 
+*Warning!* This test is for those who have access to `helm-charts-priv`.
+
 ## Run and check cluster
 
 1. Create and run a cluster if it is not running yet.
 
+```shell
+git clone https://github.com/openmfp/helm-charts-priv.git
 cd helm-charts-priv
 task local-setup
+```
 
 2. Verify that the cluster is running.
 
@@ -19,27 +24,29 @@ The logs must contain more than a single line (with "Starting server...").
 If you see only this single line, the problem might be in the container called "kubernetes-graphql-gateway-listener".
 
 Note the `IMAGE` column, corresponding to the two `kubernetes-...` container. It contains the name and the currently used version of the build, i.e.
-`ghcr.io/openmfp/kubernetes-graphql-gateway:v0.75.1`
+```
+ghcr.io/openmfp/kubernetes-graphql-gateway:v0.75.1
+```
 
 4. Build the Docker image:
-```
+```shell
 task docker
 ```
 
-5. Tag the newly built image with the version you want to test:
-```
+5. Tag the newly built image with the version used in local-setup -- that image is going to be replaced with the one built on step 4.
+```shell
 docker tag ghcr.io/openmfp/kubernetes-graphql-gateway:latest ghcr.io/openmfp/kubernetes-graphql-gateway:v0.75.1
 ```
 Use the name you and version got from the `IMAGE` column on step 3. Leave the version number unchanged.
 
 6. Check your cluster name:
-```
+```shell
 kind get clusters
 ```
 In this example, the cluster name is `openmfp`.
 
 7. Load the new image into your kind cluster:
-```
+```shell
 kind load docker-image ghcr.io/openmfp/kubernetes-graphql-gateway:v0.75.1 -n openmfp
 ```
 The argument `-n openmfp` is to change the default value of the cluster name, which is `kind`.
@@ -48,4 +55,5 @@ The argument `-n openmfp` is to change the default value of the cluster name, wh
 
 Kubernetes will immediately recreate the pod -- but this time it will use the new version of the build.
 
-9. Once the pod is recreated, go to https://portal.dev.local:8443 and check if everything works.
+9. Once the pod is recreated, go to [https://portal.dev.local:8443](https://portal.dev.local:8443)
+and check if everything works fine.
