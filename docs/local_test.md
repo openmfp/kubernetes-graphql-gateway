@@ -46,10 +46,27 @@ kind get clusters
 In this example, the cluster name is `openmfp`.
 
 7. Load the new image into your kind cluster:
+***Docker-based kind:***
 ```shell
 kind load docker-image ghcr.io/openmfp/kubernetes-graphql-gateway:v0.75.1 -n openmfp
 ```
 The argument `-n openmfp` is to change the default value of the cluster name, which is `kind`.
+
+***Podman-based kind:***
+- Pull (or build) the image locally with Podman:
+```shell
+podman pull ghcr.io/openmfp/kubernetes-graphql-gateway:v0.75.1
+```
+
+- Save it to a tarball in OCI-archive format:
+```shell
+podman save --format oci-archive ghcr.io/openmfp/kubernetes-graphql-gateway:v0.75.1 -o kubernetes-graphql-gateway_v0.75.1.tar
+```
+
+- Load the tarball into your Podman-backed kind cluster:
+```shell
+kind load image-archive kubernetes-graphql-gateway_v0.75.1.tar -n openmfp
+```
 
 8. In k9s, go to `:pods` and delete the pod (not the container) called `kubernetes-graphql-gateway-...`.
 
