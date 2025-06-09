@@ -2,7 +2,10 @@ package kcp
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 
 	corev1 "k8s.io/api/core/v1"
@@ -213,8 +216,15 @@ func PreReconcileWithClusterAccess(
 
 		log.Info().Str("clusterAccess", clusterAccessName).Int("schemaSize", len(JSON)).Msg("successfully resolved schema for target cluster")
 
+		// Create the complete schema file with x-cluster-metadata
+		schemaWithMetadata, err := injectClusterMetadata(JSON, item, client, log)
+		if err != nil {
+			log.Error().Err(err).Str("clusterAccess", clusterAccessName).Msg("failed to inject cluster metadata into schema")
+			continue
+		}
+
 		// Write schema to file using cluster name from path or resource name
-		if err := io.Write(JSON, clusterName); err != nil {
+		if err := io.Write(schemaWithMetadata, clusterName); err != nil {
 			log.Error().Err(err).Str("clusterAccess", clusterAccessName).Str("clusterName", clusterName).Msg("failed to write schema for target cluster")
 			continue
 		}
@@ -441,4 +451,200 @@ func configureAuthentication(config *rest.Config, auth *gatewayv1alpha1.AuthConf
 
 	// No authentication configured - this might work for some clusters
 	return nil
+}
+
+func injectClusterMetadata(schemaJSON []byte, clusterAccess gatewayv1alpha1.ClusterAccess, k8sClient client.Client, log *logger.Logger) ([]byte, error) {
+	// Parse the existing schema JSON
+	var schemaData map[string]interface{}
+	if err := json.Unmarshal(schemaJSON, &schemaData); err != nil {
+		return nil, fmt.Errorf("failed to parse schema JSON: %w", err)
+	}
+
+	// Create cluster metadata
+	metadata := map[string]interface{}{
+		"host": clusterAccess.Spec.Host,
+	}
+
+	// Add path if specified
+	if clusterAccess.Spec.Path != "" {
+		metadata["path"] = clusterAccess.Spec.Path
+	} else {
+		metadata["path"] = clusterAccess.GetName()
+	}
+
+	// Add CA data if available
+	if clusterAccess.Spec.CA != nil {
+		caData, err := extractCADataForMetadata(clusterAccess.Spec.CA, k8sClient)
+		if err != nil {
+			log.Warn().Err(err).Str("clusterAccess", clusterAccess.GetName()).Msg("failed to extract CA data for metadata")
+		} else if caData != nil {
+			metadata["ca"] = map[string]interface{}{
+				"data": base64.StdEncoding.EncodeToString(caData),
+			}
+		}
+	}
+
+	// Add authentication data if available
+	if clusterAccess.Spec.Auth != nil {
+		authMetadata, err := extractAuthDataForMetadata(clusterAccess.Spec.Auth, k8sClient)
+		if err != nil {
+			log.Warn().Err(err).Str("clusterAccess", clusterAccess.GetName()).Msg("failed to extract auth data for metadata")
+		} else if authMetadata != nil {
+			metadata["auth"] = authMetadata
+		}
+	}
+
+	// Inject the metadata into the schema
+	schemaData["x-cluster-metadata"] = metadata
+
+	// Marshal back to JSON
+	modifiedJSON, err := json.Marshal(schemaData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal modified schema: %w", err)
+	}
+
+	log.Info().
+		Str("clusterAccess", clusterAccess.GetName()).
+		Str("host", clusterAccess.Spec.Host).
+		Msg("successfully injected cluster metadata into schema")
+
+	return modifiedJSON, nil
+}
+
+func extractCADataForMetadata(ca *gatewayv1alpha1.CAConfig, k8sClient client.Client) ([]byte, error) {
+	ctx := context.Background()
+
+	if ca.SecretRef != nil {
+		secret := &corev1.Secret{}
+		namespace := ca.SecretRef.Namespace
+		if namespace == "" {
+			namespace = "default"
+		}
+
+		err := k8sClient.Get(ctx, types.NamespacedName{
+			Name:      ca.SecretRef.Name,
+			Namespace: namespace,
+		}, secret)
+		if err != nil {
+			return nil, err
+		}
+
+		caData, ok := secret.Data[ca.SecretRef.Key]
+		if !ok {
+			return nil, errors.New("CA key not found in secret")
+		}
+
+		return caData, nil
+	}
+
+	if ca.ConfigMapRef != nil {
+		configMap := &corev1.ConfigMap{}
+		namespace := ca.ConfigMapRef.Namespace
+		if namespace == "" {
+			namespace = "default"
+		}
+
+		err := k8sClient.Get(ctx, types.NamespacedName{
+			Name:      ca.ConfigMapRef.Name,
+			Namespace: namespace,
+		}, configMap)
+		if err != nil {
+			return nil, err
+		}
+
+		caData, ok := configMap.Data[ca.ConfigMapRef.Key]
+		if !ok {
+			return nil, errors.New("CA key not found in configmap")
+		}
+
+		return []byte(caData), nil
+	}
+
+	return nil, nil
+}
+
+func extractAuthDataForMetadata(auth *gatewayv1alpha1.AuthConfig, k8sClient client.Client) (map[string]interface{}, error) {
+	ctx := context.Background()
+
+	if auth.KubeconfigSecretRef != nil {
+		secret := &corev1.Secret{}
+		namespace := auth.KubeconfigSecretRef.Namespace
+		if namespace == "" {
+			namespace = "default"
+		}
+
+		err := k8sClient.Get(ctx, types.NamespacedName{
+			Name:      auth.KubeconfigSecretRef.Name,
+			Namespace: namespace,
+		}, secret)
+		if err != nil {
+			return nil, err
+		}
+
+		kubeconfigData, ok := secret.Data["kubeconfig"]
+		if !ok {
+			return nil, errors.New("kubeconfig not found in secret")
+		}
+
+		return map[string]interface{}{
+			"type":       "kubeconfig",
+			"kubeconfig": base64.StdEncoding.EncodeToString(kubeconfigData),
+		}, nil
+	}
+
+	if auth.SecretRef != nil {
+		secret := &corev1.Secret{}
+		namespace := auth.SecretRef.Namespace
+		if namespace == "" {
+			namespace = "default"
+		}
+
+		err := k8sClient.Get(ctx, types.NamespacedName{
+			Name:      auth.SecretRef.Name,
+			Namespace: namespace,
+		}, secret)
+		if err != nil {
+			return nil, err
+		}
+
+		token, ok := secret.Data[auth.SecretRef.Key]
+		if !ok {
+			return nil, errors.New("auth key not found in secret")
+		}
+
+		return map[string]interface{}{
+			"type":  "token",
+			"token": base64.StdEncoding.EncodeToString(token),
+		}, nil
+	}
+
+	if auth.ClientCertificateRef != nil {
+		secret := &corev1.Secret{}
+		namespace := auth.ClientCertificateRef.Namespace
+		if namespace == "" {
+			namespace = "default"
+		}
+
+		err := k8sClient.Get(ctx, types.NamespacedName{
+			Name:      auth.ClientCertificateRef.Name,
+			Namespace: namespace,
+		}, secret)
+		if err != nil {
+			return nil, err
+		}
+
+		certData, certOk := secret.Data["tls.crt"]
+		keyData, keyOk := secret.Data["tls.key"]
+		if !certOk || !keyOk {
+			return nil, errors.New("client certificate or key not found in secret")
+		}
+
+		return map[string]interface{}{
+			"type":     "client-cert",
+			"certData": base64.StdEncoding.EncodeToString(certData),
+			"keyData":  base64.StdEncoding.EncodeToString(keyData),
+		}, nil
+	}
+
+	return nil, nil
 }

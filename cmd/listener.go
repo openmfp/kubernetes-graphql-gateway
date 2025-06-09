@@ -36,9 +36,14 @@ var listenCmd = &cobra.Command{
 	Example: "KUBECONFIG=<path to kubeconfig file> go run . listener",
 	PreRun: func(cmd *cobra.Command, args []string) {
 		utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-		utilruntime.Must(kcpapis.AddToScheme(scheme))
-		utilruntime.Must(kcpcore.AddToScheme(scheme))
-		utilruntime.Must(kcptenancy.AddToScheme(scheme))
+
+		// Only add KCP schemes if KCP is enabled
+		if appCfg.EnableKcp {
+			utilruntime.Must(kcpapis.AddToScheme(scheme))
+			utilruntime.Must(kcpcore.AddToScheme(scheme))
+			utilruntime.Must(kcptenancy.AddToScheme(scheme))
+		}
+
 		utilruntime.Must(apiextensionsv1.AddToScheme(scheme))
 		utilruntime.Must(gatewayv1alpha1.AddToScheme(scheme))
 
