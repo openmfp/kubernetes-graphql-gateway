@@ -49,8 +49,8 @@ func init() {
 func initConfig() {
 	// Top-level defaults
 	v.SetDefault("openapi-definitions-path", "./bin/definitions")
-	v.SetDefault("enable-kcp", false)
-	v.SetDefault("local-development", false)
+	v.SetDefault("enable-kcp", false)       // TODO: return it to false
+	v.SetDefault("local-development", true) // TODO: return it to false
 	v.SetDefault("introspection-authentication", false)
 
 	// Listener
@@ -58,7 +58,8 @@ func initConfig() {
 	v.SetDefault("listener-apiexport-name", "kcp.io")
 
 	// Gateway
-	v.SetDefault("gateway-port", "8080")
+	v.SetDefault("gateway-port", "7080")
+
 	v.SetDefault("gateway-username-claim", "email")
 	v.SetDefault("gateway-should-impersonate", true)
 	// Gateway Handler config

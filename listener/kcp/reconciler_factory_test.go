@@ -109,36 +109,40 @@ func TestNewReconciler(t *testing.T) {
 	}
 }
 
-func TestPreReconcile(t *testing.T) {
+func TestPreReconcileWithClusterAccess(t *testing.T) {
 	tempDir := t.TempDir()
 
 	tests := map[string]struct {
-		cr  *apischema.CRDResolver
-		err error
+		name        string
+		shouldError bool
 	}{
-		"error_on_empty_resolver": {
-			cr: func() *apischema.CRDResolver {
-				discovery := &mocks.MockDiscoveryInterface{}
-				discovery.On("ServerPreferredResources").Return(nil, errors.New("failed to get server resources"))
-
-				return &apischema.CRDResolver{
-					DiscoveryInterface: discovery,
-					RESTMapper:         &mocks.MockRESTMapper{},
-				}
-			}(),
-			err: errors.Join(ErrResolveSchema,
-				errors.New("failed to get server preferred resources"),
-				errors.New("failed to get server resources")),
+		"no_cluster_access_resources": {
+			name:        "no ClusterAccess resources found",
+			shouldError: false,
 		},
 	}
 
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a fake client with no ClusterAccess resources
+			scheme := runtime.NewScheme()
+			fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
 			ioHandler, err := workspacefile.NewIOHandler(tempDir)
 			assert.NoError(t, err)
-			err = PreReconcile(tc.cr, ioHandler)
-			if tc.err != nil {
-				assert.EqualError(t, err, tc.err.Error())
+
+			log := testlogger.New().HideLogOutput().Logger
+
+			// Create minimal CRD resolver
+			discovery := &mocks.MockDiscoveryInterface{}
+			crdResolver := &apischema.CRDResolver{
+				DiscoveryInterface: discovery,
+				RESTMapper:         &mocks.MockRESTMapper{},
+			}
+
+			err = PreReconcileWithClusterAccess(crdResolver, ioHandler, fakeClient, log)
+			if tc.shouldError {
+				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 			}

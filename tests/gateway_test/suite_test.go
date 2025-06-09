@@ -27,8 +27,6 @@ import (
 	"github.com/openmfp/account-operator/api/v1alpha1"
 	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager"
-	"github.com/openmfp/kubernetes-graphql-gateway/gateway/resolver"
-	"github.com/openmfp/kubernetes-graphql-gateway/gateway/schema"
 )
 
 // Initialize the logger for the test suite
@@ -113,15 +111,17 @@ func (suite *CommonTestSuite) SetupTest() {
 	})
 	require.NoError(suite.T(), err)
 
-	definitions, err := manager.ReadDefinitionFromFile("./testdata/kubernetes")
-	require.NoError(suite.T(), err)
+	// TODO: Update this test to work with the new Gateway architecture
+	// The new Gateway automatically loads schemas from files, so manual schema creation is no longer needed
+	// definitions, err := manager.ReadDefinitionFromFile("./testdata/kubernetes")
+	// require.NoError(suite.T(), err)
+	//
+	// g, err := schema.New(suite.log, definitions, resolver.New(suite.log, suite.runtimeClient))
+	// require.NoError(suite.T(), err)
+	//
+	// suite.graphqlSchema = *g.GetSchema()
 
-	g, err := schema.New(suite.log, definitions, resolver.New(suite.log, suite.runtimeClient))
-	require.NoError(suite.T(), err)
-
-	suite.graphqlSchema = *g.GetSchema()
-
-	suite.manager, err = manager.NewManager(suite.log, suite.restCfg, suite.appCfg)
+	suite.manager, err = manager.NewGateway(suite.log, suite.appCfg)
 	require.NoError(suite.T(), err)
 
 	suite.server = httptest.NewServer(suite.manager)

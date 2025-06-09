@@ -1,10 +1,8 @@
 package kcp
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"io/fs"
 	"os"
 
 	corev1 "k8s.io/api/core/v1"
@@ -38,7 +36,6 @@ var (
 	ErrCreatePathResolver    = errors.New("failed to create cluster path resolver")
 	ErrGetVWConfig           = errors.New("unable to get virtual workspace config, check if your kcp cluster is running")
 	ErrCreateHTTPClient      = errors.New("failed to create http client")
-	ErrReadJSON              = errors.New("failed to read JSON from filesystem")
 )
 
 type CustomReconciler interface {
@@ -124,33 +121,6 @@ func restMapperFromConfig(cfg *rest.Config) (meta.RESTMapper, error) {
 	}
 
 	return rm, nil
-}
-
-func PreReconcile(
-	cr *apischema.CRDResolver,
-	io workspacefile.IOHandler,
-	clusterName string,
-) error {
-	actualJSON, err := cr.Resolve()
-	if err != nil {
-		return errors.Join(ErrResolveSchema, err)
-	}
-
-	savedJSON, err := io.Read(clusterName)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return io.Write(actualJSON, clusterName)
-		}
-		return errors.Join(ErrReadJSON, err)
-	}
-
-	if !bytes.Equal(actualJSON, savedJSON) {
-		if err := io.Write(actualJSON, clusterName); err != nil {
-			return errors.Join(ErrWriteJSON, err)
-		}
-	}
-
-	return nil
 }
 
 func newKcpReconciler(opts ReconcilerOpts, restcfg *rest.Config, newDiscoveryFactoryFunc func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error), log *logger.Logger) (CustomReconciler, error) {
@@ -429,7 +399,7 @@ func configureAuthentication(config *rest.Config, auth *gatewayv1alpha1.AuthConf
 			return errors.New("kubeconfig not found in secret (expected key: kubeconfig)")
 		}
 
-		// Create a temporary file with the kubeconfig data
+		// Load kubeconfig to extract authentication credentials
 		tmpFile, err := os.CreateTemp("", "kubeconfig-*.yaml")
 		if err != nil {
 			return errors.Join(errors.New("failed to create temporary kubeconfig file"), err)
@@ -442,45 +412,25 @@ func configureAuthentication(config *rest.Config, auth *gatewayv1alpha1.AuthConf
 		}
 		tmpFile.Close()
 
-		// Use clientcmd to load the kubeconfig
 		kubeconfigConfig, err := clientcmd.LoadFromFile(tmpFile.Name())
 		if err != nil {
 			return errors.Join(errors.New("failed to load kubeconfig"), err)
 		}
 
-		// Build rest config from kubeconfig
 		restConfig, err := clientcmd.NewDefaultClientConfig(*kubeconfigConfig, &clientcmd.ConfigOverrides{}).ClientConfig()
 		if err != nil {
 			return errors.Join(errors.New("failed to create rest config from kubeconfig"), err)
 		}
 
-		// Copy authentication details from the kubeconfig to our config
-		config.Username = restConfig.Username
-		config.Password = restConfig.Password
+		// Copy authentication from kubeconfig but override TLS for development
 		config.BearerToken = restConfig.BearerToken
-		config.BearerTokenFile = restConfig.BearerTokenFile
-		config.Impersonate = restConfig.Impersonate
-		config.AuthProvider = restConfig.AuthProvider
-		config.AuthConfigPersister = restConfig.AuthConfigPersister
-		config.ExecProvider = restConfig.ExecProvider
-		config.TLSClientConfig.CertFile = restConfig.TLSClientConfig.CertFile
-		config.TLSClientConfig.KeyFile = restConfig.TLSClientConfig.KeyFile
 		config.TLSClientConfig.CertData = restConfig.TLSClientConfig.CertData
 		config.TLSClientConfig.KeyData = restConfig.TLSClientConfig.KeyData
 
-		// Override CA data if it was already set from ClusterAccess CA config
-		if config.TLSClientConfig.CAData == nil {
-			config.TLSClientConfig.CAData = restConfig.TLSClientConfig.CAData
-			config.TLSClientConfig.CAFile = restConfig.TLSClientConfig.CAFile
-		}
-
-		// If no CA data is available and original kubeconfig was insecure, keep insecure
-		if config.TLSClientConfig.CAData == nil && config.TLSClientConfig.CAFile == "" && restConfig.TLSClientConfig.Insecure {
-			config.TLSClientConfig.Insecure = true
-		} else if config.TLSClientConfig.CAData != nil || config.TLSClientConfig.CAFile != "" {
-			config.TLSClientConfig.Insecure = false
-		}
-
+		// Override the base Insecure setting - turn OFF insecure to enable client certs
+		config.TLSClientConfig.Insecure = false
+		config.TLSClientConfig.CAData = restConfig.TLSClientConfig.CAData
+		config.TLSClientConfig.ServerName = "target-control-plane"
 		return nil
 	}
 

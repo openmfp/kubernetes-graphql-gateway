@@ -11,7 +11,6 @@ import (
 	"github.com/openmfp/golang-commons/sentry"
 	"github.com/spf13/cobra"
 	ctrl "sigs.k8s.io/controller-runtime"
-	restCfg "sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/openmfp/golang-commons/logger"
@@ -48,21 +47,15 @@ var gatewayCmd = &cobra.Command{
 
 		ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
-		// Get Kubernetes restCfg
-		restCfg, err := restCfg.GetConfig()
+		// Initialize Gateway
+		gatewayInstance, err := manager.NewGateway(log, appCfg)
 		if err != nil {
-			log.Fatal().Err(err).Msg("Error getting Kubernetes restCfg, exiting")
-		}
-
-		// Initialize Manager
-		managerInstance, err := manager.NewManager(log, restCfg, appCfg)
-		if err != nil {
-			log.Error().Err(err).Msg("Error creating manager")
-			return fmt.Errorf("failed to create manager: %w", err)
+			log.Error().Err(err).Msg("Error creating gateway")
+			return fmt.Errorf("failed to create gateway: %w", err)
 		}
 
 		// Set up HTTP handler
-		http.Handle("/", managerInstance)
+		http.Handle("/", gatewayInstance)
 
 		// Start HTTP server with context
 		server := &http.Server{
@@ -86,6 +79,11 @@ var gatewayCmd = &cobra.Command{
 		log.Info().Msg("Shutting down HTTP server...")
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			log.Fatal().Err(err).Msg("HTTP server shutdown failed")
+		}
+
+		// Close gateway services
+		if err := gatewayInstance.Close(); err != nil {
+			log.Error().Err(err).Msg("Error closing gateway services")
 		}
 
 		// Call the shutdown cleanup
