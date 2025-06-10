@@ -111,15 +111,7 @@ func (suite *CommonTestSuite) SetupTest() {
 	})
 	require.NoError(suite.T(), err)
 
-	// TODO: Update this test to work with the new Gateway architecture
-	// The new Gateway automatically loads schemas from files, so manual schema creation is no longer needed
-	// definitions, err := manager.ReadDefinitionFromFile("./testdata/kubernetes")
-	// require.NoError(suite.T(), err)
-	//
-	// g, err := schema.New(suite.log, definitions, resolver.New(suite.log, suite.runtimeClient))
-	// require.NoError(suite.T(), err)
-	//
-	// suite.graphqlSchema = *g.GetSchema()
+	// Gateway automatically loads schemas from files
 
 	suite.manager, err = manager.NewGateway(suite.log, suite.appCfg)
 	require.NoError(suite.T(), err)

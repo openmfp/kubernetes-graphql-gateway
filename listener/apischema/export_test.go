@@ -18,7 +18,7 @@ func IsCRDKindIncluded(gkv *GroupKindVersions, apiList *metav1.APIResourceList) 
 }
 
 func ErrorIfCRDNotInPreferredApiGroups(gkv *GroupKindVersions, lists []*metav1.APIResourceList) ([]string, error) {
-	return errorIfCRDNotInPreferredApiGroups(gkv, lists)
+	return errorIfCRDNotInPreferredApiGroups(gkv, lists, nil)
 }
 
 func GetSchemaForPath(preferred []string, path string, gv openapi.GroupVersion) (map[string]*spec.Schema, error) {

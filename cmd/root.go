@@ -49,8 +49,8 @@ func init() {
 func initConfig() {
 	// Top-level defaults
 	v.SetDefault("openapi-definitions-path", "./bin/definitions")
-	v.SetDefault("enable-kcp", false)       // TODO: return it to false
-	v.SetDefault("local-development", true) // TODO: return it to false
+	v.SetDefault("enable-kcp", false)
+	v.SetDefault("local-development", false)
 	v.SetDefault("introspection-authentication", false)
 
 	// Listener

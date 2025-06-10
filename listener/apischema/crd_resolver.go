@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/openmfp/golang-commons/logger"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -48,7 +49,7 @@ func (cr *CRDResolver) ResolveApiSchema(crd *apiextensionsv1.CustomResourceDefin
 		return nil, errors.Join(ErrGetServerPreferred, err)
 	}
 
-	preferredApiGroups, err := errorIfCRDNotInPreferredApiGroups(gkv, apiResLists)
+	preferredApiGroups, err := errorIfCRDNotInPreferredApiGroups(gkv, apiResLists, nil)
 	if err != nil {
 		return nil, errors.Join(ErrFilterPreferredResources, err)
 	}
@@ -59,13 +60,15 @@ func (cr *CRDResolver) ResolveApiSchema(crd *apiextensionsv1.CustomResourceDefin
 		Complete()
 }
 
-func errorIfCRDNotInPreferredApiGroups(gkv *GroupKindVersions, apiResLists []*metav1.APIResourceList) ([]string, error) {
+func errorIfCRDNotInPreferredApiGroups(gkv *GroupKindVersions, apiResLists []*metav1.APIResourceList, log *logger.Logger) ([]string, error) {
 	isKindFound := false
 	preferredApiGroups := make([]string, 0, len(apiResLists))
 	for _, apiResources := range apiResLists {
 		gv, err := schema.ParseGroupVersion(apiResources.GroupVersion)
 		if err != nil {
-			//TODO: debug log?
+			if log != nil {
+				log.Error().Err(err).Str("groupVersion", apiResources.GroupVersion).Msg("failed to parse group version")
+			}
 			continue
 		}
 		isGroupFound := gkv.Group == gv.Group
