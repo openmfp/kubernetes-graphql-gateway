@@ -47,7 +47,6 @@ var gatewayCmd = &cobra.Command{
 
 		ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
 
-		// Initialize Gateway
 		gatewayInstance, err := manager.NewGateway(log, appCfg)
 		if err != nil {
 			log.Error().Err(err).Msg("Error creating gateway")
@@ -81,7 +80,6 @@ var gatewayCmd = &cobra.Command{
 			log.Fatal().Err(err).Msg("HTTP server shutdown failed")
 		}
 
-		// Close gateway services
 		if err := gatewayInstance.Close(); err != nil {
 			log.Error().Err(err).Msg("Error closing gateway services")
 		}

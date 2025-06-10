@@ -37,7 +37,6 @@ var listenCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-		// Only add KCP schemes if KCP is enabled
 		if appCfg.EnableKcp {
 			utilruntime.Must(kcpapis.AddToScheme(scheme))
 			utilruntime.Must(kcpcore.AddToScheme(scheme))

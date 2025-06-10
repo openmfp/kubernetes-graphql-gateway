@@ -14,7 +14,7 @@ type TokenKey struct{}
 type RoundTripper struct {
 	userClaim   string
 	log         *logger.Logger
-	base        http.RoundTripper
+	base        http.RoundTripper // TODO change to awareBaseHttp
 	impersonate bool
 }
 
@@ -28,7 +28,6 @@ func New(log *logger.Logger, base http.RoundTripper, userNameClaim string, imper
 	}
 }
 
-// RoundTrip implements http.RoundTripper interface
 func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	token, ok := req.Context().Value(TokenKey{}).(string)
 	if !ok {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/openmfp/golang-commons/logger"
+	"github.com/pkg/errors"
 	"k8s.io/client-go/rest"
 
 	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
@@ -39,7 +40,7 @@ func NewGateway(log *logger.Logger, appCfg appConfig.Config) (*Gateway, error) {
 			ServerName:         config.TLSClientConfig.ServerName,
 		}
 
-		log.Info().
+		log.Debug().
 			Bool("insecure", tlsConfig.InsecureSkipVerify).
 			Str("serverName", tlsConfig.ServerName).
 			Int("caDataLen", len(config.TLSClientConfig.CAData)).
@@ -67,16 +68,13 @@ func NewGateway(log *logger.Logger, appCfg appConfig.Config) (*Gateway, error) {
 		return roundtripper.New(log, transport, appCfg.Gateway.UsernameClaim, appCfg.Gateway.ShouldImpersonate)
 	}
 
-	// Create cluster registry (domain service)
 	clusterRegistry := targetcluster.NewClusterRegistry(log, appCfg, roundTripperFactory)
 
-	// Create cluster router (HTTP handler for domain)
 	clusterRouter := targetcluster.NewClusterRouter(clusterRegistry, log, appCfg)
 
-	// Create schema watcher (infrastructure service)
 	schemaWatcher, err := watcher.NewFileWatcher(log, clusterRegistry)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create schema watcher: %w", err)
+		return nil, errors.Wrap(err, "failed to create schema watcher")
 	}
 
 	gateway := &Gateway{
@@ -95,7 +93,7 @@ func NewGateway(log *logger.Logger, appCfg appConfig.Config) (*Gateway, error) {
 	log.Info().
 		Str("definitions_path", appCfg.OpenApiDefinitionsPath).
 		Str("port", appCfg.Gateway.Port).
-		Msg("Domain-driven Gateway initialized successfully")
+		Msg("Gateway initialized successfully")
 
 	return gateway, nil
 }
@@ -136,6 +134,6 @@ func (g *Gateway) Close() error {
 	if g.clusterRegistry != nil {
 		g.clusterRegistry.Close()
 	}
-	g.log.Info().Msg("Domain-driven Gateway closed")
+	g.log.Info().Msg("The Gateway has been closed")
 	return nil
 }
