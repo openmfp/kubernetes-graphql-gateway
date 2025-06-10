@@ -10,6 +10,9 @@ import (
 	"github.com/graphql-go/graphql"
 	"github.com/openmfp/golang-commons/logger"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/kcp"
 
 	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager/handler"
@@ -54,21 +57,39 @@ func NewTargetCluster(
 		return nil, fmt.Errorf("failed to read schema file: %w", err)
 	}
 
-	if fileData.Metadata == nil || fileData.Metadata.Host == "" {
-		return nil, fmt.Errorf("no cluster metadata found in file %s - all schema files must contain x-cluster-metadata", name)
-	}
-
 	cluster := &TargetCluster{
-		name:     name,
-		metadata: fileData.Metadata,
-		log:      log,
-		appCfg:   appCfg,
+		name:   name,
+		log:    log,
+		appCfg: appCfg,
 	}
 
-	// Establish connection
-	if err := cluster.connect(roundTripperFactory); err != nil {
-		cluster.lastError = err
-		return cluster, fmt.Errorf("failed to establish connection: %w", err)
+	// Check if this is a direct approach file (no metadata) or ClusterAccess file (with metadata)
+	if fileData.Metadata == nil || fileData.Metadata.Host == "" {
+		// Direct approach: file without metadata, connect to current cluster
+		log.Info().Str("cluster", name).Msg("Direct approach: using current cluster connection")
+
+		// Create metadata for current cluster connection
+		cluster.metadata = &ClusterMetadata{
+			Host: "current-cluster", // Placeholder - will use current rest.Config
+			Path: name,
+		}
+
+		// For direct approach, use the current cluster connection without remote metadata
+		if err := cluster.connectToCurrent(roundTripperFactory); err != nil {
+			cluster.lastError = err
+			return cluster, fmt.Errorf("failed to establish current cluster connection: %w", err)
+		}
+	} else {
+		// ClusterAccess approach: file with metadata, connect to remote cluster
+		log.Info().Str("cluster", name).Str("host", fileData.Metadata.Host).Msg("ClusterAccess approach: using remote cluster connection")
+
+		cluster.metadata = fileData.Metadata
+
+		// Establish connection to remote cluster
+		if err := cluster.connect(roundTripperFactory); err != nil {
+			cluster.lastError = err
+			return cluster, fmt.Errorf("failed to establish remote cluster connection: %w", err)
+		}
 	}
 
 	// Create GraphQL schema
@@ -79,7 +100,7 @@ func NewTargetCluster(
 
 	cluster.log.Info().
 		Str("cluster", name).
-		Str("host", fileData.Metadata.Host).
+		Str("host", cluster.metadata.Host).
 		Str("endpoint", cluster.GetEndpoint()).
 		Msg("Successfully created target cluster")
 
@@ -220,6 +241,44 @@ func (tc *TargetCluster) connect(roundTripperFactory func(*rest.Config) http.Rou
 		Str("cluster", tc.name).
 		Str("host", tc.metadata.Host).
 		Msg("Successfully connected to target cluster")
+
+	return nil
+}
+
+// connectToCurrent establishes connection to the current cluster (direct approach)
+func (tc *TargetCluster) connectToCurrent(roundTripperFactory func(*rest.Config) http.RoundTripper) error {
+	tc.log.Info().
+		Str("cluster", tc.name).
+		Msg("Connecting to current cluster")
+
+	// Get the current cluster's rest config
+	restCfg := ctrl.GetConfigOrDie()
+
+	// Apply round tripper if provided
+	if roundTripperFactory != nil {
+		restCfg.Wrap(func(rt http.RoundTripper) http.RoundTripper {
+			return roundTripperFactory(restCfg)
+		})
+	}
+
+	// Create client with current cluster config
+	clientWithWatch, err := kcp.NewClusterAwareClientWithWatch(restCfg, client.Options{})
+	if err != nil {
+		return fmt.Errorf("failed to create current cluster client: %w", err)
+	}
+
+	// Create a simple connection wrapper for current cluster
+	tc.connection = &Connection{
+		config: restCfg,
+		client: clientWithWatch,
+	}
+
+	// Create resolver
+	tc.resolver = resolver.New(tc.log, clientWithWatch)
+
+	tc.log.Info().
+		Str("cluster", tc.name).
+		Msg("Successfully connected to current cluster")
 
 	return nil
 }

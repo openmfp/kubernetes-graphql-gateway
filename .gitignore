@@ -24,6 +24,7 @@ coverage.html
 *.swp
 *.swo
 *~
+*.log
 
 # MacOS
 **/.DS_Store

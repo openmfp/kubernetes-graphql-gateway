@@ -1,11 +1,13 @@
 package kcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 
 	corev1 "k8s.io/api/core/v1"
@@ -29,6 +31,19 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
 )
 
+const (
+	kubernetesClusterName = "kubernetes" // Used as schema file name for standard k8s cluster
+)
+
+// CRDStatus represents the status of ClusterAccess CRD
+type CRDStatus int
+
+const (
+	CRDNotRegistered CRDStatus = iota
+	CRDRegisteredNoObjects
+	CRDRegisteredWithObjects
+)
+
 var (
 	ErrCreateDiscoveryClient = errors.New("failed to create discovery client")
 	ErrCreateIOHandler       = errors.New("failed to create IO Handler")
@@ -39,6 +54,7 @@ var (
 	ErrCreatePathResolver    = errors.New("failed to create cluster path resolver")
 	ErrGetVWConfig           = errors.New("unable to get virtual workspace config, check if your kcp cluster is running")
 	ErrCreateHTTPClient      = errors.New("failed to create http client")
+	ErrReadJSON              = errors.New("failed to read JSON from filesystem")
 )
 
 type CustomReconciler interface {
@@ -71,17 +87,96 @@ func (r *NoOpReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return nil
 }
 
+// NewReconciler creates the appropriate reconciler based on configuration
 func NewReconciler(appCfg config.Config, opts ReconcilerOpts, restcfg *rest.Config,
 	discoveryInterface discovery.DiscoveryInterface,
 	preReconcileFunc PreReconcileClusterAccessFunc,
 	discoverFactory func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error),
 	log *logger.Logger,
 ) (CustomReconciler, error) {
-	if !appCfg.EnableKcp {
-		return newClusterAccessReconciler(opts, discoveryInterface, preReconcileFunc, log)
+
+	// Decide which approach to use:
+	// 1. KCP mode: use KCP reconciler with proper workspace discovery (highest priority)
+	// 2. Local development mode: use standard reconciler for direct connection
+	// 3. Production mode: use ClusterAccess reconciler (fail if CRD not registered, wait for objects)
+
+	// Check KCP first - if enabled, use proper KCP reconciler with workspace discovery
+	if appCfg.EnableKcp {
+		log.Info().Msg("Using KCP reconciler with workspace discovery")
+		return newKcpReconciler(opts, restcfg, discoverFactory, log)
 	}
 
-	return newKcpReconciler(opts, restcfg, discoverFactory, log)
+	// Check if in local development mode - use direct approach
+	if appCfg.LocalDevelopment {
+		log.Info().Msg("Using standard reconciler for local development")
+		return newStandardReconciler(opts, discoveryInterface, log)
+	}
+
+	// Production mode: check ClusterAccess CRD availability
+	crdStatus := checkClusterAccessCRDStatus(opts.Client, log)
+	switch crdStatus {
+	case CRDNotRegistered:
+		return nil, errors.New("ClusterAccess CRD is not registered - cannot proceed in production mode without ClusterAccess support")
+	case CRDRegisteredNoObjects:
+		log.Info().Msg("Using ClusterAccess reconciler - waiting for ClusterAccess objects to be created")
+		return newClusterAccessReconciler(opts, discoveryInterface, preReconcileFunc, log)
+	case CRDRegisteredWithObjects:
+		log.Info().Msg("Using ClusterAccess reconciler")
+		return newClusterAccessReconciler(opts, discoveryInterface, preReconcileFunc, log)
+	default:
+		return nil, errors.New("unknown ClusterAccess CRD status")
+	}
+}
+
+// checkClusterAccessCRDStatus checks the availability and usage of ClusterAccess CRD
+func checkClusterAccessCRDStatus(k8sClient client.Client, log *logger.Logger) CRDStatus {
+	ctx := context.Background()
+	clusterAccessList := &gatewayv1alpha1.ClusterAccessList{}
+
+	if err := k8sClient.List(ctx, clusterAccessList); err != nil {
+		log.Info().Err(err).Msg("ClusterAccess CRD not registered")
+		return CRDNotRegistered
+	}
+
+	// CRD is registered, check if there are any objects
+	if len(clusterAccessList.Items) == 0 {
+		log.Info().Msg("ClusterAccess CRD registered but no objects found")
+		return CRDRegisteredNoObjects
+	}
+
+	log.Info().Int("count", len(clusterAccessList.Items)).Msg("ClusterAccess CRD registered with objects")
+	return CRDRegisteredWithObjects
+}
+
+// newStandardReconciler creates a reconciler for standard non-KCP clusters
+// This uses a hardcoded "kubernetes" filename for the schema file
+func newStandardReconciler(
+	opts ReconcilerOpts,
+	discoveryInterface discovery.DiscoveryInterface,
+	log *logger.Logger,
+) (CustomReconciler, error) {
+	ioHandler, err := workspacefile.NewIOHandler(opts.OpenAPIDefinitionsPath)
+	if err != nil {
+		return nil, errors.Join(ErrCreateIOHandler, err)
+	}
+
+	rm, err := restMapperFromConfig(opts.Config)
+	if err != nil {
+		return nil, err
+	}
+
+	schemaResolver := &apischema.CRDResolver{
+		DiscoveryInterface: discoveryInterface,
+		RESTMapper:         rm,
+	}
+
+	// For standard clusters, use the original PreReconcile approach with "kubernetes" filename
+	if err = PreReconcile(schemaResolver, ioHandler); err != nil {
+		return nil, errors.Join(ErrGenerateSchema, err)
+	}
+
+	log.Info().Str("clusterName", kubernetesClusterName).Msg("Generated schema for standard cluster connection")
+	return controller.NewCRDReconciler(kubernetesClusterName, opts.Client, schemaResolver, ioHandler, log), nil
 }
 
 func newClusterAccessReconciler(
@@ -145,6 +240,33 @@ func newKcpReconciler(opts ReconcilerOpts, restcfg *rest.Config, newDiscoveryFac
 	return controller.NewAPIBindingReconciler(
 		ioHandler, df, apischema.NewResolver(), pr, log,
 	), nil
+}
+
+// PreReconcile generates schema directly from the current cluster (original main branch approach)
+func PreReconcile(
+	cr *apischema.CRDResolver,
+	io workspacefile.IOHandler,
+) error {
+	actualJSON, err := cr.Resolve()
+	if err != nil {
+		return errors.Join(ErrResolveSchema, err)
+	}
+
+	savedJSON, err := io.Read(kubernetesClusterName)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return io.Write(actualJSON, kubernetesClusterName)
+		}
+		return errors.Join(ErrReadJSON, err)
+	}
+
+	if !bytes.Equal(actualJSON, savedJSON) {
+		if err := io.Write(actualJSON, kubernetesClusterName); err != nil {
+			return errors.Join(ErrWriteJSON, err)
+		}
+	}
+
+	return nil
 }
 
 func PreReconcileWithClusterAccess(
