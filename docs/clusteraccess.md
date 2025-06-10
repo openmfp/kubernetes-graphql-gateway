@@ -1,6 +1,31 @@
 # ClusterAccess Resource Setup
 
-To enable the gateway to access external Kubernetes clusters, you need to create ClusterAccess resources. This section provides step-by-step instructions for manual setup.
+To enable the gateway to access external Kubernetes clusters, you need to create ClusterAccess resources. This section provides both automated script and manual step-by-step instructions.
+
+## Quick Setup (Recommended)
+
+For development purposes, use the provided script to automatically create ClusterAccess resources:
+
+```bash
+./scripts/create-clusteraccess.sh --cluster-name my-cluster --target-kubeconfig /path/to/target-cluster-config
+```
+
+**Example:**
+```bash
+./scripts/create-clusteraccess.sh \
+  --cluster-name production-cluster \
+  --target-kubeconfig ~/.kube/production-config \
+  --management-kubeconfig ~/.kube/management-config
+```
+
+The script will:
+- Extract server URL and CA certificate from the target kubeconfig
+- Create a service account with proper permissions in the target cluster
+- Generate a token for the service account
+- Create the necessary secrets in the management cluster
+- Create the ClusterAccess resource
+
+## Manual Setup
 
 ## Prerequisites
 
