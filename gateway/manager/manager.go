@@ -1,6 +1,8 @@
 package manager
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net/http"
 
@@ -31,7 +33,38 @@ type Gateway struct {
 func NewGateway(log *logger.Logger, appCfg appConfig.Config) (*Gateway, error) {
 	// Create round tripper factory
 	roundTripperFactory := func(config *rest.Config) http.RoundTripper {
-		return roundtripper.New(log, http.DefaultTransport, appCfg.Gateway.Port, appCfg.LocalDevelopment)
+		// Create a simple HTTP transport that respects our TLS configuration
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: config.TLSClientConfig.Insecure,
+			ServerName:         config.TLSClientConfig.ServerName,
+		}
+
+		log.Info().
+			Bool("insecure", tlsConfig.InsecureSkipVerify).
+			Str("serverName", tlsConfig.ServerName).
+			Int("caDataLen", len(config.TLSClientConfig.CAData)).
+			Int("certDataLen", len(config.TLSClientConfig.CertData)).
+			Msg("Creating TLS config for round tripper")
+
+		// Add CA data if present
+		if len(config.TLSClientConfig.CAData) > 0 {
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(config.TLSClientConfig.CAData)
+			tlsConfig.RootCAs = caCertPool
+		}
+
+		// Add client certificates if present
+		if len(config.TLSClientConfig.CertData) > 0 && len(config.TLSClientConfig.KeyData) > 0 {
+			cert, err := tls.X509KeyPair(config.TLSClientConfig.CertData, config.TLSClientConfig.KeyData)
+			if err == nil {
+				tlsConfig.Certificates = []tls.Certificate{cert}
+			}
+		}
+
+		transport := &http.Transport{
+			TLSClientConfig: tlsConfig,
+		}
+		return roundtripper.New(log, transport, appCfg.Gateway.UsernameClaim, appCfg.Gateway.ShouldImpersonate)
 	}
 
 	// Create cluster registry (domain service)

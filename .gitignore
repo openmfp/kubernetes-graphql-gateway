@@ -41,3 +41,4 @@ go.work
 
 # binary files
 main
+kubernetes-graphql-gateway

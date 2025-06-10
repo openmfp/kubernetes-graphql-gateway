@@ -472,7 +472,25 @@ func injectClusterMetadata(schemaJSON []byte, clusterAccess gatewayv1alpha1.Clus
 		metadata["path"] = clusterAccess.GetName()
 	}
 
-	// Add CA data if available
+	// Extract auth data and potentially CA data from kubeconfig
+	var kubeconfigCAData []byte
+	if clusterAccess.Spec.Auth != nil {
+		authMetadata, err := extractAuthDataForMetadata(clusterAccess.Spec.Auth, k8sClient)
+		if err != nil {
+			log.Warn().Err(err).Str("clusterAccess", clusterAccess.GetName()).Msg("failed to extract auth data for metadata")
+		} else if authMetadata != nil {
+			metadata["auth"] = authMetadata
+
+			// If auth type is kubeconfig, extract CA data from kubeconfig
+			if authType, ok := authMetadata["type"].(string); ok && authType == "kubeconfig" {
+				if kubeconfigB64, ok := authMetadata["kubeconfig"].(string); ok {
+					kubeconfigCAData = extractCAFromKubeconfig(kubeconfigB64, log)
+				}
+			}
+		}
+	}
+
+	// Add CA data - prefer explicit CA config, fallback to kubeconfig CA
 	if clusterAccess.Spec.CA != nil {
 		caData, err := extractCADataForMetadata(clusterAccess.Spec.CA, k8sClient)
 		if err != nil {
@@ -482,16 +500,12 @@ func injectClusterMetadata(schemaJSON []byte, clusterAccess gatewayv1alpha1.Clus
 				"data": base64.StdEncoding.EncodeToString(caData),
 			}
 		}
-	}
-
-	// Add authentication data if available
-	if clusterAccess.Spec.Auth != nil {
-		authMetadata, err := extractAuthDataForMetadata(clusterAccess.Spec.Auth, k8sClient)
-		if err != nil {
-			log.Warn().Err(err).Str("clusterAccess", clusterAccess.GetName()).Msg("failed to extract auth data for metadata")
-		} else if authMetadata != nil {
-			metadata["auth"] = authMetadata
+	} else if kubeconfigCAData != nil {
+		// Use CA data extracted from kubeconfig
+		metadata["ca"] = map[string]interface{}{
+			"data": base64.StdEncoding.EncodeToString(kubeconfigCAData),
 		}
+		log.Info().Str("clusterAccess", clusterAccess.GetName()).Msg("extracted CA data from kubeconfig")
 	}
 
 	// Inject the metadata into the schema
@@ -647,4 +661,41 @@ func extractAuthDataForMetadata(auth *gatewayv1alpha1.AuthConfig, k8sClient clie
 	}
 
 	return nil, nil
+}
+
+func extractCAFromKubeconfig(kubeconfigB64 string, log *logger.Logger) []byte {
+	kubeconfigData, err := base64.StdEncoding.DecodeString(kubeconfigB64)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to decode kubeconfig")
+		return nil
+	}
+
+	// Load kubeconfig to extract CA data
+	tmpFile, err := os.CreateTemp("", "kubeconfig-*.yaml")
+	if err != nil {
+		log.Error().Err(err).Msg("failed to create temporary kubeconfig file")
+		return nil
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.Write(kubeconfigData); err != nil {
+		tmpFile.Close()
+		log.Error().Err(err).Msg("failed to write kubeconfig data")
+		return nil
+	}
+	tmpFile.Close()
+
+	kubeconfigConfig, err := clientcmd.LoadFromFile(tmpFile.Name())
+	if err != nil {
+		log.Error().Err(err).Msg("failed to load kubeconfig")
+		return nil
+	}
+
+	restConfig, err := clientcmd.NewDefaultClientConfig(*kubeconfigConfig, &clientcmd.ConfigOverrides{}).ClientConfig()
+	if err != nil {
+		log.Error().Err(err).Msg("failed to create rest config from kubeconfig")
+		return nil
+	}
+
+	return restConfig.TLSClientConfig.CAData
 }
