@@ -1,25 +1,17 @@
 package targetcluster
 
 // ClusterMetadata represents cluster connection information embedded in schema files
+// Simplified for standard Kubernetes clusters with kubeconfig authentication
 type ClusterMetadata struct {
 	Host string        `json:"host"`
 	Path string        `json:"path"`
 	Auth *AuthMetadata `json:"auth,omitempty"`
-	CA   *CAMetadata   `json:"ca,omitempty"`
 }
 
-// AuthMetadata contains authentication configuration for connecting to a cluster
+// AuthMetadata contains kubeconfig authentication for standard Kubernetes clusters
 type AuthMetadata struct {
-	Type       string `json:"type"`
-	Token      string `json:"token,omitempty"`      // base64 encoded
-	CertData   string `json:"certData,omitempty"`   // base64 encoded
-	KeyData    string `json:"keyData,omitempty"`    // base64 encoded
-	Kubeconfig string `json:"kubeconfig,omitempty"` // base64 encoded
-}
-
-// CAMetadata contains certificate authority data for cluster connection
-type CAMetadata struct {
-	Data string `json:"data"` // base64 encoded
+	Type       string `json:"type"`       // Only "kubeconfig" is supported
+	Kubeconfig string `json:"kubeconfig"` // base64 encoded kubeconfig
 }
 
 // FileData represents the data extracted from a schema file

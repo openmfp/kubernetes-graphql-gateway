@@ -55,16 +55,11 @@ func (cr *ClusterRegistry) LoadCluster(schemaFilePath string) error {
 	}
 
 	// Store cluster
-	if existingCluster, exists := cr.clusters[name]; exists {
-		// Close existing cluster
-		existingCluster.Close()
-	}
-
 	cr.clusters[name] = cluster
 
 	cr.log.Info().
 		Str("cluster", name).
-		Str("endpoint", cluster.GetEndpoint()).
+		Str("endpoint", cluster.GetEndpoint(cr.appCfg)).
 		Msg("Successfully loaded target cluster")
 
 	return nil
@@ -72,35 +67,9 @@ func (cr *ClusterRegistry) LoadCluster(schemaFilePath string) error {
 
 // UpdateCluster updates an existing cluster from a schema file
 func (cr *ClusterRegistry) UpdateCluster(schemaFilePath string) error {
-	cr.mu.Lock()
-	defer cr.mu.Unlock()
-
-	// Extract cluster name from filename
-	name := strings.TrimSuffix(filepath.Base(schemaFilePath), filepath.Ext(schemaFilePath))
-
-	cr.log.Info().
-		Str("cluster", name).
-		Str("file", schemaFilePath).
-		Msg("Updating target cluster")
-
-	cluster, exists := cr.clusters[name]
-	if !exists {
-		// If cluster doesn't exist, load it
-		cr.mu.Unlock()
-		return cr.LoadCluster(schemaFilePath)
-	}
-
-	// Update existing cluster
-	if err := cluster.UpdateFromFile(schemaFilePath, cr.roundTripperFactory); err != nil {
-		return fmt.Errorf("failed to update target cluster %s: %w", name, err)
-	}
-
-	cr.log.Info().
-		Str("cluster", name).
-		Str("endpoint", cluster.GetEndpoint()).
-		Msg("Successfully updated target cluster")
-
-	return nil
+	// For simplified implementation, just reload the cluster
+	cr.RemoveCluster(schemaFilePath)
+	return cr.LoadCluster(schemaFilePath)
 }
 
 // RemoveCluster removes a cluster by schema file path
@@ -116,7 +85,7 @@ func (cr *ClusterRegistry) RemoveCluster(schemaFilePath string) error {
 		Str("file", schemaFilePath).
 		Msg("Removing target cluster")
 
-	cluster, exists := cr.clusters[name]
+	_, exists := cr.clusters[name]
 	if !exists {
 		cr.log.Warn().
 			Str("cluster", name).
@@ -124,8 +93,7 @@ func (cr *ClusterRegistry) RemoveCluster(schemaFilePath string) error {
 		return nil
 	}
 
-	// Close and remove cluster
-	cluster.Close()
+	// Remove cluster (no cleanup needed in simplified version)
 	delete(cr.clusters, name)
 
 	cr.log.Info().
@@ -148,8 +116,7 @@ func (cr *ClusterRegistry) Close() error {
 	cr.mu.Lock()
 	defer cr.mu.Unlock()
 
-	for name, cluster := range cr.clusters {
-		cluster.Close()
+	for name := range cr.clusters {
 		cr.log.Info().Str("cluster", name).Msg("Closed cluster during registry shutdown")
 	}
 
@@ -182,16 +149,7 @@ func (cr *ClusterRegistry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check cluster health
-	if !cluster.IsHealthy() {
-		cr.log.Error().
-			Str("cluster", clusterName).
-			Str("state", fmt.Sprintf("%d", cluster.GetState())).
-			Err(cluster.GetLastError()).
-			Msg("Target cluster is not healthy")
-		http.Error(w, "Target cluster unavailable", http.StatusServiceUnavailable)
-		return
-	}
+	// No health checking in simplified version - clusters are either working or not loaded
 
 	// Handle GET requests (GraphiQL/Playground) directly
 	if r.Method == http.MethodGet {
@@ -210,8 +168,8 @@ func (cr *ClusterRegistry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Handle subscription requests
 	if r.Header.Get("Accept") == "text/event-stream" {
-		graphqlServer := NewGraphQLServer(cr.log, cr.appCfg)
-		graphqlServer.HandleSubscription(w, r, cluster.GetHandler().Schema)
+		// Subscriptions will be handled by the cluster's ServeHTTP method
+		cluster.ServeHTTP(w, r)
 		return
 	}
 
