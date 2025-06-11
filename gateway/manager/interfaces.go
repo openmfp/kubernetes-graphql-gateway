@@ -13,12 +13,8 @@ type ClusterManager interface {
 	UpdateCluster(schemaFilePath string) error
 	RemoveCluster(schemaFilePath string) error
 	GetCluster(name string) (*targetcluster.TargetCluster, bool)
-	Close() error
-}
-
-// HTTPHandler handles HTTP requests and routes them to target clusters
-type HTTPHandler interface {
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
+	Close() error
 }
 
 // SchemaWatcher monitors schema files and manages cluster connections

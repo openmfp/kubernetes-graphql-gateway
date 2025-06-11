@@ -25,9 +25,7 @@ type Provider interface {
 type Gateway struct {
 	log             *logger.Logger
 	clusterRegistry ClusterManager
-	clusterRouter   HTTPHandler
 	schemaWatcher   SchemaWatcher
-	appCfg          appConfig.Config
 }
 
 // NewGateway creates a new domain-driven Gateway instance
@@ -70,8 +68,6 @@ func NewGateway(log *logger.Logger, appCfg appConfig.Config) (*Gateway, error) {
 
 	clusterRegistry := targetcluster.NewClusterRegistry(log, appCfg, roundTripperFactory)
 
-	clusterRouter := targetcluster.NewClusterRouter(clusterRegistry, log, appCfg)
-
 	schemaWatcher, err := watcher.NewFileWatcher(log, clusterRegistry)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create schema watcher")
@@ -80,9 +76,7 @@ func NewGateway(log *logger.Logger, appCfg appConfig.Config) (*Gateway, error) {
 	gateway := &Gateway{
 		log:             log,
 		clusterRegistry: clusterRegistry,
-		clusterRouter:   clusterRouter,
 		schemaWatcher:   schemaWatcher,
-		appCfg:          appCfg,
 	}
 
 	// Initialize schema watcher
@@ -101,9 +95,9 @@ func NewGateway(log *logger.Logger, appCfg appConfig.Config) (*Gateway, error) {
 // Start starts the gateway (implementation for Provider interface)
 func (g *Gateway) Start() {}
 
-// ServeHTTP delegates HTTP requests to the cluster router
+// ServeHTTP delegates HTTP requests to the cluster registry
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	g.clusterRouter.ServeHTTP(w, r)
+	g.clusterRegistry.ServeHTTP(w, r)
 }
 
 // Close gracefully shuts down the gateway and all its services
