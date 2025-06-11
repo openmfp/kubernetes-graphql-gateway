@@ -1,7 +1,9 @@
 package standard
 
 import (
+	"bytes"
 	"errors"
+	"io/fs"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
@@ -24,6 +26,9 @@ var (
 	ErrCreateRestMapper = errors.New("failed to create rest mapper")
 	ErrCreateHTTPClient = errors.New("failed to create http client")
 	ErrGenerateSchema   = errors.New("failed to generate OpenAPI Schema")
+	ErrResolveSchema    = errors.New("failed to resolve server JSON schema")
+	ErrReadJSON         = errors.New("failed to read JSON from filesystem")
+	ErrWriteJSON        = errors.New("failed to write JSON to filesystem")
 )
 
 // NewReconciler creates a reconciler for standard non-KCP clusters
@@ -68,4 +73,31 @@ func restMapperFromConfig(cfg *rest.Config) (meta.RESTMapper, error) {
 	}
 
 	return rm, nil
+}
+
+// preReconcile generates schema directly from the current cluster (original main branch approach)
+func preReconcile(
+	cr *apischema.CRDResolver,
+	io workspacefile.IOHandler,
+) error {
+	actualJSON, err := cr.Resolve()
+	if err != nil {
+		return errors.Join(ErrResolveSchema, err)
+	}
+
+	savedJSON, err := io.Read(kubernetesClusterName)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return io.Write(actualJSON, kubernetesClusterName)
+		}
+		return errors.Join(ErrReadJSON, err)
+	}
+
+	if !bytes.Equal(actualJSON, savedJSON) {
+		if err := io.Write(actualJSON, kubernetesClusterName); err != nil {
+			return errors.Join(ErrWriteJSON, err)
+		}
+	}
+
+	return nil
 }
