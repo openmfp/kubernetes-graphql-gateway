@@ -64,6 +64,28 @@ func (cr *ClusterRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Handle GET requests (GraphiQL/Playground) directly
+	if r.Method == http.MethodGet {
+		cluster.ServeHTTP(w, r)
+		return
+	}
+
+	// Extract and validate token for non-GET requests
+	token := GetToken(r)
+	if !cr.handleAuth(w, r, token) {
+		return
+	}
+
+	// Set contexts for KCP and authentication
+	r = SetContexts(r, clusterName, token, cr.appCfg.EnableKcp)
+
+	// Handle subscription requests
+	if r.Header.Get("Accept") == "text/event-stream" {
+		graphqlServer := NewGraphQLServer(cr.log, cr.appCfg)
+		graphqlServer.HandleSubscription(w, r, cluster.GetHandler().Schema)
+		return
+	}
+
 	// Route to target cluster
 	cr.log.Debug().
 		Str("cluster", clusterName).
@@ -72,6 +94,25 @@ func (cr *ClusterRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Msg("Routing request to target cluster")
 
 	cluster.ServeHTTP(w, r)
+}
+
+// handleAuth handles authentication for non-GET requests
+func (cr *ClusterRouter) handleAuth(w http.ResponseWriter, r *http.Request, token string) bool {
+	if !cr.appCfg.LocalDevelopment {
+		if token == "" {
+			http.Error(w, "Authorization header is required", http.StatusUnauthorized)
+			return false
+		}
+
+		if cr.appCfg.IntrospectionAuthentication {
+			if IsIntrospectionQuery(r) {
+				// For now, accept all tokens since we no longer have a central cluster config for validation
+				// TODO: Implement token validation against the appropriate cluster based on the request
+				return true
+			}
+		}
+	}
+	return true
 }
 
 // handleCORS handles CORS preflight requests and headers

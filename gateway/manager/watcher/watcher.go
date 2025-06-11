@@ -21,12 +21,6 @@ type FileEventHandler interface {
 	OnFileDeleted(filename string)
 }
 
-// HandlerRegistry manages GraphQL handlers for different clusters
-type HandlerRegistry interface {
-	SetHandler(filename string, handler interface{})
-	DeleteHandler(filename string)
-}
-
 // ClusterRegistryInterface defines the minimal interface needed from ClusterRegistry
 type ClusterRegistryInterface interface {
 	LoadCluster(schemaFilePath string) error

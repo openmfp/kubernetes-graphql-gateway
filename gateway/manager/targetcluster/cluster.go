@@ -15,7 +15,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
 
 	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
-	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager/handler"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/resolver"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/schema"
 )
@@ -26,7 +25,7 @@ type TargetCluster struct {
 	metadata   *ClusterMetadata
 	connection *Connection
 	resolver   resolver.Provider
-	handler    *handler.GraphQLHandler
+	handler    *GraphQLHandler
 	schema     *graphql.Schema
 	log        *logger.Logger
 	appCfg     appConfig.Config
@@ -150,7 +149,7 @@ func (tc *TargetCluster) GetEndpoint() string {
 }
 
 // GetHandler returns the GraphQL handler for HTTP requests
-func (tc *TargetCluster) GetHandler() *handler.GraphQLHandler {
+func (tc *TargetCluster) GetHandler() *GraphQLHandler {
 	return tc.handler
 }
 
@@ -356,9 +355,9 @@ func (tc *TargetCluster) updateSchema(definitions map[string]interface{}) error 
 
 	tc.schema = schemaGateway.GetSchema()
 
-	// Create HTTP handler through an HTTPServer (to get proper Handler creation with playground/GraphiQL)
-	httpServer := handler.NewHTTPServer(tc.log, tc.appCfg)
-	tc.handler = httpServer.CreateHandler(tc.schema)
+	// Create HTTP handler through a GraphQLServer (to get proper Handler creation with playground/GraphiQL)
+	graphqlServer := NewGraphQLServer(tc.log, tc.appCfg)
+	tc.handler = graphqlServer.CreateHandler(tc.schema)
 
 	return nil
 }
