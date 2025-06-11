@@ -63,33 +63,51 @@ func NewTargetCluster(
 		appCfg: appCfg,
 	}
 
-	// Check if this is a direct approach file (no metadata) or ClusterAccess file (with metadata)
-	if fileData.Metadata == nil || fileData.Metadata.Host == "" {
-		// Direct approach: file without metadata, connect to current cluster
-		log.Info().Str("cluster", name).Msg("Direct approach: using current cluster connection")
+	// Set metadata from file (might be nil for direct connections)
+	cluster.metadata = fileData.Metadata
+
+	// Determine connection strategy based on configuration
+	if appCfg.EnableKcp {
+		// KCP enabled: always use direct connection to KCP cluster
+		log.Info().Str("cluster", name).Msg("KCP enabled: using direct KCP connection")
+
+		// Create metadata for KCP connection
+		if cluster.metadata == nil {
+			cluster.metadata = &ClusterMetadata{
+				Host: "kcp-cluster",
+				Path: name,
+			}
+		}
+
+		if err := cluster.connectToCurrent(roundTripperFactory); err != nil {
+			cluster.lastError = err
+			return cluster, fmt.Errorf("failed to establish KCP connection: %w", err)
+		}
+	} else if cluster.metadata != nil && cluster.metadata.Host != "" {
+		// KCP disabled + metadata present: use remote cluster connection
+		log.Info().Str("cluster", name).Str("host", cluster.metadata.Host).Msg("Using metadata-based remote connection")
+
+		if err := cluster.connect(roundTripperFactory); err != nil {
+			cluster.lastError = err
+			return cluster, fmt.Errorf("failed to establish remote cluster connection: %w", err)
+		}
+	} else if appCfg.LocalDevelopment {
+		// KCP disabled + no metadata + local development: use direct connection to current cluster
+		log.Info().Str("cluster", name).Msg("Local development: using direct current cluster connection")
 
 		// Create metadata for current cluster connection
 		cluster.metadata = &ClusterMetadata{
-			Host: "current-cluster", // Placeholder - will use current rest.Config
+			Host: "current-cluster",
 			Path: name,
 		}
 
-		// For direct approach, use the current cluster connection without remote metadata
 		if err := cluster.connectToCurrent(roundTripperFactory); err != nil {
 			cluster.lastError = err
 			return cluster, fmt.Errorf("failed to establish current cluster connection: %w", err)
 		}
 	} else {
-		// ClusterAccess approach: file with metadata, connect to remote cluster
-		log.Info().Str("cluster", name).Str("host", fileData.Metadata.Host).Msg("ClusterAccess approach: using remote cluster connection")
-
-		cluster.metadata = fileData.Metadata
-
-		// Establish connection to remote cluster
-		if err := cluster.connect(roundTripperFactory); err != nil {
-			cluster.lastError = err
-			return cluster, fmt.Errorf("failed to establish remote cluster connection: %w", err)
-		}
+		// KCP disabled + no metadata + production: error
+		return nil, fmt.Errorf("cluster %s has no metadata and KCP is disabled in production mode - ClusterAccess metadata is required", name)
 	}
 
 	// Create GraphQL schema
@@ -178,13 +196,52 @@ func (tc *TargetCluster) UpdateFromFile(schemaFilePath string, roundTripperFacto
 		return fmt.Errorf("failed to read schema file: %w", err)
 	}
 
-	// Update metadata
+	// Update metadata from file
 	tc.metadata = fileData.Metadata
 
-	// Reconnect if needed
-	if err := tc.connect(roundTripperFactory); err != nil {
-		tc.lastError = err
-		return fmt.Errorf("failed to reconnect: %w", err)
+	// Determine connection strategy based on configuration (same logic as NewTargetCluster)
+	if tc.appCfg.EnableKcp {
+		// KCP enabled: always use direct connection to KCP cluster
+		tc.log.Info().Str("cluster", tc.name).Msg("KCP enabled: using direct KCP connection")
+
+		// Create metadata for KCP connection
+		if tc.metadata == nil {
+			tc.metadata = &ClusterMetadata{
+				Host: "kcp-cluster",
+				Path: tc.name,
+			}
+		}
+
+		if err := tc.connectToCurrent(roundTripperFactory); err != nil {
+			tc.lastError = err
+			return fmt.Errorf("failed to establish KCP connection: %w", err)
+		}
+	} else if tc.metadata != nil && tc.metadata.Host != "" {
+		// KCP disabled + metadata present: use remote cluster connection
+		tc.log.Info().Str("cluster", tc.name).Str("host", tc.metadata.Host).Msg("Using metadata-based remote connection")
+
+		if err := tc.connect(roundTripperFactory); err != nil {
+			tc.lastError = err
+			return fmt.Errorf("failed to establish remote cluster connection: %w", err)
+		}
+	} else if tc.appCfg.LocalDevelopment {
+		// KCP disabled + no metadata + local development: use direct connection to current cluster
+		tc.log.Info().Str("cluster", tc.name).Msg("Local development: using direct current cluster connection")
+
+		// Create metadata for current cluster connection
+		tc.metadata = &ClusterMetadata{
+			Host: "current-cluster",
+			Path: tc.name,
+		}
+
+		if err := tc.connectToCurrent(roundTripperFactory); err != nil {
+			tc.lastError = err
+			return fmt.Errorf("failed to establish current cluster connection: %w", err)
+		}
+	} else {
+		// KCP disabled + no metadata + production: error
+		tc.lastError = fmt.Errorf("cluster %s has no metadata and KCP is disabled in production mode", tc.name)
+		return tc.lastError
 	}
 
 	// Update schema
