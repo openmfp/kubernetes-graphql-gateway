@@ -106,26 +106,6 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	g.clusterRouter.ServeHTTP(w, r)
 }
 
-// GetClusterStats returns statistics about managed clusters
-func (g *Gateway) GetClusterStats() targetcluster.ClusterStats {
-	return g.clusterRegistry.GetClusterStats()
-}
-
-// GetCluster returns a specific cluster by name
-func (g *Gateway) GetCluster(name string) (*targetcluster.TargetCluster, bool) {
-	return g.clusterRegistry.GetCluster(name)
-}
-
-// GetAllClusters returns all managed clusters
-func (g *Gateway) GetAllClusters() map[string]*targetcluster.TargetCluster {
-	return g.clusterRegistry.GetAllClusters()
-}
-
-// GetHealthyClusters returns only healthy clusters
-func (g *Gateway) GetHealthyClusters() map[string]*targetcluster.TargetCluster {
-	return g.clusterRegistry.GetHealthyClusters()
-}
-
 // Close gracefully shuts down the gateway and all its services
 func (g *Gateway) Close() error {
 	if g.schemaWatcher != nil {

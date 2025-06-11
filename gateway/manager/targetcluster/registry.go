@@ -143,58 +143,6 @@ func (cr *ClusterRegistry) GetCluster(name string) (*TargetCluster, bool) {
 	return cluster, exists
 }
 
-// GetAllClusters returns all clusters
-func (cr *ClusterRegistry) GetAllClusters() map[string]*TargetCluster {
-	cr.mu.RLock()
-	defer cr.mu.RUnlock()
-
-	// Create a copy to avoid concurrent access issues
-	result := make(map[string]*TargetCluster)
-	for name, cluster := range cr.clusters {
-		result[name] = cluster
-	}
-	return result
-}
-
-// GetHealthyClusters returns only healthy clusters
-func (cr *ClusterRegistry) GetHealthyClusters() map[string]*TargetCluster {
-	cr.mu.RLock()
-	defer cr.mu.RUnlock()
-
-	result := make(map[string]*TargetCluster)
-	for name, cluster := range cr.clusters {
-		if cluster.IsHealthy() {
-			result[name] = cluster
-		}
-	}
-	return result
-}
-
-// GetClusterStats returns statistics about the registry
-func (cr *ClusterRegistry) GetClusterStats() ClusterStats {
-	cr.mu.RLock()
-	defer cr.mu.RUnlock()
-
-	stats := ClusterStats{
-		Total: len(cr.clusters),
-	}
-
-	for _, cluster := range cr.clusters {
-		switch cluster.GetState() {
-		case StateConnected:
-			stats.Connected++
-		case StateConnecting:
-			stats.Connecting++
-		case StateDisconnected:
-			stats.Disconnected++
-		case StateError:
-			stats.Error++
-		}
-	}
-
-	return stats
-}
-
 // Close closes all clusters and cleans up the registry
 func (cr *ClusterRegistry) Close() error {
 	cr.mu.Lock()
@@ -208,13 +156,4 @@ func (cr *ClusterRegistry) Close() error {
 	cr.clusters = make(map[string]*TargetCluster)
 	cr.log.Info().Msg("Closed cluster registry")
 	return nil
-}
-
-// ClusterStats represents statistics about the cluster registry
-type ClusterStats struct {
-	Total        int `json:"total"`
-	Connected    int `json:"connected"`
-	Connecting   int `json:"connecting"`
-	Disconnected int `json:"disconnected"`
-	Error        int `json:"error"`
 }

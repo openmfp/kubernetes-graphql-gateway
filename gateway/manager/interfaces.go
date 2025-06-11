@@ -13,9 +13,6 @@ type ClusterManager interface {
 	UpdateCluster(schemaFilePath string) error
 	RemoveCluster(schemaFilePath string) error
 	GetCluster(name string) (*targetcluster.TargetCluster, bool)
-	GetAllClusters() map[string]*targetcluster.TargetCluster
-	GetHealthyClusters() map[string]*targetcluster.TargetCluster
-	GetClusterStats() targetcluster.ClusterStats
 	Close() error
 }
 
