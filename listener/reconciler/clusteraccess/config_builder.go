@@ -9,8 +9,8 @@ import (
 	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/gateway/v1alpha1"
 )
 
-// buildTargetClusterConfigFromTyped extracts connection info from ClusterAccess and builds rest.Config
-func buildTargetClusterConfigFromTyped(clusterAccess gatewayv1alpha1.ClusterAccess, k8sClient client.Client) (*rest.Config, string, error) {
+// BuildTargetClusterConfigFromTyped extracts connection info from ClusterAccess and builds rest.Config
+func BuildTargetClusterConfigFromTyped(clusterAccess gatewayv1alpha1.ClusterAccess, k8sClient client.Client) (*rest.Config, string, error) {
 	spec := clusterAccess.Spec
 
 	// Extract host (required)

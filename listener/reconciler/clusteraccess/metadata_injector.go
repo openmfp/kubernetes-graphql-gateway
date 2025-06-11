@@ -5,10 +5,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	corev1 "k8s.io/api/core/v1"
 
 	"github.com/openmfp/golang-commons/logger"
 	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/gateway/v1alpha1"
@@ -222,4 +222,4 @@ func extractCAFromKubeconfig(kubeconfigB64 string, log *logger.Logger) []byte {
 
 	log.Warn().Msg("no CA data found in kubeconfig")
 	return nil
-} 
+}

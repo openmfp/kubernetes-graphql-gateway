@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/openmfp/kubernetes-graphql-gateway/gateway/resolver/mocks"
+	"github.com/openmfp/kubernetes-graphql-gateway/common/mocks"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/controller"
 	controllerMocks "github.com/openmfp/kubernetes-graphql-gateway/listener/controller/mocks"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"

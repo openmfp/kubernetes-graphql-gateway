@@ -7,6 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
@@ -107,7 +108,7 @@ func PreReconcileWithClusterAccess(
 		log.Info().Str("clusterAccess", clusterAccessName).Msg("processing ClusterAccess resource")
 
 		// Extract target cluster config from ClusterAccess spec
-		targetConfig, clusterName, err := buildTargetClusterConfigFromTyped(item, client)
+		targetConfig, clusterName, err := BuildTargetClusterConfigFromTyped(item, client)
 		if err != nil {
 			log.Error().Err(err).Str("clusterAccess", clusterAccessName).Msg("failed to build target cluster config")
 			continue

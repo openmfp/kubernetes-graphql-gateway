@@ -18,7 +18,7 @@ packages:
 
   sigs.k8s.io/controller-runtime/pkg/client:
     config:
-      dir: gateway/resolver/mocks
+      dir: common/mocks
       outpkg: mocks
     interfaces:
       WithWatch:
