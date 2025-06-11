@@ -171,7 +171,7 @@ func newStandardReconciler(
 	}
 
 	// For standard clusters, use the original PreReconcile approach with "kubernetes" filename
-	if err = PreReconcile(schemaResolver, ioHandler); err != nil {
+	if err = preReconcile(schemaResolver, ioHandler); err != nil {
 		return nil, errors.Join(ErrGenerateSchema, err)
 	}
 
@@ -242,8 +242,8 @@ func newKcpReconciler(opts ReconcilerOpts, restcfg *rest.Config, newDiscoveryFac
 	), nil
 }
 
-// PreReconcile generates schema directly from the current cluster (original main branch approach)
-func PreReconcile(
+// preReconcile generates schema directly from the current cluster (original main branch approach)
+func preReconcile(
 	cr *apischema.CRDResolver,
 	io workspacefile.IOHandler,
 ) error {
