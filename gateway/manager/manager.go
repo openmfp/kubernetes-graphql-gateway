@@ -16,20 +16,15 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager/watcher"
 )
 
-type Provider interface {
-	Start()
-	ServeHTTP(w http.ResponseWriter, r *http.Request)
-}
-
-// Gateway orchestrates the domain-driven architecture with target clusters
-type Gateway struct {
+// Service orchestrates the domain-driven architecture with target clusters
+type Service struct {
 	log             *logger.Logger
 	clusterRegistry ClusterManager
 	schemaWatcher   SchemaWatcher
 }
 
 // NewGateway creates a new domain-driven Gateway instance
-func NewGateway(log *logger.Logger, appCfg appConfig.Config) (*Gateway, error) {
+func NewGateway(log *logger.Logger, appCfg appConfig.Config) (*Service, error) {
 	// Create round tripper factory
 	roundTripperFactory := func(config *rest.Config) http.RoundTripper {
 		// Create a simple HTTP transport that respects our TLS configuration
@@ -73,7 +68,7 @@ func NewGateway(log *logger.Logger, appCfg appConfig.Config) (*Gateway, error) {
 		return nil, errors.Wrap(err, "failed to create schema watcher")
 	}
 
-	gateway := &Gateway{
+	gateway := &Service{
 		log:             log,
 		clusterRegistry: clusterRegistry,
 		schemaWatcher:   schemaWatcher,
@@ -92,16 +87,13 @@ func NewGateway(log *logger.Logger, appCfg appConfig.Config) (*Gateway, error) {
 	return gateway, nil
 }
 
-// Start starts the gateway (implementation for Provider interface)
-func (g *Gateway) Start() {}
-
 // ServeHTTP delegates HTTP requests to the cluster registry
-func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (g *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	g.clusterRegistry.ServeHTTP(w, r)
 }
 
 // Close gracefully shuts down the gateway and all its services
-func (g *Gateway) Close() error {
+func (g *Service) Close() error {
 	if g.schemaWatcher != nil {
 		g.schemaWatcher.Close()
 	}

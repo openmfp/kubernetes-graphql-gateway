@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/go-openapi/spec"
-	"github.com/graphql-go/graphql"
 	"github.com/openmfp/golang-commons/logger"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -26,7 +25,6 @@ type TargetCluster struct {
 	connection *Connection
 	resolver   resolver.Provider
 	handler    *GraphQLHandler
-	schema     *graphql.Schema
 	log        *logger.Logger
 	appCfg     appConfig.Config
 	lastError  error
@@ -269,7 +267,6 @@ func (tc *TargetCluster) Close() error {
 	tc.connection = nil
 	tc.resolver = nil
 	tc.handler = nil
-	tc.schema = nil
 	tc.log.Info().Str("cluster", tc.name).Msg("Closed target cluster")
 	return nil
 }
@@ -353,11 +350,9 @@ func (tc *TargetCluster) updateSchema(definitions map[string]interface{}) error 
 		return fmt.Errorf("failed to create GraphQL schema: %w", err)
 	}
 
-	tc.schema = schemaGateway.GetSchema()
-
 	// Create HTTP handler through a GraphQLServer (to get proper Handler creation with playground/GraphiQL)
 	graphqlServer := NewGraphQLServer(tc.log, tc.appCfg)
-	tc.handler = graphqlServer.CreateHandler(tc.schema)
+	tc.handler = graphqlServer.CreateHandler(schemaGateway.GetSchema())
 
 	return nil
 }

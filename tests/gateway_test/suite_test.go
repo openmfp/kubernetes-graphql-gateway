@@ -2,6 +2,7 @@ package gateway_test
 
 import (
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -45,7 +46,7 @@ type CommonTestSuite struct {
 	appCfg        appConfig.Config
 	runtimeClient client.WithWatch
 	graphqlSchema graphql.Schema
-	manager       manager.Provider
+	manager       http.Handler
 	server        *httptest.Server
 
 	LocalDevelopment           bool
