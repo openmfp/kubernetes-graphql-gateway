@@ -14,7 +14,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openmfp/golang-commons/logger/testlogger"
-	controllerRuntimeMocks "github.com/openmfp/kubernetes-graphql-gateway/gateway/resolver/mocks"
+	controllerRuntimeMocks "github.com/openmfp/kubernetes-graphql-gateway/common/mocks"
 	apischemaMocks "github.com/openmfp/kubernetes-graphql-gateway/listener/apischema/mocks"
 	clusterpathMocks "github.com/openmfp/kubernetes-graphql-gateway/listener/clusterpath/mocks"
 	discoveryclientMocks "github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient/mocks"

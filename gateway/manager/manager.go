@@ -1,85 +1,105 @@
 package manager
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net/http"
-	"net/url"
-	"path/filepath"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/openmfp/golang-commons/logger"
+	"github.com/pkg/errors"
 	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/kcp"
 
 	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
-	"github.com/openmfp/kubernetes-graphql-gateway/gateway/resolver"
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager/roundtripper"
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager/targetcluster"
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager/watcher"
 )
 
-type Provider interface {
-	Start()
-	ServeHTTP(w http.ResponseWriter, r *http.Request)
-}
-
+// Service orchestrates the domain-driven architecture with target clusters
 type Service struct {
-	AppCfg  appConfig.Config
-	restCfg *rest.Config
-
-	log      *logger.Logger
-	resolver resolver.Provider
-
-	handlers handlerStore
-	watcher  *fsnotify.Watcher
+	log             *logger.Logger
+	clusterRegistry ClusterManager
+	schemaWatcher   SchemaWatcher
 }
 
-func NewManager(log *logger.Logger, cfg *rest.Config, appCfg appConfig.Config) (*Service, error) {
-	watcher, err := fsnotify.NewWatcher()
+// NewGateway creates a new domain-driven Gateway instance
+func NewGateway(log *logger.Logger, appCfg appConfig.Config) (*Service, error) {
+	// Create round tripper factory
+	roundTripperFactory := func(config *rest.Config) http.RoundTripper {
+		// Create a simple HTTP transport that respects our TLS configuration
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: config.TLSClientConfig.Insecure,
+			ServerName:         config.TLSClientConfig.ServerName,
+		}
+
+		log.Debug().
+			Bool("insecure", tlsConfig.InsecureSkipVerify).
+			Str("serverName", tlsConfig.ServerName).
+			Int("caDataLen", len(config.TLSClientConfig.CAData)).
+			Int("certDataLen", len(config.TLSClientConfig.CertData)).
+			Msg("Creating TLS config for round tripper")
+
+		// Add CA data if present
+		if len(config.TLSClientConfig.CAData) > 0 {
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(config.TLSClientConfig.CAData)
+			tlsConfig.RootCAs = caCertPool
+		}
+
+		// Add client certificates if present
+		if len(config.TLSClientConfig.CertData) > 0 && len(config.TLSClientConfig.KeyData) > 0 {
+			cert, err := tls.X509KeyPair(config.TLSClientConfig.CertData, config.TLSClientConfig.KeyData)
+			if err == nil {
+				tlsConfig.Certificates = []tls.Certificate{cert}
+			}
+		}
+
+		transport := &http.Transport{
+			TLSClientConfig: tlsConfig,
+		}
+		return roundtripper.New(log, transport, appCfg.Gateway.UsernameClaim, appCfg.Gateway.ShouldImpersonate)
+	}
+
+	clusterRegistry := targetcluster.NewClusterRegistry(log, appCfg, roundTripperFactory)
+
+	schemaWatcher, err := watcher.NewFileWatcher(log, clusterRegistry)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to create schema watcher")
 	}
 
-	// lets ensure that kcp url points directly to kcp domain
-	u, err := url.Parse(cfg.Host)
-	if err != nil {
-		return nil, err
-	}
-	cfg.Host = fmt.Sprintf("%s://%s", u.Scheme, u.Host)
-
-	cfg.Wrap(func(rt http.RoundTripper) http.RoundTripper {
-		return NewRoundTripper(log, rt, appCfg.Gateway.UsernameClaim, appCfg.Gateway.ShouldImpersonate)
-	})
-
-	runtimeClient, err := kcp.NewClusterAwareClientWithWatch(cfg, client.Options{})
-	if err != nil {
-		return nil, err
+	gateway := &Service{
+		log:             log,
+		clusterRegistry: clusterRegistry,
+		schemaWatcher:   schemaWatcher,
 	}
 
-	m := &Service{
-		AppCfg: appCfg,
-		handlers: handlerStore{
-			registry: make(map[string]*graphqlHandler),
-		},
-		log:      log,
-		resolver: resolver.New(log, runtimeClient),
-		restCfg:  cfg,
-		watcher:  watcher,
+	// Initialize schema watcher
+	if err := schemaWatcher.Initialize(appCfg.OpenApiDefinitionsPath); err != nil {
+		return nil, fmt.Errorf("failed to initialize schema watcher: %w", err)
 	}
 
-	err = m.watcher.Add(appCfg.OpenApiDefinitionsPath)
-	if err != nil {
-		return nil, err
-	}
+	log.Info().
+		Str("definitions_path", appCfg.OpenApiDefinitionsPath).
+		Str("port", appCfg.Gateway.Port).
+		Msg("Gateway initialized successfully")
 
-	files, err := filepath.Glob(filepath.Join(appCfg.OpenApiDefinitionsPath, "*"))
-	if err != nil {
-		return nil, err
-	}
-	for _, file := range files {
-		filename := filepath.Base(file)
-		m.OnFileChanged(filename)
-	}
+	return gateway, nil
+}
 
-	m.Start()
+// ServeHTTP delegates HTTP requests to the cluster registry
+func (g *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	g.clusterRegistry.ServeHTTP(w, r)
+}
 
-	return m, nil
+// Close gracefully shuts down the gateway and all its services
+func (g *Service) Close() error {
+	if g.schemaWatcher != nil {
+		g.schemaWatcher.Close()
+	}
+	if g.clusterRegistry != nil {
+		g.clusterRegistry.Close()
+	}
+	g.log.Info().Msg("The Gateway has been closed")
+	return nil
 }

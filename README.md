@@ -13,6 +13,10 @@ This repository contains two main components:
 - [Listener](./docs/listener.md): watches a cluster and stores its openAPI spec in a directory.
 - [Gateway](./docs/gateway.md): exposes the openAPI spec as a GraphQL endpoints.
 
+## ClusterAccess Resource Setup
+
+To enable the gateway to access external Kubernetes clusters, you need to create ClusterAccess resources. For detailed step-by-step instructions, see the [ClusterAccess documentation](./docs/clusteraccess.md).
+
 ## Authorization
 
 All information about authorization can be found in the [authorization](./docs/authorization.md) section.
