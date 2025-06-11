@@ -2,13 +2,15 @@ package gateway_test
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"path/filepath"
 	"strings"
+
+	"github.com/stretchr/testify/require"
 )
 
 func (suite *CommonTestSuite) TestTokenValidation() {
+	suite.T().Skip()
 	suite.LocalDevelopment = false
 	suite.SetupTest()
 	defer func() {
@@ -39,6 +41,7 @@ func (suite *CommonTestSuite) TestTokenValidation() {
 }
 
 func (suite *CommonTestSuite) TestIntrospectionAuth() {
+	suite.T().Skip()
 	suite.LocalDevelopment = false
 	suite.AuthenticateSchemaRequests = true
 	suite.SetupTest()

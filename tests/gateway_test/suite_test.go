@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/graphql-go/graphql"
 	"github.com/openmfp/golang-commons/logger"
@@ -93,6 +94,17 @@ func (suite *CommonTestSuite) SetupTest() {
 
 	suite.restCfg, err = suite.testEnv.Start()
 	require.NoError(suite.T(), err)
+
+	// Diagnostics: List CRDs after environment start
+	accountGVK := schema.GroupVersionKind{Group: "core.openmfp.org", Version: "v1alpha1", Kind: "Account"}
+	crdList, crdErr := suite.runtimeClient.RESTMapper().RESTMapping(
+		accountGVK.GroupKind(), accountGVK.Version)
+	if crdErr != nil {
+		suite.T().Logf("[DIAGNOSTIC] Could not find Account CRD mapping: %v", crdErr)
+		suite.T().FailNow()
+	} else {
+		suite.T().Logf("[DIAGNOSTIC] Account CRD mapping found: %+v", crdList)
+	}
 
 	// 3. Set BearerToken in restCfg
 	suite.restCfg.BearerToken = suite.staticToken

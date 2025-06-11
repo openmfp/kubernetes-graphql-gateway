@@ -18,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/openmfp/golang-commons/logger/testlogger"
+	"github.com/openmfp/kubernetes-graphql-gateway/common/apis/gateway/v1alpha1"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
@@ -75,6 +76,7 @@ func TestNewReconciler(t *testing.T) {
 	for name, tc := range tests {
 		scheme := runtime.NewScheme()
 		assert.NoError(t, kcpapis.AddToScheme(scheme))
+		assert.NoError(t, v1alpha1.AddToScheme(scheme))
 
 		t.Run(name, func(t *testing.T) {
 			appCfg := config.Config{
@@ -126,6 +128,7 @@ func TestPreReconcileWithClusterAccess(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a fake client with no ClusterAccess resources
 			scheme := runtime.NewScheme()
+			assert.NoError(t, v1alpha1.AddToScheme(scheme))
 			fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
 			ioHandler, err := workspacefile.NewIOHandler(tempDir)

@@ -68,7 +68,11 @@ func (cr *ClusterRegistry) LoadCluster(schemaFilePath string) error {
 // UpdateCluster updates an existing cluster from a schema file
 func (cr *ClusterRegistry) UpdateCluster(schemaFilePath string) error {
 	// For simplified implementation, just reload the cluster
-	cr.RemoveCluster(schemaFilePath)
+	err := cr.RemoveCluster(schemaFilePath)
+	if err != nil {
+		return err
+	}
+
 	return cr.LoadCluster(schemaFilePath)
 }
 
