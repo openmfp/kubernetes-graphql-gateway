@@ -10,12 +10,15 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/kcp/mocks"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
+	"github.com/openmfp/golang-commons/logger"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/openmfp/golang-commons/logger/testlogger"
+	"github.com/openmfp/kubernetes-graphql-gateway/common/apis/gateway/v1alpha1"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
@@ -73,6 +76,7 @@ func TestNewReconciler(t *testing.T) {
 	for name, tc := range tests {
 		scheme := runtime.NewScheme()
 		assert.NoError(t, kcpapis.AddToScheme(scheme))
+		assert.NoError(t, v1alpha1.AddToScheme(scheme))
 
 		t.Run(name, func(t *testing.T) {
 			appCfg := config.Config{
@@ -88,7 +92,7 @@ func TestNewReconciler(t *testing.T) {
 				Scheme:                 scheme,
 				Client:                 fakeClient,
 				OpenAPIDefinitionsPath: tc.definitionsPath,
-			}, tc.cfg, &mocks.MockDiscoveryInterface{}, func(cr *apischema.CRDResolver, io workspacefile.IOHandler) error {
+			}, tc.cfg, &mocks.MockDiscoveryInterface{}, func(cr *apischema.CRDResolver, io workspacefile.IOHandler, client client.Client, log *logger.Logger) error {
 				return nil
 			}, func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error) {
 				return &discoveryclient.FactoryProvider{
@@ -107,36 +111,41 @@ func TestNewReconciler(t *testing.T) {
 	}
 }
 
-func TestPreReconcile(t *testing.T) {
+func TestPreReconcileWithClusterAccess(t *testing.T) {
 	tempDir := t.TempDir()
 
 	tests := map[string]struct {
-		cr  *apischema.CRDResolver
-		err error
+		name        string
+		shouldError bool
 	}{
-		"error_on_empty_resolver": {
-			cr: func() *apischema.CRDResolver {
-				discovery := &mocks.MockDiscoveryInterface{}
-				discovery.On("ServerPreferredResources").Return(nil, errors.New("failed to get server resources"))
-
-				return &apischema.CRDResolver{
-					DiscoveryInterface: discovery,
-					RESTMapper:         &mocks.MockRESTMapper{},
-				}
-			}(),
-			err: errors.Join(ErrResolveSchema,
-				errors.New("failed to get server preferred resources"),
-				errors.New("failed to get server resources")),
+		"no_cluster_access_resources": {
+			name:        "no ClusterAccess resources found",
+			shouldError: false,
 		},
 	}
 
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create a fake client with no ClusterAccess resources
+			scheme := runtime.NewScheme()
+			assert.NoError(t, v1alpha1.AddToScheme(scheme))
+			fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
 			ioHandler, err := workspacefile.NewIOHandler(tempDir)
 			assert.NoError(t, err)
-			err = PreReconcile(tc.cr, ioHandler)
-			if tc.err != nil {
-				assert.EqualError(t, err, tc.err.Error())
+
+			log := testlogger.New().HideLogOutput().Logger
+
+			// Create minimal CRD resolver
+			discovery := &mocks.MockDiscoveryInterface{}
+			crdResolver := &apischema.CRDResolver{
+				DiscoveryInterface: discovery,
+				RESTMapper:         &mocks.MockRESTMapper{},
+			}
+
+			err = PreReconcileWithClusterAccess(crdResolver, ioHandler, fakeClient, log)
+			if tc.shouldError {
+				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 			}

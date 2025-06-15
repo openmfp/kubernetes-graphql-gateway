@@ -1,4 +1,4 @@
-package manager
+package roundtripper
 
 import (
 	"net/http"
@@ -10,15 +10,17 @@ import (
 
 type TokenKey struct{}
 
-type roundTripper struct {
+// RoundTripper handles authentication and impersonation for HTTP requests
+type RoundTripper struct {
 	userClaim   string
 	log         *logger.Logger
 	base        http.RoundTripper // TODO change to awareBaseHttp
 	impersonate bool
 }
 
-func NewRoundTripper(log *logger.Logger, base http.RoundTripper, userNameClaim string, impersonate bool) http.RoundTripper {
-	return &roundTripper{
+// New creates a new round tripper with the specified configuration
+func New(log *logger.Logger, base http.RoundTripper, userNameClaim string, impersonate bool) http.RoundTripper {
+	return &RoundTripper{
 		log:         log,
 		base:        base,
 		userClaim:   userNameClaim,
@@ -26,7 +28,7 @@ func NewRoundTripper(log *logger.Logger, base http.RoundTripper, userNameClaim s
 	}
 }
 
-func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	token, ok := req.Context().Value(TokenKey{}).(string)
 	if !ok {
 		rt.log.Debug().Msg("No token found in context")
