@@ -1,6 +1,7 @@
 package clusterpath
 
 import (
+	"context"
 	"net/url"
 	"testing"
 
@@ -95,7 +96,7 @@ func TestPathForCluster(t *testing.T) {
 			}
 			clt := builder.Build()
 
-			path, err := PathForCluster(tc.clusterName, clt)
+			path, err := PathForCluster(context.Background(), tc.clusterName, clt)
 			if tc.expectErr {
 				assert.Error(t, err)
 				assert.Empty(t, path)

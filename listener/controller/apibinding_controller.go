@@ -56,7 +56,7 @@ func (r *APIBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error().Err(err).Msg("failed to get cluster client")
 		return ctrl.Result{}, err
 	}
-	clusterPath, err := clusterpath.PathForCluster(req.ClusterName, clusterClt)
+	clusterPath, err := clusterpath.PathForCluster(ctx, req.ClusterName, clusterClt)
 	if err != nil {
 		if errors.Is(err, clusterpath.ErrClusterIsDeleted) {
 			logger.Info().Msg("cluster is deleted, triggering cleanup")

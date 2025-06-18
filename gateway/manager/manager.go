@@ -33,13 +33,6 @@ func NewGateway(log *logger.Logger, appCfg appConfig.Config) (*Service, error) {
 			ServerName:         config.TLSClientConfig.ServerName,
 		}
 
-		log.Debug().
-			Bool("insecure", tlsConfig.InsecureSkipVerify).
-			Str("serverName", tlsConfig.ServerName).
-			Int("caDataLen", len(config.TLSClientConfig.CAData)).
-			Int("certDataLen", len(config.TLSClientConfig.CertData)).
-			Msg("Creating TLS config for round tripper")
-
 		// Add CA data if present
 		if len(config.TLSClientConfig.CAData) > 0 {
 			caCertPool := x509.NewCertPool()

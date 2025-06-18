@@ -2,10 +2,11 @@ package kcp
 
 import (
 	"context"
+	"testing"
+
 	"github.com/openmfp/golang-commons/logger"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/stretchr/testify/require"
-	"testing"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
 	"github.com/stretchr/testify/assert"
@@ -14,6 +15,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
+
+const validAPIServerHost = "https://192.168.1.13:6443"
 
 func TestNewManager(t *testing.T) {
 

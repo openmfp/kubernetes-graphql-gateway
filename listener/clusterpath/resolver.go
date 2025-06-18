@@ -56,12 +56,12 @@ func (rf *ResolverProvider) ClientForCluster(name string) (client.Client, error)
 	return rf.clientFactory(clusterConfig, client.Options{Scheme: rf.Scheme})
 }
 
-func PathForCluster(name string, clt client.Client) (string, error) {
+func PathForCluster(ctx context.Context, name string, clt client.Client) (string, error) {
 	if name == "root" {
 		return name, nil
 	}
 	lc := &kcpcore.LogicalCluster{}
-	if err := clt.Get(context.TODO(), client.ObjectKey{Name: "cluster"}, lc); err != nil {
+	if err := clt.Get(ctx, client.ObjectKey{Name: "cluster"}, lc); err != nil {
 		return "", errors.Join(ErrGetLogicalCluster, err)
 	}
 

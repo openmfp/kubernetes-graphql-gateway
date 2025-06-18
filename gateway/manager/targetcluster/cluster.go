@@ -170,7 +170,7 @@ func (tc *TargetCluster) GetEndpoint(appCfg appConfig.Config) string {
 		return fmt.Sprintf("http://localhost:%s/%s/graphql", appCfg.Gateway.Port, path)
 	}
 
-	return fmt.Sprintf("/%s/graphql", appCfg.Gateway.Port, path)
+	return fmt.Sprintf("/%s/graphql", path)
 }
 
 // GetLoggingEndpoint returns the logging endpoint for this cluster
