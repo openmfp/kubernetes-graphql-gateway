@@ -18,6 +18,33 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/schema"
 )
 
+// ClusterMetadata represents cluster connection information embedded in schema files
+// Supports standard Kubernetes clusters with various authentication methods
+type ClusterMetadata struct {
+	Host string        `json:"host"`
+	Path string        `json:"path"`
+	Auth *AuthMetadata `json:"auth,omitempty"`
+	CA   *CAMetadata   `json:"ca,omitempty"`
+}
+
+// CAMetadata contains CA certificate information
+type CAMetadata struct {
+	Data string `json:"data"` // base64 encoded CA certificate
+}
+
+// AuthMetadata contains authentication information for Kubernetes clusters
+type AuthMetadata struct {
+	Type       string `json:"type"`       // "kubeconfig", "in-cluster", or "token"
+	Kubeconfig string `json:"kubeconfig"` // base64 encoded kubeconfig (required for type "kubeconfig")
+	Token      string `json:"token"`      // bearer token (required for type "token")
+}
+
+// FileData represents the data extracted from a schema file
+type FileData struct {
+	Definitions map[string]interface{} `json:"definitions"`
+	Metadata    *ClusterMetadata       `json:"x-cluster-metadata"`
+}
+
 // TargetCluster represents a single target Kubernetes cluster
 type TargetCluster struct {
 	name     string
@@ -138,7 +165,26 @@ func (tc *TargetCluster) GetEndpoint(appCfg appConfig.Config) string {
 	if tc.metadata != nil && tc.metadata.Path != "" {
 		path = tc.metadata.Path
 	}
-	return fmt.Sprintf("http://localhost:%s/%s/graphql", appCfg.Gateway.Port, path)
+
+	if appCfg.LocalDevelopment {
+		return fmt.Sprintf("http://localhost:%s/%s/graphql", appCfg.Gateway.Port, path)
+	}
+
+	return fmt.Sprintf("/%s/graphql", appCfg.Gateway.Port, path)
+}
+
+// GetLoggingEndpoint returns the logging endpoint for this cluster
+func (tc *TargetCluster) GetLoggingEndpoint(appCfg appConfig.Config) string {
+	path := tc.name
+	if tc.metadata != nil && tc.metadata.Path != "" {
+		path = tc.metadata.Path
+	}
+
+	if appCfg.LocalDevelopment {
+		return fmt.Sprintf("http://localhost:%s/%s/logs", appCfg.Gateway.Port, path)
+	}
+
+	return fmt.Sprintf("/%s/logs", path)
 }
 
 // ServeHTTP handles HTTP requests for this cluster

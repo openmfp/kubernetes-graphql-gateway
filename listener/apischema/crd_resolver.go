@@ -37,8 +37,8 @@ type CRDResolver struct {
 	meta.RESTMapper
 }
 
-func (cr *CRDResolver) Resolve() ([]byte, error) {
-	return resolveSchema(cr.DiscoveryInterface, cr.RESTMapper)
+func (cr *CRDResolver) Resolve(dc discovery.DiscoveryInterface, rm meta.RESTMapper) ([]byte, error) {
+	return resolveSchema(dc, rm)
 }
 
 func (cr *CRDResolver) ResolveApiSchema(crd *apiextensionsv1.CustomResourceDefinition) ([]byte, error) {

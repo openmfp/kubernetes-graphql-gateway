@@ -1,19 +1,19 @@
 package standard
 
 import (
-	"bytes"
+	"context"
 	"errors"
-	"io/fs"
 
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/openmfp/golang-commons/controller/lifecycle"
 	"github.com/openmfp/golang-commons/logger"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/controller"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/types"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
 )
 
@@ -23,81 +23,75 @@ const (
 
 var (
 	ErrCreateIOHandler  = errors.New("failed to create IO Handler")
-	ErrCreateRestMapper = errors.New("failed to create rest mapper")
-	ErrCreateHTTPClient = errors.New("failed to create http client")
-	ErrGenerateSchema   = errors.New("failed to generate OpenAPI Schema")
+	ErrCreateRESTMapper = errors.New("failed to create REST mapper")
+	ErrCreateHTTPClient = errors.New("failed to create HTTP client")
+	ErrGenerateSchema   = errors.New("failed to generate schema")
 	ErrResolveSchema    = errors.New("failed to resolve server JSON schema")
 	ErrReadJSON         = errors.New("failed to read JSON from filesystem")
 	ErrWriteJSON        = errors.New("failed to write JSON to filesystem")
 )
 
-// NewReconciler creates a reconciler for standard non-KCP clusters
-// This uses a hardcoded "kubernetes" filename for the schema file
+// StandardReconciler handles reconciliation for standard non-KCP clusters
+type StandardReconciler struct {
+	lifecycleManager *lifecycle.LifecycleManager
+	opts             types.ReconcilerOpts
+	restCfg          *rest.Config
+	ioHandler        workspacefile.IOHandler
+	schemaResolver   apischema.Resolver
+	discoveryClient  discovery.DiscoveryInterface
+	restMapper       meta.RESTMapper
+	log              *logger.Logger
+}
+
 func NewReconciler(
-	opts reconciler.ReconcilerOpts,
-	discoveryInterface discovery.DiscoveryInterface,
+	opts types.ReconcilerOpts,
+	restCfg *rest.Config,
+	ioHandler workspacefile.IOHandler,
+	schemaResolver apischema.Resolver,
+	discoveryClient discovery.DiscoveryInterface,
+	restMapper meta.RESTMapper,
 	log *logger.Logger,
-) (reconciler.CustomReconciler, error) {
-	ioHandler, err := workspacefile.NewIOHandler(opts.OpenAPIDefinitionsPath)
-	if err != nil {
-		return nil, errors.Join(ErrCreateIOHandler, err)
+) (types.CustomReconciler, error) {
+	r := &StandardReconciler{
+		opts:            opts,
+		restCfg:         restCfg,
+		ioHandler:       ioHandler,
+		schemaResolver:  schemaResolver,
+		discoveryClient: discoveryClient,
+		restMapper:      restMapper,
+		log:             log,
 	}
 
-	rm, err := restMapperFromConfig(opts.Config)
-	if err != nil {
-		return nil, err
-	}
+	// Create lifecycle manager with subroutines
+	r.lifecycleManager = lifecycle.NewLifecycleManager(
+		log,
+		"standard-reconciler",
+		"standard-reconciler",
+		opts.Client,
+		[]lifecycle.Subroutine{
+			&generateSchemaSubroutine{reconciler: r},
+			&processClusterAccessSubroutine{reconciler: r},
+		},
+	)
 
-	schemaResolver := &apischema.CRDResolver{
-		DiscoveryInterface: discoveryInterface,
-		RESTMapper:         rm,
-	}
-
-	// For standard clusters, use the preReconcile approach with "kubernetes" filename
-	if err = preReconcile(schemaResolver, ioHandler); err != nil {
-		return nil, errors.Join(ErrGenerateSchema, err)
-	}
-
-	log.Info().Str("clusterName", kubernetesClusterName).Msg("Generated schema for standard cluster connection")
-	return controller.NewCRDReconciler(kubernetesClusterName, opts.Client, schemaResolver, ioHandler, log), nil
+	return r, nil
 }
 
-func restMapperFromConfig(cfg *rest.Config) (meta.RESTMapper, error) {
-	httpClt, err := rest.HTTPClientFor(cfg)
-	if err != nil {
-		return nil, errors.Join(ErrCreateHTTPClient, err)
-	}
-	rm, err := apiutil.NewDynamicRESTMapper(cfg, httpClt)
-	if err != nil {
-		return nil, errors.Join(ErrCreateRestMapper, err)
+func (r *StandardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	// Fetch the CRD resource that triggered this reconciliation
+	crd := &apiextensionsv1.CustomResourceDefinition{}
+	if err := r.opts.Client.Get(ctx, req.NamespacedName, crd); err != nil {
+		r.log.Error().Err(err).Str("name", req.Name).Msg("failed to get CRD resource")
+		// Continue with lifecycle manager even if CRD is not found (might be deleted)
+		return r.lifecycleManager.Reconcile(ctx, req, nil)
 	}
 
-	return rm, nil
+	return r.lifecycleManager.Reconcile(ctx, req, crd)
 }
 
-// preReconcile generates schema directly from the current cluster (original main branch approach)
-func preReconcile(
-	cr *apischema.CRDResolver,
-	io workspacefile.IOHandler,
-) error {
-	actualJSON, err := cr.Resolve()
-	if err != nil {
-		return errors.Join(ErrResolveSchema, err)
-	}
-
-	savedJSON, err := io.Read(kubernetesClusterName)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return io.Write(actualJSON, kubernetesClusterName)
-		}
-		return errors.Join(ErrReadJSON, err)
-	}
-
-	if !bytes.Equal(actualJSON, savedJSON) {
-		if err := io.Write(actualJSON, kubernetesClusterName); err != nil {
-			return errors.Join(ErrWriteJSON, err)
-		}
-	}
-
-	return nil
+func (r *StandardReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&apiextensionsv1.CustomResourceDefinition{}).
+		Named("standard-reconciler").
+		Complete(r)
 }

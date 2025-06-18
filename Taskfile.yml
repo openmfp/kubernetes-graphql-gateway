@@ -41,13 +41,13 @@ tasks:
     desc: "Generate CRD manifests from Go types"
     deps: [setup:controller-gen]
     cmds:
-      - "{{.LOCAL_BIN}}/controller-gen crd:crdVersions=v1 paths=./common/apis/gateway/v1alpha1 output:crd:artifacts:config=config/crd"
+      - "{{.LOCAL_BIN}}/controller-gen crd:crdVersions=v1 paths=./common/apis/v1alpha1 output:crd:artifacts:config=config/crd"
       - echo "CRD manifests generated successfully in config/crd/"
   generate:deepcopy:
     desc: "Generate deepcopy methods for API types"
     deps: [setup:controller-gen]
     cmds:
-      - "{{.LOCAL_BIN}}/controller-gen object paths=./common/apis/gateway/v1alpha1"
+      - "{{.LOCAL_BIN}}/controller-gen object paths=./common/apis/v1alpha1"
       - echo "Deepcopy methods generated successfully"
   generate:
     desc: "Generate all CRD-related files (manifests + deepcopy methods)"
@@ -108,9 +108,27 @@ tasks:
 
 
   gateway:
+    desc: "Start the GraphQL gateway server (kills existing process on port 7080 if needed)"
     cmds:
+      - |
+        # Check if port 7080 is in use and kill the process if found
+        PID=$(lsof -ti:7080 2>/dev/null || echo "")
+        if [ ! -z "$PID" ]; then
+          echo "Found existing process $PID on port 7080, killing it..."
+          kill $PID 2>/dev/null || true
+          sleep 2
+        fi
       - go run main.go gateway
 
   listener:
+    desc: "Start the listener server (kills existing process on port 8090 if needed)"
     cmds:
+      - |
+        # Check if port 8090 is in use and kill the process if found
+        PID=$(lsof -ti:8090 2>/dev/null || echo "")
+        if [ ! -z "$PID" ]; then
+          echo "Found existing process $PID on port 8090, killing it..."
+          kill $PID 2>/dev/null || true
+          sleep 2
+        fi
       - go run main.go listener

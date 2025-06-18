@@ -4,6 +4,7 @@ type Config struct {
 	OpenApiDefinitionsPath      string `mapstructure:"openapi-definitions-path"`
 	EnableKcp                   bool   `mapstructure:"enable-kcp"`
 	LocalDevelopment            bool   `mapstructure:"local-development"`
+	MultiCluster                bool   `mapstructure:"multi-cluster"`
 	IntrospectionAuthentication bool   `mapstructure:"introspection-authentication"`
 
 	Listener struct {

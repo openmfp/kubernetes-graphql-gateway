@@ -88,7 +88,7 @@ type ClusterAccessStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Cluster
+//+kubebuilder:resource:scope=Cluster,shortName=ca
 
 // ClusterAccess is the Schema for the clusteraccesses API
 type ClusterAccess struct {

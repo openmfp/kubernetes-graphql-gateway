@@ -18,7 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/openmfp/golang-commons/logger/testlogger"
-	"github.com/openmfp/kubernetes-graphql-gateway/common/apis/gateway/v1alpha1"
+	"github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"

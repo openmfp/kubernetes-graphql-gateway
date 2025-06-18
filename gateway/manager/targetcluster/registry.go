@@ -59,7 +59,7 @@ func (cr *ClusterRegistry) LoadCluster(schemaFilePath string) error {
 
 	cr.log.Info().
 		Str("cluster", name).
-		Str("endpoint", cluster.GetEndpoint(cr.appCfg)).
+		Str("endpoint", cluster.GetLoggingEndpoint(cr.appCfg)).
 		Msg("Successfully loaded target cluster")
 
 	return nil

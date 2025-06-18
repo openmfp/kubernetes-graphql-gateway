@@ -11,6 +11,8 @@ spec:
     kind: ClusterAccess
     listKind: ClusterAccessList
     plural: clusteraccesses
+    shortNames:
+    - ca
     singular: clusteraccess
   scope: Cluster
   versions:

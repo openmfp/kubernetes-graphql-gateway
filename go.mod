@@ -10,6 +10,7 @@ replace github.com/graphql-go/handler => github.com/vertex451/handler v0.0.0-202
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0
+	github.com/go-errors/errors v1.4.2
 	github.com/go-openapi/spec v0.21.0
 	github.com/gobuffalo/flect v1.0.3
 	github.com/golang-jwt/jwt/v5 v5.2.2
@@ -33,7 +34,7 @@ require (
 	k8s.io/apiextensions-apiserver v0.32.4
 	k8s.io/apimachinery v0.32.4
 	k8s.io/client-go v0.32.4
-	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff
+	k8s.io/kube-openapi v0.0.0-20250610211856-8b98d1ed966a
 	sigs.k8s.io/controller-runtime v0.21.0
 )
 

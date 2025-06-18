@@ -44,6 +44,11 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+
+	err = openmfpconfig.BindConfigToFlags(v, listenCmd, &appCfg)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func initConfig() {
@@ -51,6 +56,7 @@ func initConfig() {
 	v.SetDefault("openapi-definitions-path", "./bin/definitions")
 	v.SetDefault("enable-kcp", true)
 	v.SetDefault("local-development", false)
+	v.SetDefault("multi-cluster", true)
 	v.SetDefault("introspection-authentication", false)
 
 	// Listener
