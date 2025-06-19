@@ -39,10 +39,15 @@ func CreateSingleClusterReconciler(
 	opts types.ReconcilerOpts,
 	restCfg *rest.Config,
 	mgrOpts ctrl.Options,
-	discoveryInterface discovery.DiscoveryInterface,
 	log *logger.Logger,
 ) (types.CustomReconciler, error) {
 	log.Info().Msg("Using standard reconciler for single-cluster mode")
+
+	// Create discovery client
+	discoveryInterface, err := discovery.NewDiscoveryClientForConfig(restCfg)
+	if err != nil {
+		return nil, err
+	}
 
 	// Create IO handler
 	ioHandler, err := workspacefile.NewIOHandler(appCfg.OpenApiDefinitionsPath)

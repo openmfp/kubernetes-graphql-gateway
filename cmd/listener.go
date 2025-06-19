@@ -12,7 +12,6 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/client-go/discovery"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -97,12 +96,6 @@ var listenCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		discoveryInterface, err := discovery.NewDiscoveryClientForConfig(restCfg)
-		if err != nil {
-			log.Error().Err(err).Msg("failed to create discovery client")
-			os.Exit(1)
-		}
-
 		reconcilerOpts := types.ReconcilerOpts{
 			Scheme:                 scheme,
 			Client:                 clt,
@@ -118,7 +111,7 @@ var listenCmd = &cobra.Command{
 		case appCfg.MultiCluster:
 			reconcilerInstance, err = clusteraccess.CreateMultiClusterReconciler(appCfg, reconcilerOpts, restCfg, mgrOpts, log)
 		default:
-			reconcilerInstance, err = standard.CreateSingleClusterReconciler(appCfg, reconcilerOpts, restCfg, mgrOpts, discoveryInterface, log)
+			reconcilerInstance, err = standard.CreateSingleClusterReconciler(appCfg, reconcilerOpts, restCfg, mgrOpts, log)
 		}
 		if err != nil {
 			log.Error().Err(err).Msg("unable to create reconciler")
