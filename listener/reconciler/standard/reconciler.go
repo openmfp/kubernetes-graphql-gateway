@@ -38,6 +38,7 @@ func CreateSingleClusterReconciler(
 	appCfg config.Config,
 	opts types.ReconcilerOpts,
 	restCfg *rest.Config,
+	mgrOpts ctrl.Options,
 	discoveryInterface discovery.DiscoveryInterface,
 	log *logger.Logger,
 ) (types.CustomReconciler, error) {
@@ -62,7 +63,7 @@ func CreateSingleClusterReconciler(
 		return nil, err
 	}
 
-	return NewReconciler(opts, restCfg, ioHandler, schemaResolver, discoveryInterface, restMapper, log)
+	return NewReconciler(opts, restCfg, mgrOpts, ioHandler, schemaResolver, discoveryInterface, restMapper, log)
 }
 
 // StandardReconciler handles reconciliation for standard non-KCP clusters
@@ -70,6 +71,7 @@ type StandardReconciler struct {
 	lifecycleManager *lifecycle.LifecycleManager
 	opts             types.ReconcilerOpts
 	restCfg          *rest.Config
+	mgr              ctrl.Manager
 	ioHandler        workspacefile.IOHandler
 	schemaResolver   apischema.Resolver
 	discoveryClient  discovery.DiscoveryInterface
@@ -80,15 +82,23 @@ type StandardReconciler struct {
 func NewReconciler(
 	opts types.ReconcilerOpts,
 	restCfg *rest.Config,
+	mgrOpts ctrl.Options,
 	ioHandler workspacefile.IOHandler,
 	schemaResolver apischema.Resolver,
 	discoveryClient discovery.DiscoveryInterface,
 	restMapper meta.RESTMapper,
 	log *logger.Logger,
 ) (types.CustomReconciler, error) {
+	// Create standard manager
+	mgr, err := ctrl.NewManager(restCfg, mgrOpts)
+	if err != nil {
+		return nil, err
+	}
+
 	r := &StandardReconciler{
 		opts:            opts,
 		restCfg:         restCfg,
+		mgr:             mgr,
 		ioHandler:       ioHandler,
 		schemaResolver:  schemaResolver,
 		discoveryClient: discoveryClient,
@@ -109,6 +119,10 @@ func NewReconciler(
 	)
 
 	return r, nil
+}
+
+func (r *StandardReconciler) GetManager() ctrl.Manager {
+	return r.mgr
 }
 
 func (r *StandardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

@@ -7,6 +7,7 @@ import (
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	kcpctrl "sigs.k8s.io/controller-runtime/pkg/kcp"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
 	"github.com/openmfp/golang-commons/controller/lifecycle"
@@ -30,6 +31,7 @@ func CreateKCPReconciler(
 	appCfg config.Config,
 	opts types.ReconcilerOpts,
 	restCfg *rest.Config,
+	mgrOpts ctrl.Options,
 	discoverFactory func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error),
 	log *logger.Logger,
 ) (types.CustomReconciler, error) {
@@ -56,7 +58,7 @@ func CreateKCPReconciler(
 		return nil, err
 	}
 
-	return NewReconciler(opts, restCfg, ioHandler, pathResolver, discoveryFactory, schemaResolver, log)
+	return NewReconciler(opts, restCfg, mgrOpts, ioHandler, pathResolver, discoveryFactory, schemaResolver, log)
 }
 
 // KCPReconciler handles reconciliation for KCP clusters
@@ -64,6 +66,7 @@ type KCPReconciler struct {
 	lifecycleManager *lifecycle.LifecycleManager
 	opts             types.ReconcilerOpts
 	restCfg          *rest.Config
+	mgr              ctrl.Manager
 	ioHandler        workspacefile.IOHandler
 	pathResolver     clusterpath.Resolver
 	discoveryFactory discoveryclient.Factory
@@ -74,15 +77,23 @@ type KCPReconciler struct {
 func NewReconciler(
 	opts types.ReconcilerOpts,
 	restCfg *rest.Config,
+	mgrOpts ctrl.Options,
 	ioHandler workspacefile.IOHandler,
 	pathResolver clusterpath.Resolver,
 	discoveryFactory discoveryclient.Factory,
 	schemaResolver apischema.Resolver,
 	log *logger.Logger,
 ) (types.CustomReconciler, error) {
+	// Create KCP-aware manager
+	mgr, err := kcpctrl.NewClusterAwareManager(restCfg, mgrOpts)
+	if err != nil {
+		return nil, err
+	}
+
 	r := &KCPReconciler{
 		opts:             opts,
 		restCfg:          restCfg,
+		mgr:              mgr,
 		ioHandler:        ioHandler,
 		pathResolver:     pathResolver,
 		discoveryFactory: discoveryFactory,
@@ -102,6 +113,10 @@ func NewReconciler(
 	)
 
 	return r, nil
+}
+
+func (r *KCPReconciler) GetManager() ctrl.Manager {
+	return r.mgr
 }
 
 func (r *KCPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {

@@ -13,6 +13,7 @@ import (
 type CustomReconciler interface {
 	Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error)
 	SetupWithManager(mgr ctrl.Manager) error
+	GetManager() ctrl.Manager
 }
 
 // ReconcilerOpts contains common options needed by all reconciler strategies

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"crypto/tls"
 	"os"
 
@@ -16,7 +17,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-	kcpctrl "sigs.k8s.io/controller-runtime/pkg/kcp"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -97,18 +97,6 @@ var listenCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// Create the appropriate manager type
-		var mgr ctrl.Manager
-		if appCfg.EnableKcp {
-			mgr, err = kcpctrl.NewClusterAwareManager(restCfg, mgrOpts)
-		} else {
-			mgr, err = ctrl.NewManager(restCfg, mgrOpts)
-		}
-		if err != nil {
-			log.Error().Err(err).Msg("unable to create manager")
-			os.Exit(1)
-		}
-
 		discoveryInterface, err := discovery.NewDiscoveryClientForConfig(restCfg)
 		if err != nil {
 			log.Error().Err(err).Msg("failed to create discovery client")
@@ -126,35 +114,48 @@ var listenCmd = &cobra.Command{
 		var reconcilerInstance types.CustomReconciler
 		switch {
 		case appCfg.EnableKcp:
-			reconcilerInstance, err = kcp.CreateKCPReconciler(appCfg, reconcilerOpts, restCfg, discoveryclient.NewFactory, log)
+			reconcilerInstance, err = kcp.CreateKCPReconciler(appCfg, reconcilerOpts, restCfg, mgrOpts, discoveryclient.NewFactory, log)
 		case appCfg.MultiCluster:
-			reconcilerInstance, err = clusteraccess.CreateMultiClusterReconciler(appCfg, reconcilerOpts, restCfg, log)
+			reconcilerInstance, err = clusteraccess.CreateMultiClusterReconciler(appCfg, reconcilerOpts, restCfg, mgrOpts, log)
 		default:
-			reconcilerInstance, err = standard.CreateSingleClusterReconciler(appCfg, reconcilerOpts, restCfg, discoveryInterface, log)
+			reconcilerInstance, err = standard.CreateSingleClusterReconciler(appCfg, reconcilerOpts, restCfg, mgrOpts, discoveryInterface, log)
 		}
 		if err != nil {
 			log.Error().Err(err).Msg("unable to create reconciler")
 			os.Exit(1)
 		}
 
-		if err := reconcilerInstance.SetupWithManager(mgr); err != nil {
-			log.Error().Err(err).Msg("unable to create controller")
-			os.Exit(1)
-		}
-
-		if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-			log.Error().Err(err).Msg("unable to set up health check")
-			os.Exit(1)
-		}
-		if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-			log.Error().Err(err).Msg("unable to set up ready check")
-			os.Exit(1)
-		}
-
-		log.Info().Msg("starting manager")
-		if err := mgr.Start(ctx); err != nil {
-			log.Error().Err(err).Msg("problem running manager")
+		// Setup reconciler with its own manager and start everything
+		if err := startManagerWithReconciler(ctx, reconcilerInstance); err != nil {
 			os.Exit(1)
 		}
 	},
+}
+
+// startManagerWithReconciler handles the common manager setup and start operations
+func startManagerWithReconciler(ctx context.Context, reconciler types.CustomReconciler) error {
+	mgr := reconciler.GetManager()
+
+	if err := reconciler.SetupWithManager(mgr); err != nil {
+		log.Error().Err(err).Msg("unable to setup reconciler with manager")
+		return err
+	}
+
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		log.Error().Err(err).Msg("unable to set up health check")
+		return err
+	}
+
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		log.Error().Err(err).Msg("unable to set up ready check")
+		return err
+	}
+
+	log.Info().Msg("starting manager")
+	if err := mgr.Start(ctx); err != nil {
+		log.Error().Err(err).Msg("problem running manager")
+		return err
+	}
+
+	return nil
 }
