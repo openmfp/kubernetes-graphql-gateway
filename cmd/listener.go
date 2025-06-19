@@ -116,13 +116,22 @@ var listenCmd = &cobra.Command{
 			OpenAPIDefinitionsPath: appCfg.OpenApiDefinitionsPath,
 		}
 
-		reconciler, err := reconciler.CreateReconciler(appCfg, reconcilerOpts, restCfg, discoveryInterface, discoveryclient.NewFactory, log)
+		var reconcilerInstance types.CustomReconciler
+		switch {
+		case appCfg.EnableKcp:
+			reconcilerInstance, err = reconciler.CreateKCPReconciler(appCfg, reconcilerOpts, restCfg, discoveryclient.NewFactory, log)
+		case appCfg.MultiCluster:
+			reconcilerInstance, err = reconciler.CreateMultiClusterReconciler(appCfg, reconcilerOpts, restCfg, log)
+		default:
+			reconcilerInstance, err = reconciler.CreateSingleClusterReconciler(appCfg, reconcilerOpts, restCfg, discoveryInterface, log)
+		}
+
 		if err != nil {
-			log.Error().Err(err).Msg("unable to instantiate reconciler")
+			log.Error().Err(err).Msg("unable to create reconciler")
 			os.Exit(1)
 		}
 
-		if err := reconciler.SetupWithManager(mgr); err != nil {
+		if err := reconcilerInstance.SetupWithManager(mgr); err != nil {
 			log.Error().Err(err).Msg("unable to create controller")
 			os.Exit(1)
 		}

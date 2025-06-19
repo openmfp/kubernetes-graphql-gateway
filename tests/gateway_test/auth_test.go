@@ -20,8 +20,9 @@ func (suite *CommonTestSuite) TestTokenValidation() {
 
 	workspaceName := "myWorkspace"
 
-	require.NoError(suite.T(), writeToFile(
-		filepath.Join("testdata", "kubernetes"),
+	require.NoError(suite.T(), createTestSchemaFile(
+		suite.restCfg,
+		suite.staticToken,
 		filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName),
 	))
 
@@ -53,8 +54,9 @@ func (suite *CommonTestSuite) TestIntrospectionAuth() {
 
 	workspaceName := "myWorkspace"
 
-	require.NoError(suite.T(), writeToFile(
-		filepath.Join("testdata", "kubernetes"),
+	require.NoError(suite.T(), createTestSchemaFile(
+		suite.restCfg,
+		suite.staticToken,
 		filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName),
 	))
 

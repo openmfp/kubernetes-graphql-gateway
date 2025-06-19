@@ -19,31 +19,8 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
 )
 
-var (
-	ErrNoSuitableReconciler = errors.New("no suitable reconciler found for the given configuration")
-)
-
-// CreateReconciler creates a reconciler based on the configuration
-func CreateReconciler(
-	appCfg config.Config,
-	opts types.ReconcilerOpts,
-	restCfg *rest.Config,
-	discoveryInterface discovery.DiscoveryInterface,
-	discoverFactory func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error),
-	log *logger.Logger,
-) (types.CustomReconciler, error) {
-	switch {
-	case appCfg.EnableKcp:
-		return createKCPReconciler(appCfg, opts, restCfg, discoverFactory, log)
-	case appCfg.MultiCluster:
-		return createMultiClusterReconciler(appCfg, opts, restCfg, log)
-	default:
-		return createSingleClusterReconciler(appCfg, opts, restCfg, discoveryInterface, log)
-	}
-}
-
-// createKCPReconciler creates a KCP reconciler with workspace discovery
-func createKCPReconciler(
+// CreateKCPReconciler creates a KCP reconciler with workspace discovery
+func CreateKCPReconciler(
 	appCfg config.Config,
 	opts types.ReconcilerOpts,
 	restCfg *rest.Config,
@@ -76,8 +53,8 @@ func createKCPReconciler(
 	return kcp.NewReconciler(opts, restCfg, ioHandler, pathResolver, discoveryFactory, schemaResolver, log)
 }
 
-// createMultiClusterReconciler creates a multi-cluster reconciler using ClusterAccess CRDs
-func createMultiClusterReconciler(
+// CreateMultiClusterReconciler creates a multi-cluster reconciler using ClusterAccess CRDs
+func CreateMultiClusterReconciler(
 	appCfg config.Config,
 	opts types.ReconcilerOpts,
 	restCfg *rest.Config,
@@ -114,8 +91,8 @@ func createMultiClusterReconciler(
 	return clusteraccess.NewReconciler(opts, restCfg, ioHandler, schemaResolver, log)
 }
 
-// createSingleClusterReconciler creates a standard single-cluster reconciler
-func createSingleClusterReconciler(
+// CreateSingleClusterReconciler creates a standard single-cluster reconciler
+func CreateSingleClusterReconciler(
 	appCfg config.Config,
 	opts types.ReconcilerOpts,
 	restCfg *rest.Config,
