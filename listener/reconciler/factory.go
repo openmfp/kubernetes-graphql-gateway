@@ -1,11 +1,16 @@
 package reconciler
 
 import (
+	"context"
 	"errors"
 
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	kcpctrl "sigs.k8s.io/controller-runtime/pkg/kcp"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"github.com/openmfp/golang-commons/logger"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
@@ -18,6 +23,49 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/types"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
 )
+
+// CreateManagerAndReconciler creates the appropriate manager based on configuration
+func CreateManagerAndReconciler(
+	ctx context.Context,
+	restCfg *rest.Config,
+	opts ctrl.Options,
+	clt client.Client,
+	appCfg config.Config,
+	reconcilerOpts types.ReconcilerOpts,
+	discoverFactory func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error),
+	discoveryInterface discovery.DiscoveryInterface,
+	log *logger.Logger,
+) (manager.Manager, types.CustomReconciler, error) {
+	// Create the appropriate manager type
+	var mgr manager.Manager
+	var err error
+
+	if appCfg.EnableKcp {
+		mgr, err = kcpctrl.NewClusterAwareManager(restCfg, opts)
+	} else {
+		mgr, err = ctrl.NewManager(restCfg, opts)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Create the appropriate reconciler
+	var reconcilerInstance types.CustomReconciler
+	switch {
+	case appCfg.EnableKcp:
+		reconcilerInstance, err = CreateKCPReconciler(appCfg, reconcilerOpts, restCfg, discoverFactory, log)
+	case appCfg.MultiCluster:
+		reconcilerInstance, err = CreateMultiClusterReconciler(appCfg, reconcilerOpts, restCfg, log)
+	default:
+		reconcilerInstance, err = CreateSingleClusterReconciler(appCfg, reconcilerOpts, restCfg, discoveryInterface, log)
+	}
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return mgr, reconcilerInstance, nil
+}
 
 // CreateKCPReconciler creates a KCP reconciler with workspace discovery
 func CreateKCPReconciler(

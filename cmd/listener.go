@@ -22,7 +22,6 @@ import (
 
 	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/kcp"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/types"
 )
@@ -95,14 +94,6 @@ var listenCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		mf := kcp.NewManagerFactory(log, appCfg)
-
-		mgr, err := mf.NewManager(ctx, restCfg, mgrOpts, clt)
-		if err != nil {
-			log.Error().Err(err).Msg("unable to start manager")
-			os.Exit(1)
-		}
-
 		discoveryInterface, err := discovery.NewDiscoveryClientForConfig(restCfg)
 		if err != nil {
 			log.Error().Err(err).Msg("failed to create discovery client")
@@ -116,18 +107,20 @@ var listenCmd = &cobra.Command{
 			OpenAPIDefinitionsPath: appCfg.OpenApiDefinitionsPath,
 		}
 
-		var reconcilerInstance types.CustomReconciler
-		switch {
-		case appCfg.EnableKcp:
-			reconcilerInstance, err = reconciler.CreateKCPReconciler(appCfg, reconcilerOpts, restCfg, discoveryclient.NewFactory, log)
-		case appCfg.MultiCluster:
-			reconcilerInstance, err = reconciler.CreateMultiClusterReconciler(appCfg, reconcilerOpts, restCfg, log)
-		default:
-			reconcilerInstance, err = reconciler.CreateSingleClusterReconciler(appCfg, reconcilerOpts, restCfg, discoveryInterface, log)
-		}
-
+		// Create manager and reconciler using the consolidated factory
+		mgr, reconcilerInstance, err := reconciler.CreateManagerAndReconciler(
+			ctx,
+			restCfg,
+			mgrOpts,
+			clt,
+			appCfg,
+			reconcilerOpts,
+			discoveryclient.NewFactory,
+			discoveryInterface,
+			log,
+		)
 		if err != nil {
-			log.Error().Err(err).Msg("unable to create reconciler")
+			log.Error().Err(err).Msg("unable to create manager and reconciler")
 			os.Exit(1)
 		}
 

@@ -11,7 +11,6 @@ import (
 
 	apischema "github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
 	apischemaMocks "github.com/openmfp/kubernetes-graphql-gateway/listener/apischema/mocks"
-	kcpMocks "github.com/openmfp/kubernetes-graphql-gateway/listener/kcp/mocks"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -299,8 +298,8 @@ func TestResolveSchema(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			dc := kcpMocks.NewMockDiscoveryInterface(t)
-			rm := kcpMocks.NewMockRESTMapper(t)
+			dc := apischemaMocks.NewMockDiscoveryInterface(t)
+			rm := apischemaMocks.NewMockRESTMapper(t)
 
 			// First call in resolveSchema
 			dc.EXPECT().ServerPreferredResources().Return(tc.preferredResources, tc.err)
