@@ -16,13 +16,16 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	kcpctrl "sigs.k8s.io/controller-runtime/pkg/kcp"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/clusteraccess"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/standard"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/types"
 )
 
@@ -94,6 +97,18 @@ var listenCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		// Create the appropriate manager type
+		var mgr ctrl.Manager
+		if appCfg.EnableKcp {
+			mgr, err = kcpctrl.NewClusterAwareManager(restCfg, mgrOpts)
+		} else {
+			mgr, err = ctrl.NewManager(restCfg, mgrOpts)
+		}
+		if err != nil {
+			log.Error().Err(err).Msg("unable to create manager")
+			os.Exit(1)
+		}
+
 		discoveryInterface, err := discovery.NewDiscoveryClientForConfig(restCfg)
 		if err != nil {
 			log.Error().Err(err).Msg("failed to create discovery client")
@@ -107,20 +122,18 @@ var listenCmd = &cobra.Command{
 			OpenAPIDefinitionsPath: appCfg.OpenApiDefinitionsPath,
 		}
 
-		// Create manager and reconciler using the consolidated factory
-		mgr, reconcilerInstance, err := reconciler.CreateManagerAndReconciler(
-			ctx,
-			restCfg,
-			mgrOpts,
-			clt,
-			appCfg,
-			reconcilerOpts,
-			discoveryclient.NewFactory,
-			discoveryInterface,
-			log,
-		)
+		// Create the appropriate reconciler based on configuration
+		var reconcilerInstance types.CustomReconciler
+		switch {
+		case appCfg.EnableKcp:
+			reconcilerInstance, err = kcp.CreateKCPReconciler(appCfg, reconcilerOpts, restCfg, discoveryclient.NewFactory, log)
+		case appCfg.MultiCluster:
+			reconcilerInstance, err = clusteraccess.CreateMultiClusterReconciler(appCfg, reconcilerOpts, restCfg, log)
+		default:
+			reconcilerInstance, err = standard.CreateSingleClusterReconciler(appCfg, reconcilerOpts, restCfg, discoveryInterface, log)
+		}
 		if err != nil {
-			log.Error().Err(err).Msg("unable to create manager and reconciler")
+			log.Error().Err(err).Msg("unable to create reconciler")
 			os.Exit(1)
 		}
 

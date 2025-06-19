@@ -11,6 +11,7 @@ import (
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
 	"github.com/openmfp/golang-commons/controller/lifecycle"
 	"github.com/openmfp/golang-commons/logger"
+	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/clusterpath"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
@@ -23,6 +24,40 @@ var (
 	ErrCreatePathResolver    = errors.New("failed to create cluster path resolver")
 	ErrCreateDiscoveryClient = errors.New("failed to create discovery client")
 )
+
+// CreateKCPReconciler creates a KCP reconciler with workspace discovery
+func CreateKCPReconciler(
+	appCfg config.Config,
+	opts types.ReconcilerOpts,
+	restCfg *rest.Config,
+	discoverFactory func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error),
+	log *logger.Logger,
+) (types.CustomReconciler, error) {
+	log.Info().Msg("Using KCP reconciler with workspace discovery")
+
+	// Create IO handler
+	ioHandler, err := workspacefile.NewIOHandler(appCfg.OpenApiDefinitionsPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create schema resolver
+	schemaResolver := apischema.NewResolver()
+
+	// Create cluster path resolver
+	pathResolver, err := clusterpath.NewResolver(restCfg, opts.Scheme)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create discovery factory
+	discoveryFactory, err := discoverFactory(restCfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewReconciler(opts, restCfg, ioHandler, pathResolver, discoveryFactory, schemaResolver, log)
+}
 
 // KCPReconciler handles reconciliation for KCP clusters
 type KCPReconciler struct {

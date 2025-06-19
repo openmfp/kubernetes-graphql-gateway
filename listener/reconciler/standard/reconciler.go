@@ -9,9 +9,11 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	"github.com/openmfp/golang-commons/controller/lifecycle"
 	"github.com/openmfp/golang-commons/logger"
+	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/types"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
@@ -30,6 +32,38 @@ var (
 	ErrReadJSON         = errors.New("failed to read JSON from filesystem")
 	ErrWriteJSON        = errors.New("failed to write JSON to filesystem")
 )
+
+// CreateSingleClusterReconciler creates a standard single-cluster reconciler
+func CreateSingleClusterReconciler(
+	appCfg config.Config,
+	opts types.ReconcilerOpts,
+	restCfg *rest.Config,
+	discoveryInterface discovery.DiscoveryInterface,
+	log *logger.Logger,
+) (types.CustomReconciler, error) {
+	log.Info().Msg("Using standard reconciler for single-cluster mode")
+
+	// Create IO handler
+	ioHandler, err := workspacefile.NewIOHandler(appCfg.OpenApiDefinitionsPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create schema resolver
+	schemaResolver := apischema.NewResolver()
+
+	// Create REST mapper
+	httpClient, err := rest.HTTPClientFor(restCfg)
+	if err != nil {
+		return nil, err
+	}
+	restMapper, err := apiutil.NewDynamicRESTMapper(restCfg, httpClient)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewReconciler(opts, restCfg, ioHandler, schemaResolver, discoveryInterface, restMapper, log)
+}
 
 // StandardReconciler handles reconciliation for standard non-KCP clusters
 type StandardReconciler struct {
