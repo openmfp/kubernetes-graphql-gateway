@@ -9,7 +9,7 @@ import (
 
 	"github.com/openmfp/golang-commons/logger"
 	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
-	"k8s.io/client-go/rest"
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager"
 )
 
 // ClusterRegistry manages multiple target clusters and handles HTTP routing to them
@@ -18,14 +18,14 @@ type ClusterRegistry struct {
 	clusters            map[string]*TargetCluster
 	log                 *logger.Logger
 	appCfg              appConfig.Config
-	roundTripperFactory func(*rest.Config) http.RoundTripper
+	roundTripperFactory manager.RoundTripperFactory
 }
 
 // NewClusterRegistry creates a new cluster registry
 func NewClusterRegistry(
 	log *logger.Logger,
 	appCfg appConfig.Config,
-	roundTripperFactory func(*rest.Config) http.RoundTripper,
+	roundTripperFactory manager.RoundTripperFactory,
 ) *ClusterRegistry {
 	return &ClusterRegistry{
 		clusters:            make(map[string]*TargetCluster),
