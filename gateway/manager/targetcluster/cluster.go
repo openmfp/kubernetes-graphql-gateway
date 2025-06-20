@@ -18,40 +18,17 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/schema"
 )
 
-// ClusterMetadata represents cluster connection information embedded in schema files
-// Supports standard Kubernetes clusters with various authentication methods
-type ClusterMetadata struct {
-	Host string        `json:"host"`
-	Path string        `json:"path"`
-	Auth *AuthMetadata `json:"auth,omitempty"`
-	CA   *CAMetadata   `json:"ca,omitempty"`
-}
-
-// CAMetadata contains CA certificate information
-type CAMetadata struct {
-	Data string `json:"data"` // base64 encoded CA certificate
-}
-
-// AuthMetadata contains authentication information for Kubernetes clusters
-type AuthMetadata struct {
-	Type       string `json:"type"`       // "kubeconfig", "in-cluster", or "token"
-	Kubeconfig string `json:"kubeconfig"` // base64 encoded kubeconfig (required for type "kubeconfig")
-	Token      string `json:"token"`      // bearer token (required for type "token")
-}
-
 // FileData represents the data extracted from a schema file
 type FileData struct {
 	Definitions map[string]interface{} `json:"definitions"`
-	Metadata    *ClusterMetadata       `json:"x-cluster-metadata"`
 }
 
 // TargetCluster represents a single target Kubernetes cluster
 type TargetCluster struct {
-	name     string
-	metadata *ClusterMetadata
-	client   client.WithWatch
-	handler  *GraphQLHandler
-	log      *logger.Logger
+	name    string
+	client  client.WithWatch
+	handler *GraphQLHandler
+	log     *logger.Logger
 }
 
 // NewTargetCluster creates a new TargetCluster from a schema file
@@ -68,12 +45,11 @@ func NewTargetCluster(
 	}
 
 	cluster := &TargetCluster{
-		name:     name,
-		metadata: fileData.Metadata,
-		log:      log,
+		name: name,
+		log:  log,
 	}
 
-	// Connect to cluster
+	// Connect to cluster using simplified approach
 	if err := cluster.connect(appCfg, roundTripperFactory); err != nil {
 		return nil, fmt.Errorf("failed to connect to cluster: %w", err)
 	}
@@ -91,27 +67,33 @@ func NewTargetCluster(
 	return cluster, nil
 }
 
-// connect establishes connection to the target cluster
+// connect establishes connection to the target cluster using standard patterns
 func (tc *TargetCluster) connect(appCfg appConfig.Config, roundTripperFactory func(*rest.Config) http.RoundTripper) error {
 	var config *rest.Config
 	var err error
 
-	if tc.metadata != nil && tc.metadata.Host != "" {
-		// Connect to remote cluster using metadata
-		config, err = buildConfigFromMetadata(tc.metadata)
-		if err != nil {
-			return fmt.Errorf("failed to build config from metadata: %w", err)
-		}
-		tc.log.Info().Str("host", tc.metadata.Host).Msg("Connecting to remote cluster")
-	} else if appCfg.LocalDevelopment {
+	if appCfg.LocalDevelopment {
 		// Use kubeconfig from environment in development mode
-		config, err = clientcmd.BuildConfigFromFlags("", os.Getenv("KUBECONFIG"))
-		if err != nil {
-			return fmt.Errorf("failed to build config from kubeconfig: %w", err)
+		if kubeconfigPath := os.Getenv("KUBECONFIG"); kubeconfigPath != "" {
+			config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+			if err != nil {
+				return fmt.Errorf("failed to build config from KUBECONFIG: %w", err)
+			}
+		} else {
+			// Fall back to standard controller-runtime config discovery
+			config, err = rest.InClusterConfig()
+			if err != nil {
+				return fmt.Errorf("failed to get config: %w", err)
+			}
 		}
-		tc.log.Info().Msg("Using kubeconfig from environment (development mode)")
+		tc.log.Info().Msg("Using standard kubeconfig resolution (development mode)")
 	} else {
-		return fmt.Errorf("no cluster metadata provided and not in development mode")
+		// Use in-cluster config for production
+		config, err = rest.InClusterConfig()
+		if err != nil {
+			return fmt.Errorf("failed to get in-cluster config: %w", err)
+		}
+		tc.log.Info().Msg("Using in-cluster configuration")
 	}
 
 	// Apply round tripper
@@ -121,10 +103,10 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, roundTripperFactory fu
 		})
 	}
 
-	// Create client
+	// Create client using standard pattern
 	tc.client, err = kcp.NewClusterAwareClientWithWatch(config, client.Options{})
 	if err != nil {
-		return fmt.Errorf("failed to create client: %w", err)
+		return fmt.Errorf("failed to create cluster-aware client: %w", err)
 	}
 
 	return nil
@@ -162,9 +144,6 @@ func (tc *TargetCluster) GetName() string {
 // GetEndpoint returns the HTTP endpoint for this cluster's GraphQL API
 func (tc *TargetCluster) GetEndpoint(appCfg appConfig.Config) string {
 	path := tc.name
-	if tc.metadata != nil && tc.metadata.Path != "" {
-		path = tc.metadata.Path
-	}
 
 	if appCfg.LocalDevelopment {
 		return fmt.Sprintf("http://localhost:%s/%s/graphql", appCfg.Gateway.Port, path)
