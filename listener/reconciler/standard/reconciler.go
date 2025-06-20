@@ -127,15 +127,7 @@ func (r *StandardReconciler) GetManager() ctrl.Manager {
 }
 
 func (r *StandardReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	// Fetch the CRD resource that triggered this reconciliation
-	crd := &apiextensionsv1.CustomResourceDefinition{}
-	if err := r.opts.Client.Get(ctx, req.NamespacedName, crd); err != nil {
-		r.log.Error().Err(err).Str("name", req.Name).Msg("failed to get CRD resource")
-		// Continue with lifecycle manager even if CRD is not found (might be deleted)
-		return r.lifecycleManager.Reconcile(ctx, req, nil)
-	}
-
-	return r.lifecycleManager.Reconcile(ctx, req, crd)
+	return r.lifecycleManager.Reconcile(ctx, req, &apiextensionsv1.CustomResourceDefinition{})
 }
 
 func (r *StandardReconciler) SetupWithManager(mgr ctrl.Manager) error {

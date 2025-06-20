@@ -143,18 +143,7 @@ func (r *ClusterAccessReconciler) GetManager() ctrl.Manager {
 }
 
 func (r *ClusterAccessReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	// Fetch the ClusterAccess resource
-	clusterAccess := &gatewayv1alpha1.ClusterAccess{}
-	if err := r.opts.Client.Get(ctx, req.NamespacedName, clusterAccess); err != nil {
-		if client.IgnoreNotFound(err) == nil {
-			r.log.Info().Str("clusterAccess", req.Name).Msg("ClusterAccess resource not found, might have been deleted")
-			return ctrl.Result{}, nil
-		}
-		r.log.Error().Err(err).Str("clusterAccess", req.Name).Msg("failed to fetch ClusterAccess resource")
-		return ctrl.Result{}, err
-	}
-
-	return r.lifecycleManager.Reconcile(ctx, req, clusterAccess)
+	return r.lifecycleManager.Reconcile(ctx, req, &gatewayv1alpha1.ClusterAccess{})
 }
 
 func (r *ClusterAccessReconciler) SetupWithManager(mgr ctrl.Manager) error {

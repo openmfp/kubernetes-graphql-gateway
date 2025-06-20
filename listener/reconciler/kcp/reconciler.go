@@ -6,7 +6,6 @@ import (
 
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	kcpctrl "sigs.k8s.io/controller-runtime/pkg/kcp"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
@@ -116,19 +115,7 @@ func (r *KCPReconciler) GetManager() ctrl.Manager {
 }
 
 func (r *KCPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	// Fetch the APIBinding resource
-	apiBinding := &kcpapis.APIBinding{}
-	if err := r.opts.Client.Get(ctx, req.NamespacedName, apiBinding); err != nil {
-		// If the resource is not found, it might have been deleted
-		if client.IgnoreNotFound(err) == nil {
-			r.log.Info().Str("apiBinding", req.Name).Msg("APIBinding resource not found, might have been deleted")
-			return ctrl.Result{}, nil
-		}
-		r.log.Error().Err(err).Str("apiBinding", req.Name).Msg("failed to fetch APIBinding resource")
-		return ctrl.Result{}, err
-	}
-
-	return r.lifecycleManager.Reconcile(ctx, req, apiBinding)
+	return r.lifecycleManager.Reconcile(ctx, req, &kcpapis.APIBinding{})
 }
 
 func (r *KCPReconciler) SetupWithManager(mgr ctrl.Manager) error {
