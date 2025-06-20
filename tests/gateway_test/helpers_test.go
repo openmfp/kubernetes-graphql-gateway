@@ -76,24 +76,6 @@ func sendRequest(url, query string) (*GraphQLResponse, int, error) {
 	return &bodyResp, resp.StatusCode, err
 }
 
-// writeToFile adds a new file to the watched directory which will trigger schema generation
-func writeToFile(from, to string) error {
-	specContent, err := os.ReadFile(from)
-	if err != nil {
-		return err
-	}
-
-	err = os.WriteFile(to, specContent, 0644)
-	if err != nil {
-		return err
-	}
-
-	// let's give some time to the manager to process the file and create a url
-	time.Sleep(sleepTime)
-
-	return nil
-}
-
 // createTestSchemaFile creates a proper schema file with cluster metadata pointing to the test environment
 func createTestSchemaFile(restConfig *rest.Config, token, filePath string) error {
 	// Read the base Kubernetes schema definitions

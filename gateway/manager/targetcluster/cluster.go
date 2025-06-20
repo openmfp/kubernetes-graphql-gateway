@@ -86,7 +86,7 @@ func NewTargetCluster(
 	log.Info().
 		Str("cluster", name).
 		Str("endpoint", cluster.GetEndpoint(appCfg)).
-		Msg("Successfully created target cluster")
+		Msg("Registered endpoint")
 
 	return cluster, nil
 }
@@ -171,20 +171,6 @@ func (tc *TargetCluster) GetEndpoint(appCfg appConfig.Config) string {
 	}
 
 	return fmt.Sprintf("/%s/graphql", path)
-}
-
-// GetLoggingEndpoint returns the logging endpoint for this cluster
-func (tc *TargetCluster) GetLoggingEndpoint(appCfg appConfig.Config) string {
-	path := tc.name
-	if tc.metadata != nil && tc.metadata.Path != "" {
-		path = tc.metadata.Path
-	}
-
-	if appCfg.LocalDevelopment {
-		return fmt.Sprintf("http://localhost:%s/%s/logs", appCfg.Gateway.Port, path)
-	}
-
-	return fmt.Sprintf("/%s/logs", path)
 }
 
 // ServeHTTP handles HTTP requests for this cluster

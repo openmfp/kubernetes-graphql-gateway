@@ -57,11 +57,6 @@ func (cr *ClusterRegistry) LoadCluster(schemaFilePath string) error {
 	// Store cluster
 	cr.clusters[name] = cluster
 
-	cr.log.Info().
-		Str("cluster", name).
-		Str("endpoint", cluster.GetLoggingEndpoint(cr.appCfg)).
-		Msg("Successfully loaded target cluster")
-
 	return nil
 }
 

@@ -30,8 +30,6 @@ var (
 func CreateKCPReconciler(
 	appCfg config.Config,
 	opts types.ReconcilerOpts,
-	restCfg *rest.Config,
-	mgrOpts ctrl.Options,
 	discoverFactory func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error),
 	log *logger.Logger,
 ) (types.CustomReconciler, error) {
@@ -47,18 +45,18 @@ func CreateKCPReconciler(
 	schemaResolver := apischema.NewResolver()
 
 	// Create cluster path resolver
-	pathResolver, err := clusterpath.NewResolver(restCfg, opts.Scheme)
+	pathResolver, err := clusterpath.NewResolver(opts.Config, opts.Scheme)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create discovery factory
-	discoveryFactory, err := discoverFactory(restCfg)
+	discoveryFactory, err := discoverFactory(opts.Config)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewReconciler(opts, restCfg, mgrOpts, ioHandler, pathResolver, discoveryFactory, schemaResolver, log)
+	return NewReconciler(opts, ioHandler, pathResolver, discoveryFactory, schemaResolver, log)
 }
 
 // KCPReconciler handles reconciliation for KCP clusters
@@ -76,8 +74,6 @@ type KCPReconciler struct {
 
 func NewReconciler(
 	opts types.ReconcilerOpts,
-	restCfg *rest.Config,
-	mgrOpts ctrl.Options,
 	ioHandler workspacefile.IOHandler,
 	pathResolver clusterpath.Resolver,
 	discoveryFactory discoveryclient.Factory,
@@ -85,14 +81,14 @@ func NewReconciler(
 	log *logger.Logger,
 ) (types.CustomReconciler, error) {
 	// Create KCP-aware manager
-	mgr, err := kcpctrl.NewClusterAwareManager(restCfg, mgrOpts)
+	mgr, err := kcpctrl.NewClusterAwareManager(opts.Config, opts.ManagerOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	r := &KCPReconciler{
 		opts:             opts,
-		restCfg:          restCfg,
+		restCfg:          opts.Config,
 		mgr:              mgr,
 		ioHandler:        ioHandler,
 		pathResolver:     pathResolver,

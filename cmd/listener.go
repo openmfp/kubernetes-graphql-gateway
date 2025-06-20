@@ -100,6 +100,7 @@ var listenCmd = &cobra.Command{
 			Scheme:                 scheme,
 			Client:                 clt,
 			Config:                 restCfg,
+			ManagerOpts:            mgrOpts,
 			OpenAPIDefinitionsPath: appCfg.OpenApiDefinitionsPath,
 		}
 
@@ -107,11 +108,11 @@ var listenCmd = &cobra.Command{
 		var reconcilerInstance types.CustomReconciler
 		switch {
 		case appCfg.EnableKcp:
-			reconcilerInstance, err = kcp.CreateKCPReconciler(appCfg, reconcilerOpts, restCfg, mgrOpts, discoveryclient.NewFactory, log)
+			reconcilerInstance, err = kcp.CreateKCPReconciler(appCfg, reconcilerOpts, discoveryclient.NewFactory, log)
 		case appCfg.MultiCluster:
-			reconcilerInstance, err = clusteraccess.CreateMultiClusterReconciler(appCfg, reconcilerOpts, restCfg, mgrOpts, log)
+			reconcilerInstance, err = clusteraccess.CreateMultiClusterReconciler(appCfg, reconcilerOpts, log)
 		default:
-			reconcilerInstance, err = standard.CreateSingleClusterReconciler(appCfg, reconcilerOpts, restCfg, mgrOpts, log)
+			reconcilerInstance, err = standard.CreateSingleClusterReconciler(appCfg, reconcilerOpts, log)
 		}
 		if err != nil {
 			log.Error().Err(err).Msg("unable to create reconciler")

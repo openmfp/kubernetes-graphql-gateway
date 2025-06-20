@@ -40,8 +40,6 @@ const (
 func CreateMultiClusterReconciler(
 	appCfg config.Config,
 	opts types.ReconcilerOpts,
-	restCfg *rest.Config,
-	mgrOpts ctrl.Options,
 	log *logger.Logger,
 ) (types.CustomReconciler, error) {
 	log.Info().Msg("Using multi-cluster reconciler")
@@ -72,7 +70,7 @@ func CreateMultiClusterReconciler(
 	schemaResolver := apischema.NewResolver()
 
 	log.Info().Msg("ClusterAccess CRD registered, creating ClusterAccess reconciler")
-	return NewReconciler(opts, restCfg, mgrOpts, ioHandler, schemaResolver, log)
+	return NewReconciler(opts, ioHandler, schemaResolver, log)
 }
 
 // CheckClusterAccessCRDStatus checks the availability and usage of ClusterAccess CRD
@@ -107,21 +105,19 @@ type ClusterAccessReconciler struct {
 
 func NewReconciler(
 	opts types.ReconcilerOpts,
-	restCfg *rest.Config,
-	mgrOpts ctrl.Options,
 	ioHandler workspacefile.IOHandler,
 	schemaResolver apischema.Resolver,
 	log *logger.Logger,
 ) (types.CustomReconciler, error) {
 	// Create standard manager
-	mgr, err := ctrl.NewManager(restCfg, mgrOpts)
+	mgr, err := ctrl.NewManager(opts.Config, opts.ManagerOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	r := &ClusterAccessReconciler{
 		opts:           opts,
-		restCfg:        restCfg,
+		restCfg:        opts.Config,
 		mgr:            mgr,
 		ioHandler:      ioHandler,
 		schemaResolver: schemaResolver,

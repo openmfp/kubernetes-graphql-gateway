@@ -21,5 +21,6 @@ type ReconcilerOpts struct {
 	*rest.Config
 	*runtime.Scheme
 	client.Client
+	ManagerOpts            ctrl.Options
 	OpenAPIDefinitionsPath string
 }

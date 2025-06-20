@@ -37,14 +37,12 @@ var (
 func CreateSingleClusterReconciler(
 	appCfg config.Config,
 	opts types.ReconcilerOpts,
-	restCfg *rest.Config,
-	mgrOpts ctrl.Options,
 	log *logger.Logger,
 ) (types.CustomReconciler, error) {
 	log.Info().Msg("Using standard reconciler for single-cluster mode")
 
 	// Create discovery client
-	discoveryInterface, err := discovery.NewDiscoveryClientForConfig(restCfg)
+	discoveryInterface, err := discovery.NewDiscoveryClientForConfig(opts.Config)
 	if err != nil {
 		return nil, err
 	}
@@ -59,16 +57,16 @@ func CreateSingleClusterReconciler(
 	schemaResolver := apischema.NewResolver()
 
 	// Create REST mapper
-	httpClient, err := rest.HTTPClientFor(restCfg)
+	httpClient, err := rest.HTTPClientFor(opts.Config)
 	if err != nil {
 		return nil, err
 	}
-	restMapper, err := apiutil.NewDynamicRESTMapper(restCfg, httpClient)
+	restMapper, err := apiutil.NewDynamicRESTMapper(opts.Config, httpClient)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewReconciler(opts, restCfg, mgrOpts, ioHandler, schemaResolver, discoveryInterface, restMapper, log)
+	return NewReconciler(opts, ioHandler, schemaResolver, discoveryInterface, restMapper, log)
 }
 
 // StandardReconciler handles reconciliation for standard non-KCP clusters
@@ -86,8 +84,6 @@ type StandardReconciler struct {
 
 func NewReconciler(
 	opts types.ReconcilerOpts,
-	restCfg *rest.Config,
-	mgrOpts ctrl.Options,
 	ioHandler workspacefile.IOHandler,
 	schemaResolver apischema.Resolver,
 	discoveryClient discovery.DiscoveryInterface,
@@ -95,14 +91,14 @@ func NewReconciler(
 	log *logger.Logger,
 ) (types.CustomReconciler, error) {
 	// Create standard manager
-	mgr, err := ctrl.NewManager(restCfg, mgrOpts)
+	mgr, err := ctrl.NewManager(opts.Config, opts.ManagerOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	r := &StandardReconciler{
 		opts:            opts,
-		restCfg:         restCfg,
+		restCfg:         opts.Config,
 		mgr:             mgr,
 		ioHandler:       ioHandler,
 		schemaResolver:  schemaResolver,
