@@ -26,7 +26,7 @@ type Service struct {
 // NewGateway creates a new domain-driven Gateway instance
 func NewGateway(log *logger.Logger, appCfg appConfig.Config) (*Service, error) {
 	// Create round tripper factory
-	roundTripperFactory := func(config *rest.Config) http.RoundTripper {
+	roundTripperFactory := targetcluster.RoundTripperFactory(func(config *rest.Config) http.RoundTripper {
 		// Create a simple HTTP transport that respects our TLS configuration
 		tlsConfig := &tls.Config{
 			InsecureSkipVerify: config.TLSClientConfig.Insecure,
@@ -52,7 +52,7 @@ func NewGateway(log *logger.Logger, appCfg appConfig.Config) (*Service, error) {
 			TLSClientConfig: tlsConfig,
 		}
 		return roundtripper.New(log, transport, appCfg.Gateway.UsernameClaim, appCfg.Gateway.ShouldImpersonate)
-	}
+	})
 
 	clusterRegistry := targetcluster.NewClusterRegistry(log, appCfg, roundTripperFactory)
 

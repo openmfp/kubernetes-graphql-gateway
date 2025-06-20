@@ -9,8 +9,11 @@ import (
 
 	"github.com/openmfp/golang-commons/logger"
 	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
-	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager"
+	"k8s.io/client-go/rest"
 )
+
+// RoundTripperFactory creates HTTP round trippers for authentication
+type RoundTripperFactory func(*rest.Config) http.RoundTripper
 
 // ClusterRegistry manages multiple target clusters and handles HTTP routing to them
 type ClusterRegistry struct {
@@ -18,14 +21,14 @@ type ClusterRegistry struct {
 	clusters            map[string]*TargetCluster
 	log                 *logger.Logger
 	appCfg              appConfig.Config
-	roundTripperFactory manager.RoundTripperFactory
+	roundTripperFactory RoundTripperFactory
 }
 
 // NewClusterRegistry creates a new cluster registry
 func NewClusterRegistry(
 	log *logger.Logger,
 	appCfg appConfig.Config,
-	roundTripperFactory manager.RoundTripperFactory,
+	roundTripperFactory RoundTripperFactory,
 ) *ClusterRegistry {
 	return &ClusterRegistry{
 		clusters:            make(map[string]*TargetCluster),
