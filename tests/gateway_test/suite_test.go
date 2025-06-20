@@ -2,6 +2,7 @@ package gateway_test
 
 import (
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/graphql-go/graphql"
 	"github.com/openmfp/golang-commons/logger"
@@ -27,8 +29,6 @@ import (
 	"github.com/openmfp/account-operator/api/v1alpha1"
 	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager"
-	"github.com/openmfp/kubernetes-graphql-gateway/gateway/resolver"
-	"github.com/openmfp/kubernetes-graphql-gateway/gateway/schema"
 )
 
 // Initialize the logger for the test suite
@@ -47,7 +47,7 @@ type CommonTestSuite struct {
 	appCfg        appConfig.Config
 	runtimeClient client.WithWatch
 	graphqlSchema graphql.Schema
-	manager       manager.Provider
+	manager       http.Handler
 	server        *httptest.Server
 
 	LocalDevelopment           bool
@@ -113,15 +113,20 @@ func (suite *CommonTestSuite) SetupTest() {
 	})
 	require.NoError(suite.T(), err)
 
-	definitions, err := manager.ReadDefinitionFromFile("./testdata/kubernetes")
-	require.NoError(suite.T(), err)
+	// Diagnostics: List CRDs after environment start
+	accountGVK := schema.GroupVersionKind{Group: "core.openmfp.org", Version: "v1alpha1", Kind: "Account"}
+	crdList, crdErr := suite.runtimeClient.RESTMapper().RESTMapping(
+		accountGVK.GroupKind(), accountGVK.Version)
+	if crdErr != nil {
+		suite.T().Logf("[DIAGNOSTIC] Could not find Account CRD mapping: %v", crdErr)
+		suite.T().FailNow()
+	} else {
+		suite.T().Logf("[DIAGNOSTIC] Account CRD mapping found: %+v", crdList)
+	}
 
-	g, err := schema.New(suite.log, definitions, resolver.New(suite.log, suite.runtimeClient))
-	require.NoError(suite.T(), err)
+	// Gateway automatically loads schemas from files
 
-	suite.graphqlSchema = *g.GetSchema()
-
-	suite.manager, err = manager.NewManager(suite.log, suite.restCfg, suite.appCfg)
+	suite.manager, err = manager.NewGateway(suite.log, suite.appCfg)
 	require.NoError(suite.T(), err)
 
 	suite.server = httptest.NewServer(suite.manager)

@@ -10,6 +10,7 @@ replace github.com/graphql-go/handler => github.com/vertex451/handler v0.0.0-202
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0
+	github.com/go-errors/errors v1.4.2
 	github.com/go-openapi/spec v0.21.0
 	github.com/gobuffalo/flect v1.0.3
 	github.com/golang-jwt/jwt/v5 v5.2.2

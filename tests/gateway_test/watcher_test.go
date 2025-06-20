@@ -14,8 +14,9 @@ func (suite *CommonTestSuite) TestWorkspaceRemove() {
 	workspaceName := "myWorkspace"
 	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
 
-	require.NoError(suite.T(), writeToFile(
-		filepath.Join("testdata", "kubernetes"),
+	require.NoError(suite.T(), createTestSchemaFile(
+		suite.restCfg,
+		suite.staticToken,
 		filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName),
 	))
 
@@ -39,8 +40,9 @@ func (suite *CommonTestSuite) TestWorkspaceRename() {
 	workspaceName := "myWorkspace"
 	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
 
-	require.NoError(suite.T(), writeToFile(
-		filepath.Join("testdata", "kubernetes"),
+	require.NoError(suite.T(), createTestSchemaFile(
+		suite.restCfg,
+		suite.staticToken,
 		filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName),
 	))
 
