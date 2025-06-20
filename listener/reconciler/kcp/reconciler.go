@@ -13,11 +13,11 @@ import (
 	"github.com/openmfp/golang-commons/controller/lifecycle"
 	"github.com/openmfp/golang-commons/logger"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/clusterpath"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/types"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/types"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/workspacefile"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp/clusterpath"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp/discoveryclient"
 )
 
 var (

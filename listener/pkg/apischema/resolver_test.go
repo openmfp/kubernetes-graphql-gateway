@@ -7,7 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/openapi"
 
-	apischemaMocks "github.com/openmfp/kubernetes-graphql-gateway/listener/apischema/mocks"
+	apischemaMocks "github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema/mocks"
 )
 
 // Compile-time check that ResolverProvider implements Resolver interface

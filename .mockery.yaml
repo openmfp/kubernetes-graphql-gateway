@@ -31,44 +31,37 @@ packages:
     interfaces:
       RoundTripper:
 
-  github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile:
+  github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/workspacefile:
     config:
-      dir: listener/workspacefile/mocks
+      dir: listener/pkg/workspacefile/mocks
       outpkg: mocks
     interfaces:
       IOHandler:
 
-  github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient:
+  github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp/discoveryclient:
     config:
-      dir: listener/discoveryclient/mocks
+      dir: listener/reconciler/kcp/discoveryclient/mocks
       outpkg: mocks
     interfaces:
       Factory:
 
-  github.com/openmfp/kubernetes-graphql-gateway/listener/apischema:
+  github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema:
     config:
-      dir: listener/apischema/mocks
+      dir: listener/pkg/apischema/mocks
       outpkg: mocks
     interfaces:
       Resolver:
 
-  github.com/openmfp/kubernetes-graphql-gateway/listener/clusterpath:
+  github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp/clusterpath:
     config:
-      dir: listener/clusterpath/mocks
+      dir: listener/reconciler/kcp/clusterpath/mocks
       outpkg: mocks
     interfaces:
       Resolver:
-
-  github.com/openmfp/kubernetes-graphql-gateway/listener/controller:
-    config:
-      dir: listener/controller/mocks
-      outpkg: mocks
-    interfaces:
-      CRDResolver:
 
   k8s.io/client-go/openapi:
     config:
-      dir: listener/apischema/mocks
+      dir: listener/pkg/apischema/mocks
       outpkg: mocks
     interfaces:
       GroupVersion:

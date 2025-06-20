@@ -14,9 +14,9 @@ import (
 	"github.com/openmfp/golang-commons/logger"
 	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/types"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/workspacefile"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/types"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/workspacefile"
 )
 
 var (

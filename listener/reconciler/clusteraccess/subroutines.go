@@ -13,7 +13,7 @@ import (
 	"github.com/openmfp/golang-commons/controller/lifecycle"
 	commonserrors "github.com/openmfp/golang-commons/errors"
 	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/apischema"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
 )
 
 // generateSchemaSubroutine processes ClusterAccess resources and generates schemas

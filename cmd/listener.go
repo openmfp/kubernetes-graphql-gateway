@@ -21,11 +21,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/discoveryclient"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/types"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/clusteraccess"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp/discoveryclient"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/standard"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/types"
 )
 
 var (
