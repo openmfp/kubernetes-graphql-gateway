@@ -4,14 +4,14 @@ with-expecter: true
 packages:
   k8s.io/client-go/discovery:
     config:
-      dir: listener/kcp/mocks
+      dir: listener/reconciler/kcp/mocks
       outpkg: mocks
     interfaces:
       DiscoveryInterface:
 
   k8s.io/apimachinery/pkg/api/meta:
     config:
-      dir: listener/kcp/mocks
+      dir: listener/reconciler/kcp/mocks
       outpkg: mocks
     interfaces:
       RESTMapper:
