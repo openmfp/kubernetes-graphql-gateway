@@ -14,8 +14,8 @@ import (
 	"github.com/openmfp/golang-commons/logger"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/types"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/workspacefile"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp/clusterpath"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp/discoveryclient"
 )
@@ -29,10 +29,10 @@ var (
 // CreateKCPReconciler creates a KCP reconciler with workspace discovery
 func CreateKCPReconciler(
 	appCfg config.Config,
-	opts types.ReconcilerOpts,
+	opts reconciler.ReconcilerOpts,
 	discoverFactory func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error),
 	log *logger.Logger,
-) (types.CustomReconciler, error) {
+) (reconciler.CustomReconciler, error) {
 	log.Info().Msg("Using KCP reconciler with workspace discovery")
 
 	// Create IO handler
@@ -62,7 +62,7 @@ func CreateKCPReconciler(
 // KCPReconciler handles reconciliation for KCP clusters
 type KCPReconciler struct {
 	lifecycleManager *lifecycle.LifecycleManager
-	opts             types.ReconcilerOpts
+	opts             reconciler.ReconcilerOpts
 	restCfg          *rest.Config
 	mgr              ctrl.Manager
 	ioHandler        workspacefile.IOHandler
@@ -73,13 +73,13 @@ type KCPReconciler struct {
 }
 
 func NewReconciler(
-	opts types.ReconcilerOpts,
+	opts reconciler.ReconcilerOpts,
 	ioHandler workspacefile.IOHandler,
 	pathResolver clusterpath.Resolver,
 	discoveryFactory discoveryclient.Factory,
 	schemaResolver apischema.Resolver,
 	log *logger.Logger,
-) (types.CustomReconciler, error) {
+) (reconciler.CustomReconciler, error) {
 	// Create KCP-aware manager
 	mgr, err := kcpctrl.NewClusterAwareManager(opts.Config, opts.ManagerOpts)
 	if err != nil {

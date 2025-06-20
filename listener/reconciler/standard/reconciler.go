@@ -15,8 +15,8 @@ import (
 	"github.com/openmfp/golang-commons/logger"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/types"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/workspacefile"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler"
 )
 
 const (
@@ -36,9 +36,9 @@ var (
 // CreateSingleClusterReconciler creates a standard single-cluster reconciler
 func CreateSingleClusterReconciler(
 	appCfg config.Config,
-	opts types.ReconcilerOpts,
+	opts reconciler.ReconcilerOpts,
 	log *logger.Logger,
-) (types.CustomReconciler, error) {
+) (reconciler.CustomReconciler, error) {
 	log.Info().Msg("Using standard reconciler for single-cluster mode")
 
 	// Create discovery client
@@ -72,7 +72,7 @@ func CreateSingleClusterReconciler(
 // StandardReconciler handles reconciliation for standard non-KCP clusters
 type StandardReconciler struct {
 	lifecycleManager *lifecycle.LifecycleManager
-	opts             types.ReconcilerOpts
+	opts             reconciler.ReconcilerOpts
 	restCfg          *rest.Config
 	mgr              ctrl.Manager
 	ioHandler        workspacefile.IOHandler
@@ -83,13 +83,13 @@ type StandardReconciler struct {
 }
 
 func NewReconciler(
-	opts types.ReconcilerOpts,
+	opts reconciler.ReconcilerOpts,
 	ioHandler workspacefile.IOHandler,
 	schemaResolver apischema.Resolver,
 	discoveryClient discovery.DiscoveryInterface,
 	restMapper meta.RESTMapper,
 	log *logger.Logger,
-) (types.CustomReconciler, error) {
+) (reconciler.CustomReconciler, error) {
 	// Create standard manager
 	mgr, err := ctrl.NewManager(opts.Config, opts.ManagerOpts)
 	if err != nil {

@@ -15,8 +15,8 @@ import (
 	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/types"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/workspacefile"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler"
 )
 
 var (
@@ -39,9 +39,9 @@ const (
 // CreateMultiClusterReconciler creates a multi-cluster reconciler using ClusterAccess CRDs
 func CreateMultiClusterReconciler(
 	appCfg config.Config,
-	opts types.ReconcilerOpts,
+	opts reconciler.ReconcilerOpts,
 	log *logger.Logger,
-) (types.CustomReconciler, error) {
+) (reconciler.CustomReconciler, error) {
 	log.Info().Msg("Using multi-cluster reconciler")
 
 	// Check if ClusterAccess CRD is available
@@ -95,7 +95,7 @@ func CheckClusterAccessCRDStatus(k8sClient client.Client, log *logger.Logger) (C
 // ClusterAccessReconciler handles reconciliation for ClusterAccess resources
 type ClusterAccessReconciler struct {
 	lifecycleManager *lifecycle.LifecycleManager
-	opts             types.ReconcilerOpts
+	opts             reconciler.ReconcilerOpts
 	restCfg          *rest.Config
 	mgr              ctrl.Manager
 	ioHandler        workspacefile.IOHandler
@@ -104,11 +104,11 @@ type ClusterAccessReconciler struct {
 }
 
 func NewReconciler(
-	opts types.ReconcilerOpts,
+	opts reconciler.ReconcilerOpts,
 	ioHandler workspacefile.IOHandler,
 	schemaResolver apischema.Resolver,
 	log *logger.Logger,
-) (types.CustomReconciler, error) {
+) (reconciler.CustomReconciler, error) {
 	// Create standard manager
 	mgr, err := ctrl.NewManager(opts.Config, opts.ManagerOpts)
 	if err != nil {

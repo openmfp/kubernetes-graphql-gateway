@@ -21,7 +21,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/types"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/clusteraccess"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp/discoveryclient"
@@ -96,7 +96,7 @@ var listenCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		reconcilerOpts := types.ReconcilerOpts{
+		reconcilerOpts := reconciler.ReconcilerOpts{
 			Scheme:                 scheme,
 			Client:                 clt,
 			Config:                 restCfg,
@@ -105,7 +105,7 @@ var listenCmd = &cobra.Command{
 		}
 
 		// Create the appropriate reconciler based on configuration
-		var reconcilerInstance types.CustomReconciler
+		var reconcilerInstance reconciler.CustomReconciler
 		switch {
 		case appCfg.EnableKcp:
 			reconcilerInstance, err = kcp.CreateKCPReconciler(appCfg, reconcilerOpts, discoveryclient.NewFactory, log)
@@ -127,7 +127,7 @@ var listenCmd = &cobra.Command{
 }
 
 // startManagerWithReconciler handles the common manager setup and start operations
-func startManagerWithReconciler(ctx context.Context, reconciler types.CustomReconciler) error {
+func startManagerWithReconciler(ctx context.Context, reconciler reconciler.CustomReconciler) error {
 	mgr := reconciler.GetManager()
 
 	if err := reconciler.SetupWithManager(mgr); err != nil {
