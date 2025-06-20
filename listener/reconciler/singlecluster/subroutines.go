@@ -1,4 +1,4 @@
-package standard
+package singlecluster
 
 import (
 	"context"
