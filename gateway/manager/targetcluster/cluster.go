@@ -69,31 +69,9 @@ func NewTargetCluster(
 
 // connect establishes connection to the target cluster using standard patterns
 func (tc *TargetCluster) connect(appCfg appConfig.Config, roundTripperFactory func(*rest.Config) http.RoundTripper) error {
-	var config *rest.Config
-	var err error
-
-	if appCfg.LocalDevelopment {
-		// Use kubeconfig from environment in development mode
-		if kubeconfigPath := os.Getenv("KUBECONFIG"); kubeconfigPath != "" {
-			config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-			if err != nil {
-				return fmt.Errorf("failed to build config from KUBECONFIG: %w", err)
-			}
-		} else {
-			// Fall back to standard controller-runtime config discovery
-			config, err = rest.InClusterConfig()
-			if err != nil {
-				return fmt.Errorf("failed to get config: %w", err)
-			}
-		}
-		tc.log.Info().Msg("Using standard kubeconfig resolution (development mode)")
-	} else {
-		// Use in-cluster config for production
-		config, err = rest.InClusterConfig()
-		if err != nil {
-			return fmt.Errorf("failed to get in-cluster config: %w", err)
-		}
-		tc.log.Info().Msg("Using in-cluster configuration")
+	config, err := buildKubernetesConfig(appCfg.LocalDevelopment, tc.log)
+	if err != nil {
+		return fmt.Errorf("failed to build Kubernetes config: %w", err)
 	}
 
 	// Apply round tripper
@@ -110,6 +88,39 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, roundTripperFactory fu
 	}
 
 	return nil
+}
+
+// buildKubernetesConfig creates a rest.Config using standard controller-runtime patterns
+func buildKubernetesConfig(localDevelopment bool, log *logger.Logger) (*rest.Config, error) {
+	var config *rest.Config
+	var err error
+
+	if localDevelopment {
+		// Use kubeconfig from environment in development mode
+		if kubeconfigPath := os.Getenv("KUBECONFIG"); kubeconfigPath != "" {
+			config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build config from KUBECONFIG: %w", err)
+			}
+			log.Info().Str("kubeconfig", kubeconfigPath).Msg("Using kubeconfig from environment (development mode)")
+		} else {
+			// Fall back to in-cluster config
+			config, err = rest.InClusterConfig()
+			if err != nil {
+				return nil, fmt.Errorf("failed to get in-cluster config: %w", err)
+			}
+			log.Info().Msg("Using in-cluster configuration (development fallback)")
+		}
+	} else {
+		// Use in-cluster config for production
+		config, err = rest.InClusterConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get in-cluster config: %w", err)
+		}
+		log.Info().Msg("Using in-cluster configuration (production mode)")
+	}
+
+	return config, nil
 }
 
 // createHandler creates the GraphQL schema and handler
