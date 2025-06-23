@@ -9,13 +9,10 @@ import (
 )
 
 func (suite *CommonTestSuite) TestCrudClusterRole() {
-	suite.T().Skip("Skipping integration test due to envtest authentication limitations")
-
 	workspaceName := "myWorkspace"
 
-	require.NoError(suite.T(), createTestSchemaFile(
-		suite.restCfg,
-		suite.staticToken,
+	require.NoError(suite.T(), writeToFile(
+		filepath.Join("testdata", "kubernetes"),
 		filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName),
 	))
 
@@ -23,14 +20,14 @@ func (suite *CommonTestSuite) TestCrudClusterRole() {
 	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
 
 	// Create ClusterRole and check results
-	createResp, statusCode, err := sendRequest(url, CreateClusterRoleMutation())
+	createResp, statusCode, err := suite.sendAuthenticatedRequest(url, CreateClusterRoleMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.NoError(suite.T(), err)
 	require.Nil(suite.T(), createResp.Errors, "GraphQL errors: %v", createResp.Errors)
 
 	// Get ClusterRole
-	getResp, statusCode, err := sendRequest(url, GetClusterRoleQuery())
+	getResp, statusCode, err := suite.sendAuthenticatedRequest(url, GetClusterRoleQuery())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), getResp.Errors, "GraphQL errors: %v", getResp.Errors)
@@ -39,13 +36,13 @@ func (suite *CommonTestSuite) TestCrudClusterRole() {
 	require.Equal(suite.T(), "test-cluster-role", data.Metadata.Name)
 
 	// Delete ClusterRole
-	deleteResp, statusCode, err := sendRequest(url, DeleteClusterRoleMutation())
+	deleteResp, statusCode, err := suite.sendAuthenticatedRequest(url, DeleteClusterRoleMutation())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.Nil(suite.T(), deleteResp.Errors, "GraphQL errors: %v", deleteResp.Errors)
 
 	// Try to get the ClusterRole after deletion
-	getRespAfterDelete, statusCode, err := sendRequest(url, GetClusterRoleQuery())
+	getRespAfterDelete, statusCode, err := suite.sendAuthenticatedRequest(url, GetClusterRoleQuery())
 	require.NoError(suite.T(), err)
 	require.Equal(suite.T(), http.StatusOK, statusCode, "Expected status code 200")
 	require.NotNil(suite.T(), getRespAfterDelete.Errors, "Expected error when querying deleted ClusterRole, but got none")

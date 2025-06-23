@@ -10,7 +10,6 @@ import (
 )
 
 func (suite *CommonTestSuite) TestTokenValidation() {
-	suite.T().Skip()
 	suite.LocalDevelopment = false
 	suite.SetupTest()
 	defer func() {
@@ -20,9 +19,8 @@ func (suite *CommonTestSuite) TestTokenValidation() {
 
 	workspaceName := "myWorkspace"
 
-	require.NoError(suite.T(), createTestSchemaFile(
-		suite.restCfg,
-		suite.staticToken,
+	require.NoError(suite.T(), writeToFile(
+		filepath.Join("testdata", "kubernetes"),
 		filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName),
 	))
 
@@ -42,7 +40,6 @@ func (suite *CommonTestSuite) TestTokenValidation() {
 }
 
 func (suite *CommonTestSuite) TestIntrospectionAuth() {
-	suite.T().Skip()
 	suite.LocalDevelopment = false
 	suite.AuthenticateSchemaRequests = true
 	suite.SetupTest()
@@ -54,9 +51,8 @@ func (suite *CommonTestSuite) TestIntrospectionAuth() {
 
 	workspaceName := "myWorkspace"
 
-	require.NoError(suite.T(), createTestSchemaFile(
-		suite.restCfg,
-		suite.staticToken,
+	require.NoError(suite.T(), writeToFile(
+		filepath.Join("testdata", "kubernetes"),
 		filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName),
 	))
 

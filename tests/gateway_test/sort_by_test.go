@@ -17,21 +17,18 @@ import (
 
 // TestSortBy tests the sorting functionality of accounts by displayName
 func (suite *CommonTestSuite) TestSortByListItems() {
-	suite.T().Skip("Skipping integration test due to envtest authentication limitations")
-
 	workspaceName := "myWorkspace"
 	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
 
-	require.NoError(suite.T(), createTestSchemaFile(
-		suite.restCfg,
-		suite.staticToken,
+	require.NoError(suite.T(), writeToFile(
+		filepath.Join("testdata", "kubernetes"),
 		filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName),
 	))
 
 	suite.createAccountsForSorting(context.Background())
 
 	suite.T().Run("accounts_sorted_by_default", func(t *testing.T) {
-		listResp, statusCode, err := sendRequest(url, listAccountsQuery(false))
+		listResp, statusCode, err := suite.sendAuthenticatedRequest(url, listAccountsQuery(false))
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, statusCode, "Expected status code 200")
 		require.Nil(t, listResp.Errors, "GraphQL errors: %v", listResp.Errors)
@@ -50,7 +47,7 @@ func (suite *CommonTestSuite) TestSortByListItems() {
 
 	// Test sorted case
 	suite.T().Run("accounts_sorted_by_displayName", func(t *testing.T) {
-		listResp, statusCode, err := sendRequest(url, listAccountsQuery(true))
+		listResp, statusCode, err := suite.sendAuthenticatedRequest(url, listAccountsQuery(true))
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, statusCode, "Expected status code 200")
 		require.Nil(t, listResp.Errors, "GraphQL errors: %v", listResp.Errors)
@@ -69,8 +66,6 @@ func (suite *CommonTestSuite) TestSortByListItems() {
 }
 
 func (suite *CommonTestSuite) TestSortBySubscription() {
-	suite.T().Skip("Skipping integration test due to envtest authentication limitations")
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	suite.createAccountsForSorting(ctx)

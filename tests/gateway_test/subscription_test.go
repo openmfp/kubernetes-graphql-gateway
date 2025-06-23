@@ -18,8 +18,6 @@ import (
 )
 
 func (suite *CommonTestSuite) TestSchemaSubscribe() {
-	suite.T().Skip("Skipping integration test due to envtest authentication limitations")
-
 	tests := []struct {
 		testName       string
 		subscribeQuery string

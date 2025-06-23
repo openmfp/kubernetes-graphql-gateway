@@ -235,9 +235,9 @@ func buildKubernetesConfig(localDevelopment bool, log *logger.Logger) (*rest.Con
 	}
 
 	// Use ctrl.GetConfigOrDie() for production or development fallback
-	config := ctrl.GetConfigOrDie()
-	log.Info().Msg("Using configuration from ctrl.GetConfigOrDie()")
-	return config, nil
+	config, err := ctrl.GetConfig()
+	log.Info().Msg("Using configuration from ctrl.GetConfig()")
+	return config, err
 }
 
 // createHandler creates the GraphQL schema and handler
