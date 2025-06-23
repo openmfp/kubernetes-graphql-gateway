@@ -50,10 +50,11 @@ type CAMetadata struct {
 
 // TargetCluster represents a single target Kubernetes cluster
 type TargetCluster struct {
-	name    string
-	client  client.WithWatch
-	handler *GraphQLHandler
-	log     *logger.Logger
+	name          string
+	client        client.WithWatch
+	handler       *GraphQLHandler
+	graphqlServer *GraphQLServer
+	log           *logger.Logger
 }
 
 // NewTargetCluster creates a new TargetCluster from a schema file
@@ -257,9 +258,9 @@ func (tc *TargetCluster) createHandler(definitions map[string]interface{}, appCf
 		return fmt.Errorf("failed to create GraphQL schema: %w", err)
 	}
 
-	// Create handler
-	graphqlServer := NewGraphQLServer(tc.log, appCfg)
-	tc.handler = graphqlServer.CreateHandler(schemaGateway.GetSchema())
+	// Create and store GraphQL server and handler
+	tc.graphqlServer = NewGraphQLServer(tc.log, appCfg)
+	tc.handler = tc.graphqlServer.CreateHandler(schemaGateway.GetSchema())
 
 	return nil
 }
@@ -286,6 +287,13 @@ func (tc *TargetCluster) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Cluster not ready", http.StatusServiceUnavailable)
 		return
 	}
+
+	// Handle subscription requests using Server-Sent Events
+	if r.Header.Get("Accept") == "text/event-stream" {
+		tc.graphqlServer.HandleSubscription(w, r, tc.handler.Schema)
+		return
+	}
+
 	tc.handler.Handler.ServeHTTP(w, r)
 }
 
