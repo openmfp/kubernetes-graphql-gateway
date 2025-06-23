@@ -66,3 +66,11 @@ packages:
     interfaces:
       GroupVersion:
       Client:
+
+  github.com/openmfp/kubernetes-graphql-gateway/gateway/manager:
+    config:
+      dir: gateway/manager/mocks
+      outpkg: mocks
+    interfaces:
+      ClusterManager:
+      SchemaWatcher:
