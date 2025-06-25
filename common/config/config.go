@@ -1,5 +1,7 @@
 package config
 
+import "github.com/openmfp/kubernetes-graphql-gateway/traces"
+
 type Config struct {
 	OpenApiDefinitionsPath      string `mapstructure:"openapi-definitions-path"`
 	EnableKcp                   bool   `mapstructure:"enable-kcp"`
@@ -26,5 +28,10 @@ type Config struct {
 			AllowedOrigins []string `mapstructure:"gateway-cors-allowed-origins"`
 			AllowedHeaders []string `mapstructure:"gateway-cors-allowed-headers"`
 		} `mapstructure:",squash"`
+	} `mapstructure:",squash"`
+
+	Tracing struct {
+		Enabled   bool          `mapstructure:"tracing-enabled" default:"false" description:"Enable tracing for the service"`
+		Collector traces.Config `mapstructure:",squash"`
 	} `mapstructure:",squash"`
 }
