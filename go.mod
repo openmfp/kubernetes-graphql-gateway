@@ -2,8 +2,6 @@ module github.com/openmfp/kubernetes-graphql-gateway
 
 go 1.24.3
 
-toolchain go1.24.4
-
 replace (
 	github.com/google/cel-go => github.com/google/cel-go v0.22.1
 	// this PR introduces newer version of graphiQL that supports headers
