@@ -9,7 +9,7 @@ import (
 
 	openmfpcontext "github.com/openmfp/golang-commons/context"
 	"github.com/openmfp/golang-commons/sentry"
-	"github.com/openmfp/kubernetes-graphql-gateway/traces"
+	"github.com/openmfp/golang-commons/traces"
 	"github.com/spf13/cobra"
 	ctrl "sigs.k8s.io/controller-runtime"
 	restCfg "sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -57,13 +57,13 @@ var gatewayCmd = &cobra.Command{
 
 		// Initialize tracing provider
 		var providerShutdown func(ctx context.Context) error
-		if appCfg.Tracing.Enabled {
-			providerShutdown, err = traces.InitProvider(ctx, appCfg.Tracing.Collector)
+		if defaultCfg.Tracing.Enabled {
+			providerShutdown, err = traces.InitProvider(ctx, defaultCfg.Tracing.Collector)
 			if err != nil {
 				log.Fatal().Err(err).Msg("unable to start gRPC-Sidecar TracerProvider")
 			}
 		} else {
-			providerShutdown, err = traces.InitLocalProvider(ctx, appCfg.Tracing.Collector, false)
+			providerShutdown, err = traces.InitLocalProvider(ctx, defaultCfg.Tracing.Collector, false)
 			if err != nil {
 				log.Fatal().Err(err).Msg("unable to start local TracerProvider")
 			}
