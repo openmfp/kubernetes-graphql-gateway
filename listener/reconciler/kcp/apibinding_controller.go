@@ -20,13 +20,13 @@ import (
 // APIBindingReconciler reconciles an APIBinding object
 type APIBindingReconciler struct {
 	client.Client
-	Scheme                *runtime.Scheme
-	RestConfig            *rest.Config
-	IOHandler             workspacefile.IOHandler
-	DiscoveryFactory      DiscoveryFactory
-	APISchemaResolver     apischema.Resolver
-	ClusterPathResolver   ClusterPathResolver
-	Log                   *logger.Logger
+	Scheme              *runtime.Scheme
+	RestConfig          *rest.Config
+	IOHandler           workspacefile.IOHandler
+	DiscoveryFactory    DiscoveryFactory
+	APISchemaResolver   apischema.Resolver
+	ClusterPathResolver ClusterPathResolver
+	Log                 *logger.Logger
 }
 
 func (r *APIBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -36,13 +36,13 @@ func (r *APIBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	logger := r.Log.With().Str("cluster", req.ClusterName).Str("name", req.Name).Logger()
-	
+
 	clusterClt, err := r.ClusterPathResolver.ClientForCluster(req.ClusterName)
 	if err != nil {
 		logger.Error().Err(err).Msg("failed to get cluster client")
 		return ctrl.Result{}, err
 	}
-	
+
 	clusterPath, err := PathForCluster(req.ClusterName, clusterClt)
 	if err != nil {
 		if errors.Is(err, ErrClusterIsDeleted) {

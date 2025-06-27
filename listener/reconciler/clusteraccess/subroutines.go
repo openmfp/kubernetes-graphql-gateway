@@ -14,6 +14,7 @@ import (
 	commonserrors "github.com/openmfp/golang-commons/errors"
 	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler"
 )
 
 // generateSchemaSubroutine processes ClusterAccess resources and generates schemas
@@ -88,11 +89,11 @@ func (s *generateSchemaSubroutine) Process(ctx context.Context, instance lifecyc
 func (s *generateSchemaSubroutine) restMapperFromConfig(cfg *rest.Config) (meta.RESTMapper, error) {
 	httpClt, err := rest.HTTPClientFor(cfg)
 	if err != nil {
-		return nil, errors.Join(ErrCreateHTTPClient, err)
+		return nil, errors.Join(reconciler.ErrCreateHTTPClient, err)
 	}
 	rm, err := apiutil.NewDynamicRESTMapper(cfg, httpClt)
 	if err != nil {
-		return nil, errors.Join(ErrCreateRESTMapper, err)
+		return nil, errors.Join(reconciler.ErrCreateRESTMapper, err)
 	}
 
 	return rm, nil

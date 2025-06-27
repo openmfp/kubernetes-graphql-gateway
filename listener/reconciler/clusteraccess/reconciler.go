@@ -19,11 +19,8 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler"
 )
 
+// Package-specific errors
 var (
-	ErrCreateIOHandler  = errors.New("failed to create IO Handler")
-	ErrCreateRESTMapper = errors.New("failed to create REST mapper")
-	ErrCreateHTTPClient = errors.New("failed to create HTTP client")
-	ErrGenerateSchema   = errors.New("failed to generate schema")
 	ErrCRDNotRegistered = errors.New("ClusterAccess CRD not registered")
 	ErrCRDCheckFailed   = errors.New("failed to check ClusterAccess CRD status")
 )
@@ -63,7 +60,7 @@ func CreateMultiClusterReconciler(
 	// Create IO handler
 	ioHandler, err := workspacefile.NewIOHandler(appCfg.OpenApiDefinitionsPath)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(reconciler.ErrCreateIOHandler, err)
 	}
 
 	// Create schema resolver

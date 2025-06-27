@@ -28,20 +28,20 @@ func ConfigForKCPCluster(clusterName string, cfg *rest.Config) (*rest.Config, er
 	if cfg == nil {
 		return nil, ErrNilConfig
 	}
-	
+
 	// Copy the config to avoid modifying the original
 	clusterCfg := rest.CopyConfig(cfg)
-	
+
 	// Parse the current host URL
 	clusterCfgURL, err := url.Parse(clusterCfg.Host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse host URL: %w", err)
 	}
-	
+
 	// Set the path to point to the specific cluster/workspace
 	clusterCfgURL.Path = fmt.Sprintf("/clusters/%s", clusterName)
 	clusterCfg.Host = clusterCfgURL.String()
-	
+
 	return clusterCfg, nil
 }
 
