@@ -25,7 +25,7 @@ const (
 
 // Package-specific errors that are not shared
 var (
-	// Add any single-cluster specific errors here if needed
+// Add any single-cluster specific errors here if needed
 )
 
 // CreateSingleClusterReconciler creates a standard single-cluster reconciler

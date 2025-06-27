@@ -11,4 +11,4 @@ var (
 	ErrResolveSchema    = errors.New("failed to resolve server JSON schema")
 	ErrReadJSON         = errors.New("failed to read JSON from filesystem")
 	ErrWriteJSON        = errors.New("failed to write JSON to filesystem")
-) 
+)
