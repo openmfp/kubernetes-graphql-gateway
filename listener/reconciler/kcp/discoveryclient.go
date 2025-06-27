@@ -1,4 +1,4 @@
-package discoveryclient
+package kcp
 
 import (
 	"errors"
@@ -12,14 +12,14 @@ import (
 )
 
 var (
-	ErrNilConfig           = errors.New("config cannot be nil")
-	ErrGetClusterConfig    = errors.New("failed to get rest config for cluster")
-	ErrParseHostURL        = errors.New("failed to parse rest config's Host URL")
-	ErrCreateHTTPClient    = errors.New("failed to create http client")
-	ErrCreateDynamicMapper = errors.New("failed to create dynamic REST mapper")
+	ErrNilDiscoveryConfig        = errors.New("config cannot be nil")
+	ErrGetDiscoveryClusterConfig = errors.New("failed to get rest config for cluster")
+	ErrParseDiscoveryHostURL     = errors.New("failed to parse rest config's Host URL")
+	ErrCreateHTTPClient          = errors.New("failed to create http client")
+	ErrCreateDynamicMapper       = errors.New("failed to create dynamic REST mapper")
 )
 
-type Factory interface {
+type DiscoveryFactory interface {
 	ClientForCluster(name string) (discovery.DiscoveryInterface, error)
 	RestMapperForCluster(name string) (meta.RESTMapper, error)
 }
@@ -30,33 +30,33 @@ func discoveryCltFactory(cfg *rest.Config) (discovery.DiscoveryInterface, error)
 	return discovery.NewDiscoveryClientForConfig(cfg)
 }
 
-type FactoryProvider struct {
+type DiscoveryFactoryProvider struct {
 	*rest.Config
 	NewDiscoveryIFFunc
 }
 
-func NewFactory(cfg *rest.Config) (*FactoryProvider, error) {
+func NewDiscoveryFactory(cfg *rest.Config) (*DiscoveryFactoryProvider, error) {
 	if cfg == nil {
-		return nil, ErrNilConfig
+		return nil, ErrNilDiscoveryConfig
 	}
-	return &FactoryProvider{
+	return &DiscoveryFactoryProvider{
 		Config:             cfg,
 		NewDiscoveryIFFunc: discoveryCltFactory,
 	}, nil
 }
 
-func (f *FactoryProvider) ClientForCluster(name string) (discovery.DiscoveryInterface, error) {
+func (f *DiscoveryFactoryProvider) ClientForCluster(name string) (discovery.DiscoveryInterface, error) {
 	clusterCfg, err := configForCluster(name, f.Config)
 	if err != nil {
-		return nil, errors.Join(ErrGetClusterConfig, err)
+		return nil, errors.Join(ErrGetDiscoveryClusterConfig, err)
 	}
 	return f.NewDiscoveryIFFunc(clusterCfg)
 }
 
-func (f *FactoryProvider) RestMapperForCluster(name string) (meta.RESTMapper, error) {
+func (f *DiscoveryFactoryProvider) RestMapperForCluster(name string) (meta.RESTMapper, error) {
 	clusterCfg, err := configForCluster(name, f.Config)
 	if err != nil {
-		return nil, errors.Join(ErrGetClusterConfig, err)
+		return nil, errors.Join(ErrGetDiscoveryClusterConfig, err)
 	}
 	httpClt, err := rest.HTTPClientFor(clusterCfg)
 	if err != nil {
@@ -73,7 +73,7 @@ func configForCluster(name string, cfg *rest.Config) (*rest.Config, error) {
 	clusterCfg := rest.CopyConfig(cfg)
 	clusterCfgURL, err := url.Parse(clusterCfg.Host)
 	if err != nil {
-		return nil, errors.Join(ErrParseHostURL, err)
+		return nil, errors.Join(ErrParseDiscoveryHostURL, err)
 	}
 	clusterCfgURL.Path = fmt.Sprintf("/clusters/%s", name)
 	clusterCfg.Host = clusterCfgURL.String()
