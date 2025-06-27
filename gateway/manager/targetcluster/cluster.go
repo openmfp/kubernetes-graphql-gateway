@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 
 	"github.com/go-openapi/spec"
@@ -125,6 +126,14 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 		if err != nil {
 			return fmt.Errorf("failed to build Kubernetes config: %w", err)
 		}
+
+		// For KCP mode, modify the config to point to the specific workspace
+		if appCfg.EnableKcp {
+			config, err = configForKCPWorkspace(tc.name, config)
+			if err != nil {
+				return fmt.Errorf("failed to configure KCP workspace: %w", err)
+			}
+		}
 	}
 
 	// Apply round tripper
@@ -134,10 +143,14 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 		})
 	}
 
-	// Create client using standard pattern
-	tc.client, err = kcp.NewClusterAwareClientWithWatch(config, client.Options{})
+	// Create client - use KCP-aware client only for KCP mode, standard client otherwise
+	if appCfg.EnableKcp {
+		tc.client, err = kcp.NewClusterAwareClientWithWatch(config, client.Options{})
+	} else {
+		tc.client, err = client.NewWithWatch(config, client.Options{})
+	}
 	if err != nil {
-		return fmt.Errorf("failed to create cluster-aware client: %w", err)
+		return fmt.Errorf("failed to create cluster client: %w", err)
 	}
 
 	return nil
@@ -219,6 +232,28 @@ func buildConfigFromMetadata(metadata *ClusterMetadata, log *logger.Logger) (*re
 	}
 
 	return config, nil
+}
+
+// configForKCPWorkspace configures the rest.Config for a specific KCP workspace
+func configForKCPWorkspace(workspaceName string, cfg *rest.Config) (*rest.Config, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config cannot be nil")
+	}
+	
+	// Copy the config to avoid modifying the original
+	workspaceConfig := rest.CopyConfig(cfg)
+	
+	// Parse the current host URL
+	clusterCfgURL, err := url.Parse(workspaceConfig.Host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse host URL: %w", err)
+	}
+	
+	// Set the path to point to the specific workspace
+	clusterCfgURL.Path = fmt.Sprintf("/clusters/%s", workspaceName)
+	workspaceConfig.Host = clusterCfgURL.String()
+	
+	return workspaceConfig, nil
 }
 
 // buildKubernetesConfig creates a rest.Config using standard controller-runtime patterns
