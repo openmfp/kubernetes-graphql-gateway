@@ -2,8 +2,6 @@ package kcp
 
 import (
 	"errors"
-	"fmt"
-	"net/url"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
@@ -46,7 +44,7 @@ func NewDiscoveryFactory(cfg *rest.Config) (*DiscoveryFactoryProvider, error) {
 }
 
 func (f *DiscoveryFactoryProvider) ClientForCluster(name string) (discovery.DiscoveryInterface, error) {
-	clusterCfg, err := configForCluster(name, f.Config)
+	clusterCfg, err := ConfigForKCPCluster(name, f.Config)
 	if err != nil {
 		return nil, errors.Join(ErrGetDiscoveryClusterConfig, err)
 	}
@@ -54,7 +52,7 @@ func (f *DiscoveryFactoryProvider) ClientForCluster(name string) (discovery.Disc
 }
 
 func (f *DiscoveryFactoryProvider) RestMapperForCluster(name string) (meta.RESTMapper, error) {
-	clusterCfg, err := configForCluster(name, f.Config)
+	clusterCfg, err := ConfigForKCPCluster(name, f.Config)
 	if err != nil {
 		return nil, errors.Join(ErrGetDiscoveryClusterConfig, err)
 	}
@@ -67,15 +65,4 @@ func (f *DiscoveryFactoryProvider) RestMapperForCluster(name string) (meta.RESTM
 		return nil, errors.Join(ErrCreateDynamicMapper, err)
 	}
 	return mapper, nil
-}
-
-func configForCluster(name string, cfg *rest.Config) (*rest.Config, error) {
-	clusterCfg := rest.CopyConfig(cfg)
-	clusterCfgURL, err := url.Parse(clusterCfg.Host)
-	if err != nil {
-		return nil, errors.Join(ErrParseDiscoveryHostURL, err)
-	}
-	clusterCfgURL.Path = fmt.Sprintf("/clusters/%s", name)
-	clusterCfg.Host = clusterCfgURL.String()
-	return clusterCfg, nil
 }

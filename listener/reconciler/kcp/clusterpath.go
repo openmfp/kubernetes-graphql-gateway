@@ -22,6 +22,29 @@ var (
 	ErrClusterIsDeleted      = errors.New("cluster is deleted")
 )
 
+// ConfigForKCPCluster creates a rest.Config for a specific KCP cluster/workspace
+// This is a shared utility used across the KCP package to avoid duplication
+func ConfigForKCPCluster(clusterName string, cfg *rest.Config) (*rest.Config, error) {
+	if cfg == nil {
+		return nil, ErrNilConfig
+	}
+	
+	// Copy the config to avoid modifying the original
+	clusterCfg := rest.CopyConfig(cfg)
+	
+	// Parse the current host URL
+	clusterCfgURL, err := url.Parse(clusterCfg.Host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse host URL: %w", err)
+	}
+	
+	// Set the path to point to the specific cluster/workspace
+	clusterCfgURL.Path = fmt.Sprintf("/clusters/%s", clusterName)
+	clusterCfg.Host = clusterCfgURL.String()
+	
+	return clusterCfg, nil
+}
+
 type ClusterPathResolver interface {
 	ClientForCluster(name string) (client.Client, error)
 }
@@ -49,7 +72,7 @@ func NewClusterPathResolver(cfg *rest.Config, scheme *runtime.Scheme) (*ClusterP
 }
 
 func (rf *ClusterPathResolverProvider) ClientForCluster(name string) (client.Client, error) {
-	clusterConfig, err := getClusterConfig(name, rf.Config)
+	clusterConfig, err := ConfigForKCPCluster(name, rf.Config)
 	if err != nil {
 		return nil, errors.Join(ErrGetClusterConfig, err)
 	}
@@ -75,18 +98,4 @@ func PathForCluster(name string, clt client.Client) (string, error) {
 	}
 
 	return path, nil
-}
-
-func getClusterConfig(name string, cfg *rest.Config) (*rest.Config, error) {
-	if cfg == nil {
-		return nil, ErrNilConfig
-	}
-	clusterCfg := rest.CopyConfig(cfg)
-	clusterCfgURL, err := url.Parse(clusterCfg.Host)
-	if err != nil {
-		return nil, errors.Join(ErrParseHostURL, err)
-	}
-	clusterCfgURL.Path = fmt.Sprintf("/clusters/%s", name)
-	clusterCfg.Host = clusterCfgURL.String()
-	return clusterCfg, nil
 }
