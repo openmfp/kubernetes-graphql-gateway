@@ -73,10 +73,6 @@ var gatewayCmd = &cobra.Command{
 			}
 		}()
 
-
-
-		
-
 		defer func() {
 			if err := providerShutdown(ctx); err != nil {
 				log.Fatal().Err(err).Msg("failed to shutdown TracerProvider")
