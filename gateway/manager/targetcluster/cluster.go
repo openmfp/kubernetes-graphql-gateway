@@ -18,6 +18,7 @@ import (
 	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/resolver"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/schema"
+	kcputil "github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp"
 )
 
 // FileData represents the data extracted from a schema file
@@ -125,6 +126,14 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 		if err != nil {
 			return fmt.Errorf("failed to build Kubernetes config: %w", err)
 		}
+
+		// For KCP mode, modify the config to point to the specific workspace
+		if appCfg.EnableKcp {
+			config, err = kcputil.ConfigForKCPCluster(tc.name, config)
+			if err != nil {
+				return fmt.Errorf("failed to configure KCP workspace: %w", err)
+			}
+		}
 	}
 
 	// Apply round tripper
@@ -134,10 +143,14 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 		})
 	}
 
-	// Create client using standard pattern
-	tc.client, err = kcp.NewClusterAwareClientWithWatch(config, client.Options{})
+	// Create client - use KCP-aware client only for KCP mode, standard client otherwise
+	if appCfg.EnableKcp {
+		tc.client, err = kcp.NewClusterAwareClientWithWatch(config, client.Options{})
+	} else {
+		tc.client, err = client.NewWithWatch(config, client.Options{})
+	}
 	if err != nil {
-		return fmt.Errorf("failed to create cluster-aware client: %w", err)
+		return fmt.Errorf("failed to create cluster client: %w", err)
 	}
 
 	return nil

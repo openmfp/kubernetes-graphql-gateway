@@ -24,7 +24,6 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/clusteraccess"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp/discoveryclient"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/singlecluster"
 )
 
@@ -108,7 +107,7 @@ var listenCmd = &cobra.Command{
 		var reconcilerInstance reconciler.CustomReconciler
 		switch {
 		case appCfg.EnableKcp:
-			reconcilerInstance, err = kcp.CreateKCPReconciler(appCfg, reconcilerOpts, discoveryclient.NewFactory, log)
+			reconcilerInstance, err = kcp.NewKCPReconciler(appCfg, reconcilerOpts, log)
 		case appCfg.MultiCluster:
 			reconcilerInstance, err = clusteraccess.CreateMultiClusterReconciler(appCfg, reconcilerOpts, log)
 		default:

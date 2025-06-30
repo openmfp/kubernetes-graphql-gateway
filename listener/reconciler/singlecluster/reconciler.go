@@ -23,14 +23,9 @@ const (
 	kubernetesClusterName = "kubernetes" // Used as schema file name for standard k8s cluster
 )
 
+// Package-specific errors that are not shared
 var (
-	ErrCreateIOHandler  = errors.New("failed to create IO Handler")
-	ErrCreateRESTMapper = errors.New("failed to create REST mapper")
-	ErrCreateHTTPClient = errors.New("failed to create HTTP client")
-	ErrGenerateSchema   = errors.New("failed to generate schema")
-	ErrResolveSchema    = errors.New("failed to resolve server JSON schema")
-	ErrReadJSON         = errors.New("failed to read JSON from filesystem")
-	ErrWriteJSON        = errors.New("failed to write JSON to filesystem")
+// Add any single-cluster specific errors here if needed
 )
 
 // CreateSingleClusterReconciler creates a standard single-cluster reconciler
@@ -50,7 +45,7 @@ func CreateSingleClusterReconciler(
 	// Create IO handler
 	ioHandler, err := workspacefile.NewIOHandler(appCfg.OpenApiDefinitionsPath)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(reconciler.ErrCreateIOHandler, err)
 	}
 
 	// Create schema resolver
@@ -59,11 +54,11 @@ func CreateSingleClusterReconciler(
 	// Create REST mapper
 	httpClient, err := rest.HTTPClientFor(opts.Config)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(reconciler.ErrCreateHTTPClient, err)
 	}
 	restMapper, err := apiutil.NewDynamicRESTMapper(opts.Config, httpClient)
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(reconciler.ErrCreateRESTMapper, err)
 	}
 
 	return NewReconciler(opts, ioHandler, schemaResolver, discoveryInterface, restMapper, log)
@@ -115,7 +110,6 @@ func NewReconciler(
 		opts.Client,
 		[]lifecycle.Subroutine{
 			&generateSchemaSubroutine{reconciler: r},
-			&processClusterAccessSubroutine{reconciler: r},
 		},
 	)
 

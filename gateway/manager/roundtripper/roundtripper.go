@@ -14,7 +14,7 @@ type TokenKey struct{}
 type RoundTripper struct {
 	userClaim   string
 	log         *logger.Logger
-	base        http.RoundTripper // TODO change to awareBaseHttp
+	base        http.RoundTripper
 	impersonate bool
 }
 

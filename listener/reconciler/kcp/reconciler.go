@@ -2,41 +2,41 @@ package kcp
 
 import (
 	"context"
-	"errors"
 
-	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kcpctrl "sigs.k8s.io/controller-runtime/pkg/kcp"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
-	"github.com/openmfp/golang-commons/controller/lifecycle"
 	"github.com/openmfp/golang-commons/logger"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/workspacefile"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp/clusterpath"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp/discoveryclient"
 )
 
-var (
-	ErrCreateIOHandler       = errors.New("failed to create IO Handler")
-	ErrCreatePathResolver    = errors.New("failed to create cluster path resolver")
-	ErrCreateDiscoveryClient = errors.New("failed to create discovery client")
-)
+type KCPReconciler struct {
+	mgr ctrl.Manager
+	log *logger.Logger
+}
 
-// CreateKCPReconciler creates a KCP reconciler with workspace discovery
-func CreateKCPReconciler(
+func NewKCPReconciler(
 	appCfg config.Config,
 	opts reconciler.ReconcilerOpts,
-	discoverFactory func(cfg *rest.Config) (*discoveryclient.FactoryProvider, error),
 	log *logger.Logger,
-) (reconciler.CustomReconciler, error) {
-	log.Info().Msg("Using KCP reconciler with workspace discovery")
+) (*KCPReconciler, error) {
+	log.Info().Msg("Setting up KCP reconciler with workspace discovery")
 
-	// Create IO handler
+	// Create KCP-aware manager
+	mgr, err := kcpctrl.NewClusterAwareManager(opts.Config, opts.ManagerOpts)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to create KCP-aware manager")
+		return nil, err
+	}
+
+	// Create IO handler for schema files
 	ioHandler, err := workspacefile.NewIOHandler(appCfg.OpenApiDefinitionsPath)
 	if err != nil {
+		log.Error().Err(err).Msg("failed to create IO handler")
 		return nil, err
 	}
 
@@ -44,70 +44,45 @@ func CreateKCPReconciler(
 	schemaResolver := apischema.NewResolver()
 
 	// Create cluster path resolver
-	pathResolver, err := clusterpath.NewResolver(opts.Config, opts.Scheme)
+	clusterPathResolver, err := NewClusterPathResolver(opts.Config, opts.Scheme)
 	if err != nil {
+		log.Error().Err(err).Msg("failed to create cluster path resolver")
 		return nil, err
 	}
 
 	// Create discovery factory
-	discoveryFactory, err := discoverFactory(opts.Config)
+	discoveryFactory, err := NewDiscoveryFactory(opts.Config)
 	if err != nil {
+		log.Error().Err(err).Msg("failed to create discovery factory")
 		return nil, err
 	}
 
-	return NewReconciler(opts, ioHandler, pathResolver, discoveryFactory, schemaResolver, log)
-}
+	// Setup APIBinding reconciler
+	apiBindingReconciler := &APIBindingReconciler{
+		Client:              mgr.GetClient(),
+		Scheme:              opts.Scheme,
+		RestConfig:          opts.Config,
+		IOHandler:           ioHandler,
+		DiscoveryFactory:    discoveryFactory,
+		APISchemaResolver:   schemaResolver,
+		ClusterPathResolver: clusterPathResolver,
+		Log:                 log,
+	}
 
-// KCPReconciler handles reconciliation for KCP clusters
-type KCPReconciler struct {
-	lifecycleManager *lifecycle.LifecycleManager
-	opts             reconciler.ReconcilerOpts
-	restCfg          *rest.Config
-	mgr              ctrl.Manager
-	ioHandler        workspacefile.IOHandler
-	pathResolver     clusterpath.Resolver
-	discoveryFactory discoveryclient.Factory
-	schemaResolver   apischema.Resolver
-	log              *logger.Logger
-}
-
-func NewReconciler(
-	opts reconciler.ReconcilerOpts,
-	ioHandler workspacefile.IOHandler,
-	pathResolver clusterpath.Resolver,
-	discoveryFactory discoveryclient.Factory,
-	schemaResolver apischema.Resolver,
-	log *logger.Logger,
-) (reconciler.CustomReconciler, error) {
-	// Create KCP-aware manager
-	mgr, err := kcpctrl.NewClusterAwareManager(opts.Config, opts.ManagerOpts)
-	if err != nil {
+	// Setup the controller with cluster context - this is crucial for req.ClusterName
+	if err := ctrl.NewControllerManagedBy(mgr).
+		For(&kcpapis.APIBinding{}).
+		Complete(kcpctrl.WithClusterInContext(apiBindingReconciler)); err != nil {
+		log.Error().Err(err).Msg("failed to setup APIBinding controller")
 		return nil, err
 	}
 
-	r := &KCPReconciler{
-		opts:             opts,
-		restCfg:          opts.Config,
-		mgr:              mgr,
-		ioHandler:        ioHandler,
-		pathResolver:     pathResolver,
-		discoveryFactory: discoveryFactory,
-		schemaResolver:   schemaResolver,
-		log:              log,
-	}
+	log.Info().Msg("Successfully configured KCP reconciler with workspace discovery")
 
-	// Create lifecycle manager with subroutines
-	r.lifecycleManager = lifecycle.NewLifecycleManager(
-		log,
-		"kcp-reconciler",
-		"kcp-reconciler",
-		opts.Client,
-		[]lifecycle.Subroutine{
-			&processAPIBindingSubroutine{reconciler: r},
-		},
-	)
-
-	return r, nil
+	return &KCPReconciler{
+		mgr: mgr,
+		log: log,
+	}, nil
 }
 
 func (r *KCPReconciler) GetManager() ctrl.Manager {
@@ -115,11 +90,11 @@ func (r *KCPReconciler) GetManager() ctrl.Manager {
 }
 
 func (r *KCPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	return r.lifecycleManager.Reconcile(ctx, req, &kcpapis.APIBinding{})
+	// This method is not used - reconciliation is handled by the APIBinding controller
+	return ctrl.Result{}, nil
 }
 
 func (r *KCPReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&kcpapis.APIBinding{}).
-		Complete(r)
+	// Controllers are already set up in the constructor
+	return nil
 }

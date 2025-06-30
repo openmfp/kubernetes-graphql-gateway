@@ -207,10 +207,8 @@ func (cr *ClusterRegistry) handleAuth(w http.ResponseWriter, r *http.Request, to
 // handleCORS handles CORS preflight requests and headers
 func (cr *ClusterRegistry) handleCORS(w http.ResponseWriter, r *http.Request) bool {
 	if cr.appCfg.Gateway.Cors.Enabled {
-		allowedOrigins := strings.Join(cr.appCfg.Gateway.Cors.AllowedOrigins, ",")
-		allowedHeaders := strings.Join(cr.appCfg.Gateway.Cors.AllowedHeaders, ",")
-		w.Header().Set("Access-Control-Allow-Origin", allowedOrigins)
-		w.Header().Set("Access-Control-Allow-Headers", allowedHeaders)
+		w.Header().Set("Access-Control-Allow-Origin", cr.appCfg.Gateway.Cors.AllowedOrigins)
+		w.Header().Set("Access-Control-Allow-Headers", cr.appCfg.Gateway.Cors.AllowedHeaders)
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
