@@ -2,8 +2,6 @@ module github.com/openmfp/kubernetes-graphql-gateway
 
 go 1.24.3
 
-toolchain go1.24.4
-
 replace (
 	github.com/google/cel-go => github.com/google/cel-go v0.22.1
 	// this PR introduces newer version of graphiQL that supports headers
@@ -20,13 +18,13 @@ require (
 	github.com/go-openapi/spec v0.21.0
 	github.com/gobuffalo/flect v1.0.3
 	github.com/golang-jwt/jwt/v5 v5.2.2
-	github.com/google/gnostic-models v0.6.9
+	github.com/google/gnostic-models v0.7.0
 	github.com/graphql-go/graphql v0.8.1
 	github.com/graphql-go/handler v0.2.4
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/kcp-dev/kcp/sdk v0.27.1
 	github.com/kcp-dev/logicalcluster/v3 v3.0.5
-	github.com/openmfp/account-operator v0.169.13
+	github.com/openmfp/account-operator v0.170.11
 	github.com/openmfp/golang-commons v0.150.11
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.34.0
@@ -40,7 +38,7 @@ require (
 	k8s.io/apiextensions-apiserver v0.32.4
 	k8s.io/apimachinery v0.33.2
 	k8s.io/client-go v0.33.2
-	k8s.io/kube-openapi v0.0.0-20250610211856-8b98d1ed966a
+	k8s.io/kube-openapi v0.0.0-20250628140032-d90c4fd18f59
 	sigs.k8s.io/controller-runtime v0.21.0
 )
 
@@ -115,6 +113,8 @@ require (
 	go.opentelemetry.io/proto/otlp v1.7.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
+	go.yaml.in/yaml/v2 v2.4.2 // indirect
+	go.yaml.in/yaml/v3 v3.0.3 // indirect
 	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
 	golang.org/x/net v0.41.0 // indirect
