@@ -16,6 +16,10 @@ import (
 
 // extractCAData extracts CA certificate data from secret or configmap references
 func extractCAData(ca *gatewayv1alpha1.CAConfig, k8sClient client.Client) ([]byte, error) {
+	if ca == nil {
+		return nil, nil
+	}
+
 	ctx := context.Background()
 
 	if ca.SecretRef != nil {
@@ -68,6 +72,10 @@ func extractCAData(ca *gatewayv1alpha1.CAConfig, k8sClient client.Client) ([]byt
 }
 
 func configureAuthentication(config *rest.Config, auth *gatewayv1alpha1.AuthConfig, k8sClient client.Client) error {
+	if auth == nil {
+		return nil
+	}
+
 	ctx := context.Background()
 
 	if auth.SecretRef != nil {

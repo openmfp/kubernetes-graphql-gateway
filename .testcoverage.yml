@@ -7,4 +7,5 @@ exclude:
     - mocks
     - common/apis/*
     # remove it later:
-    - listener/reconciler/*
+    - listener/reconciler/singlecluster
+    - listener/reconciler/kcp

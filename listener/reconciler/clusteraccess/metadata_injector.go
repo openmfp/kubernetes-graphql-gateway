@@ -92,6 +92,10 @@ func extractCADataForMetadata(ca *gatewayv1alpha1.CAConfig, k8sClient client.Cli
 }
 
 func extractAuthDataForMetadata(auth *gatewayv1alpha1.AuthConfig, k8sClient client.Client) (map[string]interface{}, error) {
+	if auth == nil {
+		return nil, nil
+	}
+
 	ctx := context.Background()
 
 	if auth.SecretRef != nil {
