@@ -122,9 +122,9 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 			Bool("multiCluster", appCfg.MultiCluster).
 			Msg("Using standard config for connection (single cluster or KCP mode)")
 
-		config, err = buildKubernetesConfig(appCfg.LocalDevelopment, tc.log)
+		config, err = ctrl.GetConfig()
 		if err != nil {
-			return fmt.Errorf("failed to build Kubernetes config: %w", err)
+			return fmt.Errorf("failed to get Kubernetes config: %w", err)
 		}
 
 		// For KCP mode, modify the config to point to the specific workspace
@@ -235,26 +235,6 @@ func buildConfigFromMetadata(metadata *ClusterMetadata, log *logger.Logger) (*re
 	}
 
 	return config, nil
-}
-
-// buildKubernetesConfig creates a rest.Config using standard controller-runtime patterns
-func buildKubernetesConfig(localDevelopment bool, log *logger.Logger) (*rest.Config, error) {
-	if localDevelopment {
-		// Use kubeconfig from environment in development mode
-		if kubeconfigPath := os.Getenv("KUBECONFIG"); kubeconfigPath != "" {
-			config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-			if err != nil {
-				return nil, fmt.Errorf("failed to build config from KUBECONFIG: %w", err)
-			}
-			log.Info().Str("kubeconfig", kubeconfigPath).Msg("Using kubeconfig from environment (development mode)")
-			return config, nil
-		}
-	}
-
-	// Use ctrl.GetConfigOrDie() for production or development fallback
-	config, err := ctrl.GetConfig()
-	log.Info().Msg("Using configuration from ctrl.GetConfig()")
-	return config, err
 }
 
 // createHandler creates the GraphQL schema and handler
