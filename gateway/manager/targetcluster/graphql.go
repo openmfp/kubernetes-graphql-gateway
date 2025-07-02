@@ -97,9 +97,9 @@ func (s *GraphQLServer) HandleSubscription(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Connection", "keep-alive")
 
 	var params struct {
-		Query         string                 `json:"query"`
-		OperationName string                 `json:"operationName"`
-		Variables     map[string]interface{} `json:"variables"`
+		Query         string         `json:"query"`
+		OperationName string         `json:"operationName"`
+		Variables     map[string]any `json:"variables"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {

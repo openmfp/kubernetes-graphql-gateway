@@ -23,8 +23,8 @@ import (
 
 // FileData represents the data extracted from a schema file
 type FileData struct {
-	Definitions     map[string]interface{} `json:"definitions"`
-	ClusterMetadata *ClusterMetadata       `json:"x-cluster-metadata,omitempty"`
+	Definitions     map[string]any   `json:"definitions"`
+	ClusterMetadata *ClusterMetadata `json:"x-cluster-metadata,omitempty"`
 }
 
 // ClusterMetadata represents the cluster connection metadata stored in schema files
