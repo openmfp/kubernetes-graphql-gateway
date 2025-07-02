@@ -180,54 +180,57 @@ func buildConfigFromMetadata(metadata *ClusterMetadata, log *logger.Logger) (*re
 	if metadata.Auth != nil {
 		switch metadata.Auth.Type {
 		case "token":
-			if metadata.Auth.Token != "" {
-				tokenData, err := base64.StdEncoding.DecodeString(metadata.Auth.Token)
-				if err != nil {
-					return nil, fmt.Errorf("failed to decode token: %w", err)
-				}
-				config.BearerToken = string(tokenData)
-				log.Debug().Msg("configured bearer token authentication from metadata")
+			if metadata.Auth.Token == "" {
+				return nil, fmt.Errorf("token auth type selected but no auth token in metadata provided")
 			}
+			tokenData, err := base64.StdEncoding.DecodeString(metadata.Auth.Token)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode token: %w", err)
+			}
+			config.BearerToken = string(tokenData)
+			log.Debug().Msg("configured bearer token authentication from metadata")
 		case "kubeconfig":
-			if metadata.Auth.Kubeconfig != "" {
-				kubeconfigData, err := base64.StdEncoding.DecodeString(metadata.Auth.Kubeconfig)
-				if err != nil {
-					return nil, fmt.Errorf("failed to decode kubeconfig: %w", err)
-				}
-
-				clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeconfigData)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse kubeconfig: %w", err)
-				}
-
-				kubeconfigRestConfig, err := clientConfig.ClientConfig()
-				if err != nil {
-					return nil, fmt.Errorf("failed to build rest config from kubeconfig: %w", err)
-				}
-
-				// Use the auth info from kubeconfig but keep host from metadata
-				config.BearerToken = kubeconfigRestConfig.BearerToken
-				config.Username = kubeconfigRestConfig.Username
-				config.Password = kubeconfigRestConfig.Password
-				config.TLSClientConfig.CertData = kubeconfigRestConfig.TLSClientConfig.CertData
-				config.TLSClientConfig.KeyData = kubeconfigRestConfig.TLSClientConfig.KeyData
-
-				log.Debug().Msg("configured authentication from kubeconfig metadata")
+			if metadata.Auth.Kubeconfig == "" {
+				return nil, fmt.Errorf("kubeconfig auth type selected but no kubeconfig in metadata provided")
 			}
+			kubeconfigData, err := base64.StdEncoding.DecodeString(metadata.Auth.Kubeconfig)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode kubeconfig: %w", err)
+			}
+
+			clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeconfigData)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse kubeconfig: %w", err)
+			}
+
+			kubeconfigRestConfig, err := clientConfig.ClientConfig()
+			if err != nil {
+				return nil, fmt.Errorf("failed to build rest config from kubeconfig: %w", err)
+			}
+
+			// Use the auth info from kubeconfig but keep host from metadata
+			config.BearerToken = kubeconfigRestConfig.BearerToken
+			config.Username = kubeconfigRestConfig.Username
+			config.Password = kubeconfigRestConfig.Password
+			config.TLSClientConfig.CertData = kubeconfigRestConfig.TLSClientConfig.CertData
+			config.TLSClientConfig.KeyData = kubeconfigRestConfig.TLSClientConfig.KeyData
+
+			log.Debug().Msg("configured authentication from kubeconfig metadata")
 		case "clientCert":
-			if metadata.Auth.CertData != "" && metadata.Auth.KeyData != "" {
-				certData, err := base64.StdEncoding.DecodeString(metadata.Auth.CertData)
-				if err != nil {
-					return nil, fmt.Errorf("failed to decode cert data: %w", err)
-				}
-				keyData, err := base64.StdEncoding.DecodeString(metadata.Auth.KeyData)
-				if err != nil {
-					return nil, fmt.Errorf("failed to decode key data: %w", err)
-				}
-				config.TLSClientConfig.CertData = certData
-				config.TLSClientConfig.KeyData = keyData
-				log.Debug().Msg("configured client certificate authentication from metadata")
+			if metadata.Auth.CertData == "" || metadata.Auth.KeyData == "" {
+				return nil, fmt.Errorf("clientCert auth type selected but certificate data or key data missing in metadata")
 			}
+			certData, err := base64.StdEncoding.DecodeString(metadata.Auth.CertData)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode cert data: %w", err)
+			}
+			keyData, err := base64.StdEncoding.DecodeString(metadata.Auth.KeyData)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decode key data: %w", err)
+			}
+			config.TLSClientConfig.CertData = certData
+			config.TLSClientConfig.KeyData = keyData
+			log.Debug().Msg("configured client certificate authentication from metadata")
 		}
 	}
 
