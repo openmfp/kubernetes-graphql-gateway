@@ -93,7 +93,7 @@ func (suite *ClusterAccessSubroutinesTestSuite) SetupTest() {
 	// Setup primary cluster (where listener runs)
 	suite.primaryEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("..", "..", "config", "crd"),
+			filepath.Join("..", "..", "..", "config", "crd"),
 		},
 	}
 
