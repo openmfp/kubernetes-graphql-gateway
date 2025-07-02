@@ -108,13 +108,13 @@ tasks:
 
 
   gateway:
-    desc: "Start the GraphQL gateway server (kills existing process on port 7080 if needed)"
+    desc: "Start the GraphQL gateway server (kills existing process on port 8080 if needed)"
     cmds:
       - |
-        # Check if port 7080 is in use and kill the process if found
-        PID=$(lsof -ti:7080 2>/dev/null || echo "")
+        # Check if port 8080 is in use and kill the process if found
+        PID=$(lsof -ti:8080 2>/dev/null || echo "")
         if [ ! -z "$PID" ]; then
-          echo "Found existing process $PID on port 7080, killing it..."
+          echo "Found existing process $PID on port 8080, killing it..."
           kill $PID 2>/dev/null || true
           sleep 2
         fi
