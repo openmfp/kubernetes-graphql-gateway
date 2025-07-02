@@ -42,6 +42,12 @@ func ExtractCAFromKubeconfig(kubeconfigB64 string, log *logger.Logger) []byte {
 }
 
 // Subroutines exports  
+type GenerateSchemaSubroutine = generateSchemaSubroutine
+
+func NewGenerateSchemaSubroutine(reconciler *ExportedClusterAccessReconciler) *GenerateSchemaSubroutine {
+	return &generateSchemaSubroutine{reconciler: reconciler}
+}
+
 func (s *generateSchemaSubroutine) RestMapperFromConfig(cfg *rest.Config) (interface{}, error) {
 	rm, err := s.restMapperFromConfig(cfg)
 	return rm, err
@@ -49,6 +55,7 @@ func (s *generateSchemaSubroutine) RestMapperFromConfig(cfg *rest.Config) (inter
 
 // Type and constant exports
 type ExportedCRDStatus = CRDStatus
+type ExportedClusterAccessReconciler = ClusterAccessReconciler
 
 const (
 	ExportedCRDNotRegistered = CRDNotRegistered
@@ -59,4 +66,4 @@ const (
 var (
 	ExportedErrCRDNotRegistered = ErrCRDNotRegistered
 	ExportedErrCRDCheckFailed   = ErrCRDCheckFailed
-) 
+)
