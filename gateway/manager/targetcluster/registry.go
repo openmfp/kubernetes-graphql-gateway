@@ -241,15 +241,25 @@ func (cr *ClusterRegistry) validateToken(token string, cluster *TargetCluster) (
 		return false, fmt.Errorf("cluster %s has no config", cluster.name)
 	}
 
-	// Create a new config with the token to validate
+	// Create a new config with ONLY the token to validate
+	// Important: Don't copy any other auth methods (client certs, etc.)
+	// as they have higher priority than bearer tokens
 	cfg := &rest.Config{
 		Host: clusterConfig.Host,
 		TLSClientConfig: rest.TLSClientConfig{
 			CAFile:   clusterConfig.TLSClientConfig.CAFile,
 			CAData:   clusterConfig.TLSClientConfig.CAData,
 			Insecure: clusterConfig.TLSClientConfig.Insecure,
+			// Explicitly clear any client cert auth that could override token
+			CertData: nil,
+			KeyData:  nil,
+			CertFile: "",
+			KeyFile:  "",
 		},
-		BearerToken: token,
+		BearerToken:     token,
+		Username:        "",
+		Password:        "",
+		BearerTokenFile: "",
 	}
 
 	cr.log.Debug().Str("cluster", cluster.name).Str("host", cfg.Host).Msg("Creating HTTP client for token validation")
