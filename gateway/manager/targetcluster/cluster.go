@@ -53,6 +53,7 @@ type CAMetadata struct {
 type TargetCluster struct {
 	name          string
 	client        client.WithWatch
+	restCfg       *rest.Config
 	handler       *GraphQLHandler
 	graphqlServer *GraphQLServer
 	log           *logger.Logger
@@ -152,6 +153,8 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 	if err != nil {
 		return fmt.Errorf("failed to create cluster client: %w", err)
 	}
+
+	tc.restCfg = config
 
 	return nil
 }
@@ -261,6 +264,11 @@ func (tc *TargetCluster) createHandler(definitions map[string]interface{}, appCf
 // GetName returns the cluster name
 func (tc *TargetCluster) GetName() string {
 	return tc.name
+}
+
+// GetConfig returns the cluster's rest.Config
+func (tc *TargetCluster) GetConfig() *rest.Config {
+	return tc.restCfg
 }
 
 // GetEndpoint returns the HTTP endpoint for this cluster's GraphQL API

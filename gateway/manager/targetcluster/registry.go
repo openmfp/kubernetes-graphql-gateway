@@ -1,6 +1,8 @@
 package targetcluster
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -161,7 +163,7 @@ func (cr *ClusterRegistry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Extract and validate token for non-GET requests
 	token := GetToken(r)
-	if !cr.handleAuth(w, r, token) {
+	if !cr.handleAuth(w, r, token, cluster) {
 		return
 	}
 
@@ -186,7 +188,7 @@ func (cr *ClusterRegistry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleAuth handles authentication for non-GET requests
-func (cr *ClusterRegistry) handleAuth(w http.ResponseWriter, r *http.Request, token string) bool {
+func (cr *ClusterRegistry) handleAuth(w http.ResponseWriter, r *http.Request, token string, cluster *TargetCluster) bool {
 	if !cr.appCfg.LocalDevelopment {
 		if token == "" {
 			http.Error(w, "Authorization header is required", http.StatusUnauthorized)
@@ -195,9 +197,17 @@ func (cr *ClusterRegistry) handleAuth(w http.ResponseWriter, r *http.Request, to
 
 		if cr.appCfg.IntrospectionAuthentication {
 			if IsIntrospectionQuery(r) {
-				// For now, accept all tokens since we no longer have a central cluster config for validation
-				// TODO: Implement token validation against the appropriate cluster based on the request
-				return true
+				valid, err := cr.validateToken(token, cluster)
+				if err != nil {
+					cr.log.Error().Err(err).Str("cluster", cluster.name).Msg("Error validating token")
+					http.Error(w, "Token validation failed", http.StatusUnauthorized)
+					return false
+				}
+				if !valid {
+					cr.log.Debug().Str("cluster", cluster.name).Msg("Invalid token for introspection query")
+					http.Error(w, "Invalid token", http.StatusUnauthorized)
+					return false
+				}
 			}
 		}
 	}
@@ -216,6 +226,69 @@ func (cr *ClusterRegistry) handleCORS(w http.ResponseWriter, r *http.Request) bo
 		}
 	}
 	return false
+}
+
+func (cr *ClusterRegistry) validateToken(token string, cluster *TargetCluster) (bool, error) {
+	if cluster == nil {
+		return false, errors.New("no cluster provided to validate token")
+	}
+
+	cr.log.Debug().Str("cluster", cluster.name).Msg("Validating token for introspection query")
+
+	// Get the cluster's config
+	clusterConfig := cluster.GetConfig()
+	if clusterConfig == nil {
+		return false, fmt.Errorf("cluster %s has no config", cluster.name)
+	}
+
+	// Create a new config with the token to validate
+	cfg := &rest.Config{
+		Host: clusterConfig.Host,
+		TLSClientConfig: rest.TLSClientConfig{
+			CAFile:   clusterConfig.TLSClientConfig.CAFile,
+			CAData:   clusterConfig.TLSClientConfig.CAData,
+			Insecure: clusterConfig.TLSClientConfig.Insecure,
+		},
+		BearerToken: token,
+	}
+
+	cr.log.Debug().Str("cluster", cluster.name).Str("host", cfg.Host).Msg("Creating HTTP client for token validation")
+
+	// Create HTTP client for validation
+	httpClient, err := rest.HTTPClientFor(cfg)
+	if err != nil {
+		return false, fmt.Errorf("failed to create HTTP client: %w", err)
+	}
+
+	// Make a request to validate the token
+	ctx := context.Background()
+	versionURL := fmt.Sprintf("%s/version", cfg.Host)
+	req, err := http.NewRequestWithContext(ctx, "GET", versionURL, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	cr.log.Debug().Str("cluster", cluster.name).Str("url", versionURL).Msg("Making token validation request")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("failed to make validation request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	cr.log.Debug().Str("cluster", cluster.name).Int("status", resp.StatusCode).Msg("Token validation response received")
+
+	// Check response status
+	switch resp.StatusCode {
+	case http.StatusUnauthorized:
+		cr.log.Debug().Str("cluster", cluster.name).Msg("Token validation failed - unauthorized")
+		return false, nil
+	case http.StatusOK:
+		cr.log.Debug().Str("cluster", cluster.name).Msg("Token validation successful")
+		return true, nil
+	default:
+		return false, fmt.Errorf("unexpected status code from /version: %d", resp.StatusCode)
+	}
 }
 
 // extractClusterName extracts the cluster name from the request path
