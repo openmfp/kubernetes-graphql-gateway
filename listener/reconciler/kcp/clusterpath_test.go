@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
+	kcpcore "github.com/kcp-dev/kcp/sdk/apis/core/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	kcpcore "github.com/kcp-dev/kcp/sdk/apis/core/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
@@ -146,11 +146,11 @@ func TestClusterPathResolverProvider_ClientForCluster(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		clusterName  string
+		name          string
+		clusterName   string
 		clientFactory func(config *rest.Config, options client.Options) (client.Client, error)
-		wantErr      bool
-		errContains  string
+		wantErr       bool
+		errContains   string
 	}{
 		{
 			name:        "successful_client_creation",
@@ -327,4 +327,4 @@ func TestConstants(t *testing.T) {
 		assert.Equal(t, "failed to parse rest config's Host URL", kcp.ErrParseHostURLExported.Error())
 		assert.Equal(t, "cluster is deleted", kcp.ErrClusterIsDeletedExported.Error())
 	})
-} 
+}

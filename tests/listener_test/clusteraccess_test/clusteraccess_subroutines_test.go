@@ -200,7 +200,7 @@ func (suite *ClusterAccessSubroutinesTestSuite) TestSubroutine_Process_Success()
 		suite.log,
 	)
 	require.NoError(suite.T(), err)
-	
+
 	// Get the subroutine through the testing API
 	caReconciler := reconcilerInstance.(*clusteraccess.ClusterAccessReconcilerPublic)
 	subroutine := clusteraccess.NewGenerateSchemaSubroutineForTesting(caReconciler)

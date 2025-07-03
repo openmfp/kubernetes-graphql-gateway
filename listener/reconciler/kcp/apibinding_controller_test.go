@@ -6,9 +6,9 @@ import (
 	"io/fs"
 	"testing"
 
+	kcpcore "github.com/kcp-dev/kcp/sdk/apis/core/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	kcpcore "github.com/kcp-dev/kcp/sdk/apis/core/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -28,12 +28,12 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 	mockLogger, _ := logger.New(logger.DefaultConfig())
 
 	tests := []struct {
-		name          string
-		req           ctrl.Request
-		mockSetup     func(*mocks.MockClient, *workspacefilemocks.MockIOHandler, *kcpmocks.MockDiscoveryFactory, *apschemamocks.MockResolver, *kcpmocks.MockClusterPathResolver)
-		wantResult    ctrl.Result
-		wantErr       bool
-		errContains   string
+		name        string
+		req         ctrl.Request
+		mockSetup   func(*mocks.MockClient, *workspacefilemocks.MockIOHandler, *kcpmocks.MockDiscoveryFactory, *apschemamocks.MockResolver, *kcpmocks.MockClusterPathResolver)
+		wantResult  ctrl.Result
+		wantErr     bool
+		errContains string
 	}{
 		{
 			name: "system_workspace_ignored",
@@ -71,7 +71,7 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 				mockClusterClient := mocks.NewMockClient(t)
 				mcpr.EXPECT().ClientForCluster("deleted-cluster").
 					Return(mockClusterClient, nil).Once()
-				
+
 				// Mock the client.Get call that happens in PathForCluster
 				// Create a deleted LogicalCluster (with DeletionTimestamp set)
 				now := metav1.Now()
@@ -90,7 +90,7 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 						*lcObj = *lc
 						return nil
 					}).Once()
-				
+
 				// Mock the cleanup - IOHandler.Delete should be called
 				mio.EXPECT().Delete("root:org:deleted-cluster").
 					Return(nil).Once()
@@ -108,11 +108,11 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 				mockClusterClient := mocks.NewMockClient(t)
 				mcpr.EXPECT().ClientForCluster("error-cluster").
 					Return(mockClusterClient, nil).Once()
-				
+
 				// Mock the Get call that PathForCluster makes internally
 				mockClusterClient.EXPECT().Get(
-					mock.Anything, 
-					client.ObjectKey{Name: "cluster"}, 
+					mock.Anything,
+					client.ObjectKey{Name: "cluster"},
 					mock.AnythingOfType("*v1alpha1.LogicalCluster"),
 				).Return(errors.New("get cluster failed")).Once()
 			},
@@ -130,7 +130,7 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 				mockClusterClient := mocks.NewMockClient(t)
 				mcpr.EXPECT().ClientForCluster("test-cluster").
 					Return(mockClusterClient, nil).Once()
-				
+
 				// Mock successful LogicalCluster get
 				lc := &kcpcore.LogicalCluster{
 					ObjectMeta: metav1.ObjectMeta{
@@ -146,7 +146,7 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 						*lcObj = *lc
 						return nil
 					}).Once()
-				
+
 				mdf.EXPECT().ClientForCluster("root:org:test-cluster").
 					Return(nil, errors.New("discovery client error")).Once()
 			},
@@ -163,10 +163,10 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 			mockSetup: func(mc *mocks.MockClient, mio *workspacefilemocks.MockIOHandler, mdf *kcpmocks.MockDiscoveryFactory, mar *apschemamocks.MockResolver, mcpr *kcpmocks.MockClusterPathResolver) {
 				mockClusterClient := mocks.NewMockClient(t)
 				mockDiscoveryClient := kcpmocks.NewMockDiscoveryInterface(t)
-				
+
 				mcpr.EXPECT().ClientForCluster("test-cluster").
 					Return(mockClusterClient, nil).Once()
-				
+
 				// Mock successful LogicalCluster get
 				lc := &kcpcore.LogicalCluster{
 					ObjectMeta: metav1.ObjectMeta{
@@ -182,10 +182,10 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 						*lcObj = *lc
 						return nil
 					}).Once()
-				
+
 				mdf.EXPECT().ClientForCluster("root:org:test-cluster").
 					Return(mockDiscoveryClient, nil).Once()
-				
+
 				mdf.EXPECT().RestMapperForCluster("root:org:test-cluster").
 					Return(nil, errors.New("rest mapper error")).Once()
 			},
@@ -203,10 +203,10 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 				mockClusterClient := mocks.NewMockClient(t)
 				mockDiscoveryClient := kcpmocks.NewMockDiscoveryInterface(t)
 				mockRestMapper := kcpmocks.NewMockRESTMapper(t)
-				
+
 				mcpr.EXPECT().ClientForCluster("new-cluster").
 					Return(mockClusterClient, nil).Once()
-				
+
 				// Mock successful LogicalCluster get
 				lc := &kcpcore.LogicalCluster{
 					ObjectMeta: metav1.ObjectMeta{
@@ -222,20 +222,20 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 						*lcObj = *lc
 						return nil
 					}).Once()
-				
+
 				mdf.EXPECT().ClientForCluster("root:org:new-cluster").
 					Return(mockDiscoveryClient, nil).Once()
-				
+
 				mdf.EXPECT().RestMapperForCluster("root:org:new-cluster").
 					Return(mockRestMapper, nil).Once()
-				
+
 				mio.EXPECT().Read("root:org:new-cluster").
 					Return(nil, fs.ErrNotExist).Once()
-				
+
 				schemaJSON := []byte(`{"schema": "test"}`)
 				mar.EXPECT().Resolve(mockDiscoveryClient, mockRestMapper).
 					Return(schemaJSON, nil).Once()
-				
+
 				mio.EXPECT().Write(schemaJSON, "root:org:new-cluster").
 					Return(nil).Once()
 			},
@@ -252,10 +252,10 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 				mockClusterClient := mocks.NewMockClient(t)
 				mockDiscoveryClient := kcpmocks.NewMockDiscoveryInterface(t)
 				mockRestMapper := kcpmocks.NewMockRESTMapper(t)
-				
+
 				mcpr.EXPECT().ClientForCluster("schema-error-cluster").
 					Return(mockClusterClient, nil).Once()
-				
+
 				// Mock successful LogicalCluster get
 				lc := &kcpcore.LogicalCluster{
 					ObjectMeta: metav1.ObjectMeta{
@@ -271,16 +271,16 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 						*lcObj = *lc
 						return nil
 					}).Once()
-				
+
 				mdf.EXPECT().ClientForCluster("root:org:schema-error-cluster").
 					Return(mockDiscoveryClient, nil).Once()
-				
+
 				mdf.EXPECT().RestMapperForCluster("root:org:schema-error-cluster").
 					Return(mockRestMapper, nil).Once()
-				
+
 				mio.EXPECT().Read("root:org:schema-error-cluster").
 					Return(nil, fs.ErrNotExist).Once()
-				
+
 				mar.EXPECT().Resolve(mockDiscoveryClient, mockRestMapper).
 					Return(nil, errors.New("schema resolution failed")).Once()
 			},
@@ -298,10 +298,10 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 				mockClusterClient := mocks.NewMockClient(t)
 				mockDiscoveryClient := kcpmocks.NewMockDiscoveryInterface(t)
 				mockRestMapper := kcpmocks.NewMockRESTMapper(t)
-				
+
 				mcpr.EXPECT().ClientForCluster("write-error-cluster").
 					Return(mockClusterClient, nil).Once()
-				
+
 				// Mock successful LogicalCluster get
 				lc := &kcpcore.LogicalCluster{
 					ObjectMeta: metav1.ObjectMeta{
@@ -317,20 +317,20 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 						*lcObj = *lc
 						return nil
 					}).Once()
-				
+
 				mdf.EXPECT().ClientForCluster("root:org:write-error-cluster").
 					Return(mockDiscoveryClient, nil).Once()
-				
+
 				mdf.EXPECT().RestMapperForCluster("root:org:write-error-cluster").
 					Return(mockRestMapper, nil).Once()
-				
+
 				mio.EXPECT().Read("root:org:write-error-cluster").
 					Return(nil, fs.ErrNotExist).Once()
-				
+
 				schemaJSON := []byte(`{"schema": "test"}`)
 				mar.EXPECT().Resolve(mockDiscoveryClient, mockRestMapper).
 					Return(schemaJSON, nil).Once()
-				
+
 				mio.EXPECT().Write(schemaJSON, "root:org:write-error-cluster").
 					Return(errors.New("write failed")).Once()
 			},
@@ -348,10 +348,10 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 				mockClusterClient := mocks.NewMockClient(t)
 				mockDiscoveryClient := kcpmocks.NewMockDiscoveryInterface(t)
 				mockRestMapper := kcpmocks.NewMockRESTMapper(t)
-				
+
 				mcpr.EXPECT().ClientForCluster("read-error-cluster").
 					Return(mockClusterClient, nil).Once()
-				
+
 				// Mock successful LogicalCluster get
 				lc := &kcpcore.LogicalCluster{
 					ObjectMeta: metav1.ObjectMeta{
@@ -367,13 +367,13 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 						*lcObj = *lc
 						return nil
 					}).Once()
-				
+
 				mdf.EXPECT().ClientForCluster("root:org:read-error-cluster").
 					Return(mockDiscoveryClient, nil).Once()
-				
+
 				mdf.EXPECT().RestMapperForCluster("root:org:read-error-cluster").
 					Return(mockRestMapper, nil).Once()
-				
+
 				mio.EXPECT().Read("root:org:read-error-cluster").
 					Return(nil, errors.New("read failed")).Once()
 			},
@@ -391,10 +391,10 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 				mockClusterClient := mocks.NewMockClient(t)
 				mockDiscoveryClient := kcpmocks.NewMockDiscoveryInterface(t)
 				mockRestMapper := kcpmocks.NewMockRESTMapper(t)
-				
+
 				mcpr.EXPECT().ClientForCluster("unchanged-cluster").
 					Return(mockClusterClient, nil).Once()
-				
+
 				// Mock successful LogicalCluster get
 				lc := &kcpcore.LogicalCluster{
 					ObjectMeta: metav1.ObjectMeta{
@@ -410,21 +410,21 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 						*lcObj = *lc
 						return nil
 					}).Once()
-				
+
 				mdf.EXPECT().ClientForCluster("root:org:unchanged-cluster").
 					Return(mockDiscoveryClient, nil).Once()
-				
+
 				mdf.EXPECT().RestMapperForCluster("root:org:unchanged-cluster").
 					Return(mockRestMapper, nil).Once()
-				
+
 				savedJSON := []byte(`{"schema": "existing"}`)
 				mio.EXPECT().Read("root:org:unchanged-cluster").
 					Return(savedJSON, nil).Once()
-				
+
 				// Return the same schema - no changes
 				mar.EXPECT().Resolve(mockDiscoveryClient, mockRestMapper).
 					Return(savedJSON, nil).Once()
-				
+
 				// No Write call expected since schema is unchanged
 			},
 			wantResult: ctrl.Result{},
@@ -440,10 +440,10 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 				mockClusterClient := mocks.NewMockClient(t)
 				mockDiscoveryClient := kcpmocks.NewMockDiscoveryInterface(t)
 				mockRestMapper := kcpmocks.NewMockRESTMapper(t)
-				
+
 				mcpr.EXPECT().ClientForCluster("changed-cluster").
 					Return(mockClusterClient, nil).Once()
-				
+
 				// Mock successful LogicalCluster get
 				lc := &kcpcore.LogicalCluster{
 					ObjectMeta: metav1.ObjectMeta{
@@ -459,21 +459,21 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 						*lcObj = *lc
 						return nil
 					}).Once()
-				
+
 				mdf.EXPECT().ClientForCluster("root:org:changed-cluster").
 					Return(mockDiscoveryClient, nil).Once()
-				
+
 				mdf.EXPECT().RestMapperForCluster("root:org:changed-cluster").
 					Return(mockRestMapper, nil).Once()
-				
+
 				savedJSON := []byte(`{"schema": "old"}`)
 				mio.EXPECT().Read("root:org:changed-cluster").
 					Return(savedJSON, nil).Once()
-				
+
 				newJSON := []byte(`{"schema": "new"}`)
 				mar.EXPECT().Resolve(mockDiscoveryClient, mockRestMapper).
 					Return(newJSON, nil).Once()
-				
+
 				mio.EXPECT().Write(newJSON, "root:org:changed-cluster").
 					Return(nil).Once()
 			},
@@ -522,4 +522,4 @@ func TestAPIBindingReconciler_Reconcile(t *testing.T) {
 			assert.Equal(t, tt.wantResult, got)
 		})
 	}
-} 
+}

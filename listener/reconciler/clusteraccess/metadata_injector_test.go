@@ -24,13 +24,13 @@ func TestInjectClusterMetadata(t *testing.T) {
 	mockLogger, _ := logger.New(logger.DefaultConfig())
 
 	tests := []struct {
-		name         string
-		schemaJSON   []byte
+		name          string
+		schemaJSON    []byte
 		clusterAccess gatewayv1alpha1.ClusterAccess
-		mockSetup    func(*mocks.MockClient)
-		wantMetadata map[string]interface{}
-		wantErr      bool
-		errContains  string
+		mockSetup     func(*mocks.MockClient)
+		wantMetadata  map[string]interface{}
+		wantErr       bool
+		errContains   string
 	}{
 		{
 			name:       "basic_metadata_injection",
@@ -175,7 +175,7 @@ clusters:
 				"host": "https://test-cluster.example.com",
 				"path": "test-cluster",
 				"auth": map[string]interface{}{
-					"type":       "kubeconfig",
+					"type": "kubeconfig",
 					"kubeconfig": base64.StdEncoding.EncodeToString([]byte(`
 apiVersion: v1
 kind: Config
@@ -344,7 +344,7 @@ kind: Config`
 					}).Once()
 			},
 			want: map[string]interface{}{
-				"type":       "kubeconfig",
+				"type": "kubeconfig",
 				"kubeconfig": base64.StdEncoding.EncodeToString([]byte(`apiVersion: v1
 kind: Config`)),
 			},
@@ -418,9 +418,9 @@ func TestExtractCAFromKubeconfig(t *testing.T) {
 	mockLogger, _ := logger.New(logger.DefaultConfig())
 
 	tests := []struct {
-		name         string
+		name          string
 		kubeconfigB64 string
-		want         []byte
+		want          []byte
 	}{
 		{
 			name: "CA_data_from_kubeconfig",
@@ -468,9 +468,9 @@ users:
 			want: nil,
 		},
 		{
-			name:         "invalid_kubeconfig",
+			name:          "invalid_kubeconfig",
 			kubeconfigB64: "invalid-base64",
-			want:         nil,
+			want:          nil,
 		},
 	}
 
@@ -480,4 +480,4 @@ users:
 			assert.Equal(t, tt.want, got)
 		})
 	}
-} 
+}

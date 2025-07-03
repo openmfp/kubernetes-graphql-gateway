@@ -61,12 +61,12 @@ func TestDiscoveryFactoryProvider_ClientForCluster(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                string
-		clusterName         string
-		newDiscoveryIFFunc  func(cfg *rest.Config) (discovery.DiscoveryInterface, error)
-		wantErr             bool
-		errContains         string
-		expectedConfigHost  string
+		name               string
+		clusterName        string
+		newDiscoveryIFFunc func(cfg *rest.Config) (discovery.DiscoveryInterface, error)
+		wantErr            bool
+		errContains        string
+		expectedConfigHost string
 	}{
 		{
 			name:        "successful_client_creation",
@@ -190,4 +190,4 @@ func TestDiscoveryConstants(t *testing.T) {
 		assert.Equal(t, "failed to create http client", kcp.ErrCreateHTTPClientExported.Error())
 		assert.Equal(t, "failed to create dynamic REST mapper", kcp.ErrCreateDynamicMapperExported.Error())
 	})
-} 
+}

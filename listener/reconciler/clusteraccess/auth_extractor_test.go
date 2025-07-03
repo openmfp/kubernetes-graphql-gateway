@@ -392,4 +392,4 @@ func TestExtractAuthFromKubeconfig(t *testing.T) {
 			}
 		})
 	}
-} 
+}

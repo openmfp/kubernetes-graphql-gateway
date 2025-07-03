@@ -7,15 +7,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openmfp/golang-commons/logger"
-	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
+	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/mocks"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/clusteraccess"
@@ -79,11 +79,11 @@ func TestCheckClusterAccessCRDStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-					mockClient := mocks.NewMockClient(t)
-		tt.mockSetup(mockClient)
+			mockClient := mocks.NewMockClient(t)
+			tt.mockSetup(mockClient)
 
-		got, err := clusteraccess.CheckClusterAccessCRDStatus(mockClient, mockLogger)
-		_ = err
+			got, err := clusteraccess.CheckClusterAccessCRDStatus(mockClient, mockLogger)
+			_ = err
 
 			assert.Equal(t, tt.want, got)
 		})
@@ -166,10 +166,10 @@ func TestCreateMultiClusterReconciler(t *testing.T) {
 				Config:                 &rest.Config{Host: "https://test.example.com"},
 				OpenAPIDefinitionsPath: tempDir,
 			}
-			
+
 			testConfig := tt.config
 			testConfig.OpenApiDefinitionsPath = tempDir
-			
+
 			reconciler, err := clusteraccess.CreateMultiClusterReconciler(testConfig, opts, mockLogger)
 
 			if tt.wantErr {
@@ -191,4 +191,4 @@ func TestConstants(t *testing.T) {
 		assert.Equal(t, "ClusterAccess CRD not registered", clusteraccess.ExportedErrCRDNotRegistered.Error())
 		assert.Equal(t, "failed to check ClusterAccess CRD status", clusteraccess.ExportedErrCRDCheckFailed.Error())
 	})
-} 
+}

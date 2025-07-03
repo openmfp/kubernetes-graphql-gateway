@@ -90,4 +90,4 @@ func NewMockClusterPathResolver(t interface {
 	t.Cleanup(func() { mock.AssertExpectations(t) })
 
 	return mock
-} 
+}

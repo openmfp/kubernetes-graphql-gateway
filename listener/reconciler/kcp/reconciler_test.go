@@ -41,8 +41,8 @@ func TestNewKCPReconciler(t *testing.T) {
 				Scheme: func() *runtime.Scheme {
 					scheme := runtime.NewScheme()
 					// Register KCP types
-					kcpapis.AddToScheme(scheme)
-					kcpcore.AddToScheme(scheme)
+					_ = kcpapis.AddToScheme(scheme)
+					_ = kcpcore.AddToScheme(scheme)
 					return scheme
 				}(),
 				ManagerOpts: ctrl.Options{
@@ -50,8 +50,8 @@ func TestNewKCPReconciler(t *testing.T) {
 					Scheme: func() *runtime.Scheme {
 						scheme := runtime.NewScheme()
 						// Register KCP types
-						kcpapis.AddToScheme(scheme)
-						kcpcore.AddToScheme(scheme)
+						_ = kcpapis.AddToScheme(scheme)
+						_ = kcpcore.AddToScheme(scheme)
 						return scheme
 					}(),
 				},
@@ -115,36 +115,36 @@ func TestNewKCPReconciler(t *testing.T) {
 
 func TestKCPReconciler_GetManager(t *testing.T) {
 	reconciler := &kcp.ExportedKCPReconciler{}
-	
+
 	// Since GetManager() just returns the manager field, we can test it simply
 	assert.Nil(t, reconciler.GetManager())
-	
+
 	// Test with a real manager would require more setup, so we'll keep this simple
 }
 
 func TestKCPReconciler_Reconcile(t *testing.T) {
 	reconciler := &kcp.ExportedKCPReconciler{}
-	
+
 	req := ctrl.Request{
 		NamespacedName: types.NamespacedName{
 			Name:      "test",
 			Namespace: "default",
 		},
 	}
-	
+
 	// The Reconcile method should be a no-op and always return empty result with no error
 	result, err := reconciler.Reconcile(context.Background(), req)
-	
+
 	assert.NoError(t, err)
 	assert.Equal(t, ctrl.Result{}, result)
 }
 
 func TestKCPReconciler_SetupWithManager(t *testing.T) {
 	reconciler := &kcp.ExportedKCPReconciler{}
-	
+
 	// The SetupWithManager method should be a no-op and always return no error
 	// since controllers are set up in the constructor
 	err := reconciler.SetupWithManager(nil)
-	
+
 	assert.NoError(t, err)
-} 
+}

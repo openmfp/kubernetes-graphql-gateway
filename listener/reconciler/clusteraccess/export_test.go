@@ -41,7 +41,7 @@ func ExtractCAFromKubeconfig(kubeconfigB64 string, log *logger.Logger) []byte {
 	return extractCAFromKubeconfig(kubeconfigB64, log)
 }
 
-// Subroutines exports  
+// Subroutines exports
 type GenerateSchemaSubroutine = generateSchemaSubroutine
 
 func NewGenerateSchemaSubroutine(reconciler *ExportedClusterAccessReconciler) *GenerateSchemaSubroutine {

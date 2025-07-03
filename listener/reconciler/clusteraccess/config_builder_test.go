@@ -20,13 +20,13 @@ import (
 
 func TestBuildTargetClusterConfigFromTyped(t *testing.T) {
 	tests := []struct {
-		name        string
+		name          string
 		clusterAccess gatewayv1alpha1.ClusterAccess
-		mockSetup   func(*mocks.MockClient)
-		wantConfig  *rest.Config
-		wantCluster string
-		wantErr     bool
-		errContains string
+		mockSetup     func(*mocks.MockClient)
+		wantConfig    *rest.Config
+		wantCluster   string
+		wantErr       bool
+		errContains   string
 	}{
 		{
 			name: "basic_config_without_CA_or_auth",
@@ -50,7 +50,7 @@ func TestBuildTargetClusterConfigFromTyped(t *testing.T) {
 			name: "config_with_missing_host",
 			clusterAccess: gatewayv1alpha1.ClusterAccess{
 				ObjectMeta: metav1.ObjectMeta{Name: "test-cluster"},
-				Spec: gatewayv1alpha1.ClusterAccessSpec{},
+				Spec:       gatewayv1alpha1.ClusterAccessSpec{},
 			},
 			mockSetup:   func(m *mocks.MockClient) {},
 			wantConfig:  nil,
@@ -314,4 +314,4 @@ func TestExtractCAData(t *testing.T) {
 			}
 		})
 	}
-} 
+}

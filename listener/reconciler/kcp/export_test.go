@@ -26,14 +26,14 @@ func NewDiscoveryFactoryExported(cfg *rest.Config) (*DiscoveryFactoryProvider, e
 
 // Error exports
 var (
-	ErrNilConfigExported             = ErrNilConfig
-	ErrNilSchemeExported             = ErrNilScheme
-	ErrGetClusterConfigExported      = ErrGetClusterConfig
-	ErrGetLogicalClusterExported     = ErrGetLogicalCluster
-	ErrMissingPathAnnotationExported = ErrMissingPathAnnotation
-	ErrParseHostURLExported          = ErrParseHostURL
-	ErrClusterIsDeletedExported      = ErrClusterIsDeleted
-	ErrNilDiscoveryConfigExported    = ErrNilDiscoveryConfig
+	ErrNilConfigExported                 = ErrNilConfig
+	ErrNilSchemeExported                 = ErrNilScheme
+	ErrGetClusterConfigExported          = ErrGetClusterConfig
+	ErrGetLogicalClusterExported         = ErrGetLogicalCluster
+	ErrMissingPathAnnotationExported     = ErrMissingPathAnnotation
+	ErrParseHostURLExported              = ErrParseHostURL
+	ErrClusterIsDeletedExported          = ErrClusterIsDeleted
+	ErrNilDiscoveryConfigExported        = ErrNilDiscoveryConfig
 	ErrGetDiscoveryClusterConfigExported = ErrGetDiscoveryClusterConfig
 	ErrParseDiscoveryHostURLExported     = ErrParseDiscoveryHostURL
 	ErrCreateHTTPClientExported          = ErrCreateHTTPClient
@@ -55,4 +55,4 @@ func NewClusterPathResolverProviderWithFactory(cfg *rest.Config, scheme *runtime
 		Config:        cfg,
 		clientFactory: factory,
 	}
-} 
+}
