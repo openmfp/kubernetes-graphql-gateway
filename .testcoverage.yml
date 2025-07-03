@@ -7,5 +7,6 @@ exclude:
     - mocks
     - common/apis/*
     # remove it later:
+    - listener/reconciler/multicluster/subroutines.go
     - listener/reconciler/singlecluster
     - listener/reconciler/kcp
