@@ -2,10 +2,11 @@ package gateway_test
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"path/filepath"
 	"strings"
+
+	"github.com/stretchr/testify/require"
 )
 
 func (suite *CommonTestSuite) TestTokenValidation() {
