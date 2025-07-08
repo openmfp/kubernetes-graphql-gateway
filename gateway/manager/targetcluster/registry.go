@@ -249,67 +249,44 @@ func (cr *ClusterRegistry) validateToken(token string, cluster *TargetCluster) (
 		return false, fmt.Errorf("failed to create HTTP client: %w", err)
 	}
 
-	// Use resource endpoints that won't be treated as discovery requests
-	// These endpoints require actual authentication, not admin credentials
-	endpoints := []string{
-		"/api/v1/namespaces",
-		"/api/v1/nodes",
-		"/api/v1/pods",
-	}
-	var lastError error
-
-	for _, endpoint := range endpoints {
-		ctx := context.Background()
-		apiURL := fmt.Sprintf("%s%s", clusterConfig.Host, endpoint)
-		req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
-		if err != nil {
-			lastError = err
-			continue // Try next endpoint
-		}
-
-		// Set the token in the request context so the roundtripper can use it
-		// This leverages the same authentication logic as normal requests
-		req = req.WithContext(context.WithValue(req.Context(), roundtripper.TokenKey{}, token))
-
-		cr.log.Debug().Str("cluster", cluster.name).Str("url", apiURL).Msg("Making token validation request")
-
-		resp, err := httpClient.Do(req)
-		if err != nil {
-			lastError = err
-			continue // Try next endpoint
-		}
-		defer resp.Body.Close()
-
-		cr.log.Debug().Str("cluster", cluster.name).Int("status", resp.StatusCode).Str("endpoint", endpoint).Msg("Token validation response received")
-
-		// Check response status
-		switch resp.StatusCode {
-		case http.StatusUnauthorized:
-			cr.log.Debug().Str("cluster", cluster.name).Msg("Token validation failed - unauthorized")
-			return false, nil
-		case http.StatusOK, http.StatusForbidden:
-			// 200 OK means the token is valid and has access
-			// 403 Forbidden means the token is valid but doesn't have permission (still authenticated)
-			cr.log.Debug().Str("cluster", cluster.name).Int("status", resp.StatusCode).Msg("Token validation successful")
-			return true, nil
-		default:
-			// Other status codes (like 404) might indicate the resource doesn't exist
-			// but the token could still be valid, so try next endpoint
-			lastError = fmt.Errorf("unexpected status code %d from %s", resp.StatusCode, endpoint)
-			continue
-		}
+	// Use namespaces endpoint for token validation - it's a core resource that exists in all clusters
+	// and is commonly accessible to most users while still requiring authentication
+	ctx := context.Background()
+	apiURL := fmt.Sprintf("%s/api/v1/namespaces", clusterConfig.Host)
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// If we get here, none of the endpoints worked
-	// This could indicate network issues or that the cluster doesn't have standard resources
-	if lastError != nil {
-		cr.log.Debug().Str("cluster", cluster.name).Err(lastError).Msg("Token validation failed - could not reach any resource endpoints")
-	} else {
-		cr.log.Debug().Str("cluster", cluster.name).Msg("Token validation failed - no resource endpoints available")
-	}
+	// Set the token in the request context so the roundtripper can use it
+	// This leverages the same authentication logic as normal requests
+	req = req.WithContext(context.WithValue(req.Context(), roundtripper.TokenKey{}, token))
 
-	// If we can't validate the token properly, we should fail secure
-	return false, fmt.Errorf("token validation failed: %w", lastError)
+	cr.log.Debug().Str("cluster", cluster.name).Str("url", apiURL).Msg("Making token validation request")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("failed to make validation request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	cr.log.Debug().Str("cluster", cluster.name).Int("status", resp.StatusCode).Msg("Token validation response received")
+
+	// Check response status
+	switch resp.StatusCode {
+	case http.StatusUnauthorized:
+		cr.log.Debug().Str("cluster", cluster.name).Msg("Token validation failed - unauthorized")
+		return false, nil
+	case http.StatusOK, http.StatusForbidden:
+		// 200 OK means the token is valid and has access
+		// 403 Forbidden means the token is valid but doesn't have permission (still authenticated)
+		cr.log.Debug().Str("cluster", cluster.name).Int("status", resp.StatusCode).Msg("Token validation successful")
+		return true, nil
+	default:
+		// Other status codes indicate an issue with the request or cluster
+		cr.log.Debug().Str("cluster", cluster.name).Int("status", resp.StatusCode).Msg("Token validation failed with unexpected status")
+		return false, fmt.Errorf("unexpected status code %d from namespaces endpoint", resp.StatusCode)
+	}
 }
 
 // extractClusterName extracts the cluster name from the request path
