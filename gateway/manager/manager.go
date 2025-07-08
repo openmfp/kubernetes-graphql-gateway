@@ -1,8 +1,6 @@
 package manager
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net/http"
 
@@ -26,32 +24,8 @@ type Service struct {
 // NewGateway creates a new domain-driven Gateway instance
 func NewGateway(log *logger.Logger, appCfg appConfig.Config) (*Service, error) {
 	// Create round tripper factory
-	roundTripperFactory := targetcluster.RoundTripperFactory(func(config *rest.Config) http.RoundTripper {
-		// Create a simple HTTP transport that respects our TLS configuration
-		tlsConfig := &tls.Config{
-			InsecureSkipVerify: config.TLSClientConfig.Insecure,
-			ServerName:         config.TLSClientConfig.ServerName,
-		}
-
-		// Add CA data if present
-		if len(config.TLSClientConfig.CAData) > 0 {
-			caCertPool := x509.NewCertPool()
-			caCertPool.AppendCertsFromPEM(config.TLSClientConfig.CAData)
-			tlsConfig.RootCAs = caCertPool
-		}
-
-		// Add client certificates if present
-		if len(config.TLSClientConfig.CertData) > 0 && len(config.TLSClientConfig.KeyData) > 0 {
-			cert, err := tls.X509KeyPair(config.TLSClientConfig.CertData, config.TLSClientConfig.KeyData)
-			if err == nil {
-				tlsConfig.Certificates = []tls.Certificate{cert}
-			}
-		}
-
-		transport := &http.Transport{
-			TLSClientConfig: tlsConfig,
-		}
-		return roundtripper.New(log, transport, appCfg.Gateway.UsernameClaim, appCfg.Gateway.ShouldImpersonate)
+	roundTripperFactory := targetcluster.RoundTripperFactory(func(adminRT http.RoundTripper, tlsConfig rest.TLSClientConfig) http.RoundTripper {
+		return roundtripper.New(log, appCfg, adminRT, roundtripper.NewUnauthorizedRoundTripper())
 	})
 
 	clusterRegistry := targetcluster.NewClusterRegistry(log, appCfg, roundTripperFactory)
