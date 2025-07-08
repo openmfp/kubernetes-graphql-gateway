@@ -11,6 +11,7 @@ import (
 
 	"github.com/openmfp/golang-commons/logger"
 	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager/roundtripper"
 	"k8s.io/client-go/rest"
 )
 
@@ -241,47 +242,34 @@ func (cr *ClusterRegistry) validateToken(token string, cluster *TargetCluster) (
 		return false, fmt.Errorf("cluster %s has no config", cluster.name)
 	}
 
-	// Create a new config with ONLY the token to validate
-	// Important: Don't copy any other auth methods (client certs, etc.)
-	// as they have higher priority than bearer tokens
-	cfg := &rest.Config{
-		Host: clusterConfig.Host,
-		TLSClientConfig: rest.TLSClientConfig{
-			CAFile:   clusterConfig.TLSClientConfig.CAFile,
-			CAData:   clusterConfig.TLSClientConfig.CAData,
-			Insecure: clusterConfig.TLSClientConfig.Insecure,
-			// Explicitly clear any client cert auth that could override token
-			CertData: nil,
-			KeyData:  nil,
-			CertFile: "",
-			KeyFile:  "",
-		},
-		BearerToken:     token,
-		Username:        "",
-		Password:        "",
-		BearerTokenFile: "",
-	}
-
-	cr.log.Debug().Str("cluster", cluster.name).Str("host", cfg.Host).Msg("Creating HTTP client for token validation")
-
-	// Create HTTP client for validation
-	httpClient, err := rest.HTTPClientFor(cfg)
+	// Create HTTP client using the cluster's existing config
+	// This will use the same roundtripper that's already configured
+	httpClient, err := rest.HTTPClientFor(clusterConfig)
 	if err != nil {
 		return false, fmt.Errorf("failed to create HTTP client: %w", err)
 	}
 
-	// Try multiple endpoints to validate the token
-	endpoints := []string{"/api/v1", "/api", "/version"}
+	// Use resource endpoints that won't be treated as discovery requests
+	// These endpoints require actual authentication, not admin credentials
+	endpoints := []string{
+		"/api/v1/namespaces",
+		"/api/v1/nodes",
+		"/api/v1/pods",
+	}
 	var lastError error
 
 	for _, endpoint := range endpoints {
 		ctx := context.Background()
-		apiURL := fmt.Sprintf("%s%s", cfg.Host, endpoint)
+		apiURL := fmt.Sprintf("%s%s", clusterConfig.Host, endpoint)
 		req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
 		if err != nil {
 			lastError = err
 			continue // Try next endpoint
 		}
+
+		// Set the token in the request context so the roundtripper can use it
+		// This leverages the same authentication logic as normal requests
+		req = req.WithContext(context.WithValue(req.Context(), roundtripper.TokenKey{}, token))
 
 		cr.log.Debug().Str("cluster", cluster.name).Str("url", apiURL).Msg("Making token validation request")
 
@@ -304,28 +292,24 @@ func (cr *ClusterRegistry) validateToken(token string, cluster *TargetCluster) (
 			// 403 Forbidden means the token is valid but doesn't have permission (still authenticated)
 			cr.log.Debug().Str("cluster", cluster.name).Int("status", resp.StatusCode).Msg("Token validation successful")
 			return true, nil
-		case http.StatusNotFound:
-			// 404 means endpoint doesn't exist, try next one
-			continue
 		default:
-			// Other status codes are unexpected, try next endpoint
+			// Other status codes (like 404) might indicate the resource doesn't exist
+			// but the token could still be valid, so try next endpoint
 			lastError = fmt.Errorf("unexpected status code %d from %s", resp.StatusCode, endpoint)
 			continue
 		}
 	}
 
 	// If we get here, none of the endpoints worked
-	// In test environments, this might be expected, so we'll be more lenient
-	// If we have a valid token format and no explicit authentication errors, assume it's valid
+	// This could indicate network issues or that the cluster doesn't have standard resources
 	if lastError != nil {
-		cr.log.Debug().Str("cluster", cluster.name).Err(lastError).Msg("Token validation inconclusive - assuming valid for test environment")
+		cr.log.Debug().Str("cluster", cluster.name).Err(lastError).Msg("Token validation failed - could not reach any resource endpoints")
 	} else {
-		cr.log.Debug().Str("cluster", cluster.name).Msg("Token validation inconclusive - no endpoints available, assuming valid for test environment")
+		cr.log.Debug().Str("cluster", cluster.name).Msg("Token validation failed - no resource endpoints available")
 	}
 
-	// For test environments where standard Kubernetes endpoints might not be available,
-	// we'll assume the token is valid if we didn't get explicit authentication errors
-	return true, nil
+	// If we can't validate the token properly, we should fail secure
+	return false, fmt.Errorf("token validation failed: %w", lastError)
 }
 
 // extractClusterName extracts the cluster name from the request path
