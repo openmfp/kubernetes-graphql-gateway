@@ -100,8 +100,8 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 	var config *rest.Config
 	var err error
 
-	// In multicluster mode, we MUST have metadata to connect (unless in local development)
-	if !appCfg.EnableKcp && appCfg.MultiCluster && !appCfg.LocalDevelopment {
+	// In multicluster mode, we MUST have metadata to connect
+	if !appCfg.EnableKcp && appCfg.MultiCluster {
 		if metadata == nil {
 			return fmt.Errorf("multicluster mode requires cluster metadata in schema file")
 		}
@@ -116,7 +116,7 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 			return fmt.Errorf("failed to build config from metadata: %w", err)
 		}
 	} else {
-		// Single cluster, KCP mode, or local development - use standard config
+		// Single cluster, KCP mode
 		tc.log.Info().
 			Str("cluster", tc.name).
 			Bool("enableKcp", appCfg.EnableKcp).
