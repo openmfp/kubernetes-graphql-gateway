@@ -95,16 +95,12 @@ func TestCreateMultiClusterReconciler(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		config      config.Config
 		mockSetup   func(*mocks.MockClient)
 		wantErr     bool
 		errContains string
 	}{
 		{
 			name: "successful_creation_with_clusteraccess_available",
-			config: config.Config{
-				MultiCluster: true,
-			},
 			mockSetup: func(m *mocks.MockClient) {
 				m.EXPECT().List(mock.Anything, mock.AnythingOfType("*v1alpha1.ClusterAccessList")).
 					RunAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
@@ -124,9 +120,6 @@ func TestCreateMultiClusterReconciler(t *testing.T) {
 		},
 		{
 			name: "error_when_CRD_not_registered",
-			config: config.Config{
-				MultiCluster: true,
-			},
 			mockSetup: func(m *mocks.MockClient) {
 				m.EXPECT().List(mock.Anything, mock.AnythingOfType("*v1alpha1.ClusterAccessList")).
 					Return(&meta.NoResourceMatchError{
@@ -142,9 +135,6 @@ func TestCreateMultiClusterReconciler(t *testing.T) {
 		},
 		{
 			name: "error_when_CRD_check_fails",
-			config: config.Config{
-				MultiCluster: true,
-			},
 			mockSetup: func(m *mocks.MockClient) {
 				m.EXPECT().List(mock.Anything, mock.AnythingOfType("*v1alpha1.ClusterAccessList")).
 					Return(errors.New("API server connection failed")).Once()
@@ -167,8 +157,9 @@ func TestCreateMultiClusterReconciler(t *testing.T) {
 				OpenAPIDefinitionsPath: tempDir,
 			}
 
-			testConfig := tt.config
-			testConfig.OpenApiDefinitionsPath = tempDir
+			testConfig := config.Config{
+				OpenApiDefinitionsPath: tempDir,
+			}
 
 			reconciler, err := clusteraccess.CreateMultiClusterReconciler(testConfig, opts, mockLogger)
 

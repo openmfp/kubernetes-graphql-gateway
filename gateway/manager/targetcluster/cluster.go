@@ -101,7 +101,24 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 	var err error
 
 	// In multicluster mode, we MUST have metadata to connect
-	if !appCfg.EnableKcp && appCfg.MultiCluster {
+	if appCfg.EnableKcp {
+		tc.log.Info().
+			Str("cluster", tc.name).
+			Bool("enableKcp", appCfg.EnableKcp).
+			Bool("localDevelopment", appCfg.LocalDevelopment).
+			Msg("Using standard config for connection (single cluster, KCP mode, or local development)")
+
+		config, err = ctrl.GetConfig()
+		if err != nil {
+			return fmt.Errorf("failed to get Kubernetes config: %w", err)
+		}
+
+		// For KCP mode, modify the config to point to the specific workspace
+		config, err = kcputil.ConfigForKCPCluster(tc.name, config)
+		if err != nil {
+			return fmt.Errorf("failed to configure KCP workspace: %w", err)
+		}
+	} else { // clusterAccess path
 		if metadata == nil {
 			return fmt.Errorf("multicluster mode requires cluster metadata in schema file")
 		}
@@ -114,27 +131,6 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 		config, err = buildConfigFromMetadata(metadata, tc.log)
 		if err != nil {
 			return fmt.Errorf("failed to build config from metadata: %w", err)
-		}
-	} else {
-		// Single cluster, KCP mode
-		tc.log.Info().
-			Str("cluster", tc.name).
-			Bool("enableKcp", appCfg.EnableKcp).
-			Bool("multiCluster", appCfg.MultiCluster).
-			Bool("localDevelopment", appCfg.LocalDevelopment).
-			Msg("Using standard config for connection (single cluster, KCP mode, or local development)")
-
-		config, err = ctrl.GetConfig()
-		if err != nil {
-			return fmt.Errorf("failed to get Kubernetes config: %w", err)
-		}
-
-		// For KCP mode, modify the config to point to the specific workspace
-		if appCfg.EnableKcp {
-			config, err = kcputil.ConfigForKCPCluster(tc.name, config)
-			if err != nil {
-				return fmt.Errorf("failed to configure KCP workspace: %w", err)
-			}
 		}
 	}
 

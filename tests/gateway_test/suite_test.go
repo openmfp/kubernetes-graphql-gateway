@@ -1,12 +1,15 @@
 package gateway_test
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -118,9 +121,6 @@ func (suite *CommonTestSuite) SetupTest() {
 	suite.appCfg.LocalDevelopment = suite.LocalDevelopment
 	suite.appCfg.Gateway.Cors.Enabled = true
 	suite.appCfg.IntrospectionAuthentication = suite.AuthenticateSchemaRequests
-	// Ensure single cluster mode (not multicluster)
-	suite.appCfg.MultiCluster = false
-	suite.appCfg.EnableKcp = false
 
 	suite.log, err = logger.New(logger.DefaultConfig())
 	require.NoError(suite.T(), err)
@@ -210,6 +210,60 @@ func (suite *CommonTestSuite) createTempKubeconfig() (string, error) {
 	}
 
 	return tempKubeconfig.Name(), nil
+}
+
+// createEnhancedSchemaFile creates a schema file with both definitions and cluster metadata
+func (suite *CommonTestSuite) createEnhancedSchemaFile(baseSchemaPath, targetPath string) error {
+	// Read the base schema file (definitions only)
+	definitions, err := readDefinitionFromFile(baseSchemaPath)
+	if err != nil {
+		return fmt.Errorf("failed to read base schema: %w", err)
+	}
+
+	// Create schema data with cluster metadata
+	schemaData := map[string]interface{}{
+		"definitions": definitions,
+		"x-cluster-metadata": map[string]interface{}{
+			"host": suite.restCfg.Host,
+			"auth": map[string]interface{}{
+				"type":  "token",
+				"token": base64.StdEncoding.EncodeToString([]byte(suite.staticToken)),
+			},
+		},
+	}
+
+	// Add CA data if present
+	if len(suite.restCfg.TLSClientConfig.CAData) > 0 {
+		schemaData["x-cluster-metadata"].(map[string]interface{})["ca"] = map[string]interface{}{
+			"data": base64.StdEncoding.EncodeToString(suite.restCfg.TLSClientConfig.CAData),
+		}
+	}
+
+	// Write the enhanced schema file
+	data, err := json.Marshal(schemaData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal schema data: %w", err)
+	}
+
+	err = os.WriteFile(targetPath, data, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write schema file: %w", err)
+	}
+
+	return nil
+}
+
+// writeToFileWithClusterMetadata writes an enhanced schema file with cluster metadata for cluster access mode
+func (suite *CommonTestSuite) writeToFileWithClusterMetadata(from, to string) error {
+	err := suite.createEnhancedSchemaFile(from, to)
+	if err != nil {
+		return err
+	}
+
+	// let's give some time to the manager to process the file and create a url
+	time.Sleep(sleepTime)
+
+	return nil
 }
 
 // sendAuthenticatedRequest is a helper method to send authenticated GraphQL requests using the test token

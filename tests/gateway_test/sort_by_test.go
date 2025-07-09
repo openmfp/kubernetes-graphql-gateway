@@ -20,7 +20,7 @@ func (suite *CommonTestSuite) TestSortByListItems() {
 	workspaceName := "myWorkspace"
 	url := fmt.Sprintf("%s/%s/graphql", suite.server.URL, workspaceName)
 
-	require.NoError(suite.T(), writeToFile(
+	require.NoError(suite.T(), suite.writeToFileWithClusterMetadata(
 		filepath.Join("testdata", "kubernetes"),
 		filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName),
 	))

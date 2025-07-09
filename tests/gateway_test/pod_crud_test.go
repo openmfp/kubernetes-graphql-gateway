@@ -12,7 +12,7 @@ import (
 func (suite *CommonTestSuite) TestCreateGetAndDeletePod() {
 	workspaceName := "myWorkspace"
 
-	require.NoError(suite.T(), writeToFile(
+	require.NoError(suite.T(), suite.writeToFileWithClusterMetadata(
 		filepath.Join("testdata", "kubernetes"),
 		filepath.Join(suite.appCfg.OpenApiDefinitionsPath, workspaceName),
 	))
