@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -88,22 +87,4 @@ func sendRequestWithAuth(url, query, token string) (*GraphQLResponse, int, error
 	}
 
 	return &bodyResp, resp.StatusCode, err
-}
-
-// writeToFile adds a new file to the watched directory which will trigger schema generation
-func writeToFile(from, to string) error {
-	specContent, err := os.ReadFile(from)
-	if err != nil {
-		return err
-	}
-
-	err = os.WriteFile(to, specContent, 0644)
-	if err != nil {
-		return err
-	}
-
-	// let's give some time to the manager to process the file and create a url
-	time.Sleep(sleepTime)
-
-	return nil
 }

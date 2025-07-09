@@ -212,10 +212,10 @@ func (suite *CommonTestSuite) createTempKubeconfig() (string, error) {
 	return tempKubeconfig.Name(), nil
 }
 
-// createEnhancedSchemaFile creates a schema file with both definitions and cluster metadata
-func (suite *CommonTestSuite) createEnhancedSchemaFile(baseSchemaPath, targetPath string) error {
+// writeToFileWithClusterMetadata writes an enhanced schema file with cluster metadata for cluster access mode
+func (suite *CommonTestSuite) writeToFileWithClusterMetadata(from, to string) error {
 	// Read the base schema file (definitions only)
-	definitions, err := readDefinitionFromFile(baseSchemaPath)
+	definitions, err := readDefinitionFromFile(from)
 	if err != nil {
 		return fmt.Errorf("failed to read base schema: %w", err)
 	}
@@ -245,19 +245,9 @@ func (suite *CommonTestSuite) createEnhancedSchemaFile(baseSchemaPath, targetPat
 		return fmt.Errorf("failed to marshal schema data: %w", err)
 	}
 
-	err = os.WriteFile(targetPath, data, 0644)
+	err = os.WriteFile(to, data, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write schema file: %w", err)
-	}
-
-	return nil
-}
-
-// writeToFileWithClusterMetadata writes an enhanced schema file with cluster metadata for cluster access mode
-func (suite *CommonTestSuite) writeToFileWithClusterMetadata(from, to string) error {
-	err := suite.createEnhancedSchemaFile(from, to)
-	if err != nil {
-		return err
 	}
 
 	// let's give some time to the manager to process the file and create a url
