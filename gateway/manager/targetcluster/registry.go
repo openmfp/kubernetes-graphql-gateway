@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -242,17 +243,30 @@ func (cr *ClusterRegistry) validateToken(token string, cluster *TargetCluster) (
 		return false, fmt.Errorf("cluster %s has no config", cluster.name)
 	}
 
-	// Create HTTP client using the cluster's existing config
-	// This will use the same roundtripper that's already configured
+	cr.log.Debug().
+		Str("cluster", cluster.name).
+		Str("host", clusterConfig.Host).
+		Bool("insecure", clusterConfig.TLSClientConfig.Insecure).
+		Bool("has_ca_data", len(clusterConfig.TLSClientConfig.CAData) > 0).
+		Bool("has_bearer_token", clusterConfig.BearerToken != "").
+		Str("provided_token", token).
+		Msg("Cluster configuration for token validation")
+
+	// Create HTTP client using the cluster's existing config and roundtripper
+	// This ensures we use the same authentication flow as normal requests
 	httpClient, err := rest.HTTPClientFor(clusterConfig)
 	if err != nil {
 		return false, fmt.Errorf("failed to create HTTP client: %w", err)
 	}
 
-	// Use namespaces endpoint for token validation - it's a core resource that exists in all clusters
-	// and is commonly accessible to most users while still requiring authentication
+	// Use namespaces endpoint for token validation - it's a resource endpoint (not discovery)
+	// so it will use the token authentication instead of being routed to admin credentials
 	ctx := context.Background()
-	apiURL := fmt.Sprintf("%s/api/v1/namespaces", clusterConfig.Host)
+	apiURL, err := url.JoinPath(clusterConfig.Host, "/api/v1/namespaces")
+	if err != nil {
+		return false, fmt.Errorf("failed to construct API URL: %w", err)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
 	if err != nil {
 		return false, fmt.Errorf("failed to create request: %w", err)
@@ -266,6 +280,7 @@ func (cr *ClusterRegistry) validateToken(token string, cluster *TargetCluster) (
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
+		cr.log.Error().Err(err).Str("cluster", cluster.name).Msg("Token validation request failed")
 		return false, fmt.Errorf("failed to make validation request: %w", err)
 	}
 	defer resp.Body.Close()
