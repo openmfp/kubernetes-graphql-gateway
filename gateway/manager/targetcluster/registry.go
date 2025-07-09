@@ -1,19 +1,23 @@
 package targetcluster
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/openmfp/golang-commons/logger"
 	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
+	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager/roundtripper"
 	"k8s.io/client-go/rest"
 )
 
 // RoundTripperFactory creates HTTP round trippers for authentication
-type RoundTripperFactory func(*rest.Config) http.RoundTripper
+type RoundTripperFactory func(http.RoundTripper, rest.TLSClientConfig) http.RoundTripper
 
 // ClusterRegistry manages multiple target clusters and handles HTTP routing to them
 type ClusterRegistry struct {
@@ -161,7 +165,7 @@ func (cr *ClusterRegistry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Extract and validate token for non-GET requests
 	token := GetToken(r)
-	if !cr.handleAuth(w, r, token) {
+	if !cr.handleAuth(w, r, token, cluster) {
 		return
 	}
 
@@ -186,7 +190,7 @@ func (cr *ClusterRegistry) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleAuth handles authentication for non-GET requests
-func (cr *ClusterRegistry) handleAuth(w http.ResponseWriter, r *http.Request, token string) bool {
+func (cr *ClusterRegistry) handleAuth(w http.ResponseWriter, r *http.Request, token string, cluster *TargetCluster) bool {
 	if !cr.appCfg.LocalDevelopment {
 		if token == "" {
 			http.Error(w, "Authorization header is required", http.StatusUnauthorized)
@@ -195,9 +199,17 @@ func (cr *ClusterRegistry) handleAuth(w http.ResponseWriter, r *http.Request, to
 
 		if cr.appCfg.IntrospectionAuthentication {
 			if IsIntrospectionQuery(r) {
-				// For now, accept all tokens since we no longer have a central cluster config for validation
-				// TODO: Implement token validation against the appropriate cluster based on the request
-				return true
+				valid, err := cr.validateToken(token, cluster)
+				if err != nil {
+					cr.log.Error().Err(err).Str("cluster", cluster.name).Msg("Error validating token")
+					http.Error(w, "Token validation failed", http.StatusUnauthorized)
+					return false
+				}
+				if !valid {
+					cr.log.Debug().Str("cluster", cluster.name).Msg("Invalid token for introspection query")
+					http.Error(w, "Invalid token", http.StatusUnauthorized)
+					return false
+				}
 			}
 		}
 	}
@@ -216,6 +228,80 @@ func (cr *ClusterRegistry) handleCORS(w http.ResponseWriter, r *http.Request) bo
 		}
 	}
 	return false
+}
+
+func (cr *ClusterRegistry) validateToken(token string, cluster *TargetCluster) (bool, error) {
+	if cluster == nil {
+		return false, errors.New("no cluster provided to validate token")
+	}
+
+	cr.log.Debug().Str("cluster", cluster.name).Msg("Validating token for introspection query")
+
+	// Get the cluster's config
+	clusterConfig := cluster.GetConfig()
+	if clusterConfig == nil {
+		return false, fmt.Errorf("cluster %s has no config", cluster.name)
+	}
+
+	cr.log.Debug().
+		Str("cluster", cluster.name).
+		Str("host", clusterConfig.Host).
+		Bool("insecure", clusterConfig.TLSClientConfig.Insecure).
+		Bool("has_ca_data", len(clusterConfig.TLSClientConfig.CAData) > 0).
+		Bool("has_bearer_token", clusterConfig.BearerToken != "").
+		Str("provided_token", token).
+		Msg("Cluster configuration for token validation")
+
+	// Create HTTP client using the cluster's existing config and roundtripper
+	// This ensures we use the same authentication flow as normal requests
+	httpClient, err := rest.HTTPClientFor(clusterConfig)
+	if err != nil {
+		return false, fmt.Errorf("failed to create HTTP client: %w", err)
+	}
+
+	// Use namespaces endpoint for token validation - it's a resource endpoint (not discovery)
+	// so it will use the token authentication instead of being routed to admin credentials
+	ctx := context.Background()
+	apiURL, err := url.JoinPath(clusterConfig.Host, "/api/v1/namespaces")
+	if err != nil {
+		return false, fmt.Errorf("failed to construct API URL: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Set the token in the request context so the roundtripper can use it
+	// This leverages the same authentication logic as normal requests
+	req = req.WithContext(context.WithValue(req.Context(), roundtripper.TokenKey{}, token))
+
+	cr.log.Debug().Str("cluster", cluster.name).Str("url", apiURL).Msg("Making token validation request")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		cr.log.Error().Err(err).Str("cluster", cluster.name).Msg("Token validation request failed")
+		return false, fmt.Errorf("failed to make validation request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	cr.log.Debug().Str("cluster", cluster.name).Int("status", resp.StatusCode).Msg("Token validation response received")
+
+	// Check response status
+	switch resp.StatusCode {
+	case http.StatusUnauthorized:
+		cr.log.Debug().Str("cluster", cluster.name).Msg("Token validation failed - unauthorized")
+		return false, nil
+	case http.StatusOK, http.StatusForbidden:
+		// 200 OK means the token is valid and has access
+		// 403 Forbidden means the token is valid but doesn't have permission (still authenticated)
+		cr.log.Debug().Str("cluster", cluster.name).Int("status", resp.StatusCode).Msg("Token validation successful")
+		return true, nil
+	default:
+		// Other status codes indicate an issue with the request or cluster
+		cr.log.Debug().Str("cluster", cluster.name).Int("status", resp.StatusCode).Msg("Token validation failed with unexpected status")
+		return false, fmt.Errorf("unexpected status code %d from namespaces endpoint", resp.StatusCode)
+	}
 }
 
 // extractClusterName extracts the cluster name from the request path
