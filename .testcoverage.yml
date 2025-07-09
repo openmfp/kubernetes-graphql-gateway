@@ -9,4 +9,3 @@ exclude:
     # remove it later:
     - listener/reconciler/clusteraccess/subroutines.go
     - listener/reconciler/singlecluster
-    - listener/reconciler/kcp
