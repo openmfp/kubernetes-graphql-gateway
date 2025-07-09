@@ -53,6 +53,7 @@ type CAMetadata struct {
 type TargetCluster struct {
 	name          string
 	client        client.WithWatch
+	restCfg       *rest.Config
 	handler       *GraphQLHandler
 	graphqlServer *GraphQLServer
 	log           *logger.Logger
@@ -64,7 +65,7 @@ func NewTargetCluster(
 	schemaFilePath string,
 	log *logger.Logger,
 	appCfg appConfig.Config,
-	roundTripperFactory func(*rest.Config) http.RoundTripper,
+	roundTripperFactory func(http.RoundTripper, rest.TLSClientConfig) http.RoundTripper,
 ) (*TargetCluster, error) {
 	fileData, err := readSchemaFile(schemaFilePath)
 	if err != nil {
@@ -95,7 +96,7 @@ func NewTargetCluster(
 }
 
 // connect establishes connection to the target cluster
-func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetadata, roundTripperFactory func(*rest.Config) http.RoundTripper) error {
+func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetadata, roundTripperFactory func(http.RoundTripper, rest.TLSClientConfig) http.RoundTripper) error {
 	var config *rest.Config
 	var err error
 
@@ -115,12 +116,13 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 			return fmt.Errorf("failed to build config from metadata: %w", err)
 		}
 	} else {
-		// Single cluster or KCP mode - use standard config
+		// Single cluster, KCP mode
 		tc.log.Info().
 			Str("cluster", tc.name).
 			Bool("enableKcp", appCfg.EnableKcp).
 			Bool("multiCluster", appCfg.MultiCluster).
-			Msg("Using standard config for connection (single cluster or KCP mode)")
+			Bool("localDevelopment", appCfg.LocalDevelopment).
+			Msg("Using standard config for connection (single cluster, KCP mode, or local development)")
 
 		config, err = ctrl.GetConfig()
 		if err != nil {
@@ -139,7 +141,7 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 	// Apply round tripper
 	if roundTripperFactory != nil {
 		config.Wrap(func(rt http.RoundTripper) http.RoundTripper {
-			return roundTripperFactory(config)
+			return roundTripperFactory(rt, config.TLSClientConfig)
 		})
 	}
 
@@ -152,6 +154,8 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 	if err != nil {
 		return fmt.Errorf("failed to create cluster client: %w", err)
 	}
+
+	tc.restCfg = config
 
 	return nil
 }
@@ -261,6 +265,11 @@ func (tc *TargetCluster) createHandler(definitions map[string]interface{}, appCf
 // GetName returns the cluster name
 func (tc *TargetCluster) GetName() string {
 	return tc.name
+}
+
+// GetConfig returns the cluster's rest.Config
+func (tc *TargetCluster) GetConfig() *rest.Config {
+	return tc.restCfg
 }
 
 // GetEndpoint returns the HTTP endpoint for this cluster's GraphQL API
