@@ -13,6 +13,7 @@ import (
 
 	"github.com/openmfp/golang-commons/logger"
 	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
+	"github.com/openmfp/kubernetes-graphql-gateway/common/auth"
 )
 
 func injectClusterMetadata(schemaJSON []byte, clusterAccess gatewayv1alpha1.ClusterAccess, k8sClient client.Client, log *logger.Logger) ([]byte, error) {
@@ -88,7 +89,7 @@ func injectClusterMetadata(schemaJSON []byte, clusterAccess gatewayv1alpha1.Clus
 }
 
 func extractCADataForMetadata(ca *gatewayv1alpha1.CAConfig, k8sClient client.Client) ([]byte, error) {
-	return extractCAData(ca, k8sClient)
+	return auth.ExtractCAData(ca, k8sClient)
 }
 
 func extractAuthDataForMetadata(auth *gatewayv1alpha1.AuthConfig, k8sClient client.Client) (map[string]interface{}, error) {

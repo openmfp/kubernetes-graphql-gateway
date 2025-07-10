@@ -7,21 +7,22 @@ import (
 
 	"github.com/openmfp/golang-commons/logger"
 	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
+	"github.com/openmfp/kubernetes-graphql-gateway/common/auth"
 )
 
 // Exported functions for testing private functions
 
 // Config builder exports
 func ExtractCAData(ca *gatewayv1alpha1.CAConfig, k8sClient client.Client) ([]byte, error) {
-	return extractCAData(ca, k8sClient)
+	return auth.ExtractCAData(ca, k8sClient)
 }
 
-func ConfigureAuthentication(config *rest.Config, auth *gatewayv1alpha1.AuthConfig, k8sClient client.Client) error {
-	return configureAuthentication(config, auth, k8sClient)
+func ConfigureAuthentication(config *rest.Config, authConfig *gatewayv1alpha1.AuthConfig, k8sClient client.Client) error {
+	return auth.ConfigureAuthentication(config, authConfig, k8sClient)
 }
 
 func ExtractAuthFromKubeconfig(config *rest.Config, authInfo *api.AuthInfo) error {
-	return extractAuthFromKubeconfig(config, authInfo)
+	return auth.ExtractAuthFromKubeconfig(config, authInfo)
 }
 
 // Metadata injector exports
@@ -33,8 +34,8 @@ func ExtractCADataForMetadata(ca *gatewayv1alpha1.CAConfig, k8sClient client.Cli
 	return extractCADataForMetadata(ca, k8sClient)
 }
 
-func ExtractAuthDataForMetadata(auth *gatewayv1alpha1.AuthConfig, k8sClient client.Client) (map[string]interface{}, error) {
-	return extractAuthDataForMetadata(auth, k8sClient)
+func ExtractAuthDataForMetadata(authConfig *gatewayv1alpha1.AuthConfig, k8sClient client.Client) (map[string]interface{}, error) {
+	return extractAuthDataForMetadata(authConfig, k8sClient)
 }
 
 func ExtractCAFromKubeconfig(kubeconfigB64 string, log *logger.Logger) []byte {

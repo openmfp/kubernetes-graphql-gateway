@@ -6,11 +6,12 @@ import (
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
+	"github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
+	"github.com/openmfp/kubernetes-graphql-gateway/common/auth"
 )
 
 // BuildTargetClusterConfigFromTyped extracts connection info from ClusterAccess and builds rest.Config
-func BuildTargetClusterConfigFromTyped(clusterAccess gatewayv1alpha1.ClusterAccess, k8sClient client.Client) (*rest.Config, string, error) {
+func BuildTargetClusterConfigFromTyped(clusterAccess v1alpha1.ClusterAccess, k8sClient client.Client) (*rest.Config, string, error) {
 	spec := clusterAccess.Spec
 
 	// Extract host (required)
@@ -25,31 +26,10 @@ func BuildTargetClusterConfigFromTyped(clusterAccess gatewayv1alpha1.ClusterAcce
 		clusterName = spec.Path
 	}
 
-	config := &rest.Config{
-		Host: host,
-		TLSClientConfig: rest.TLSClientConfig{
-			Insecure: true, // Start with insecure, will be overridden if CA is provided
-		},
-	}
-
-	// Handle CA configuration first
-	if spec.CA != nil {
-		caData, err := extractCAData(spec.CA, k8sClient)
-		if err != nil {
-			return nil, "", errors.Join(errors.New("failed to extract CA data"), err)
-		}
-		if caData != nil {
-			config.TLSClientConfig.CAData = caData
-			config.TLSClientConfig.Insecure = false // Use proper TLS verification when CA is provided
-		}
-	}
-
-	// Handle Auth configuration
-	if spec.Auth != nil {
-		err := configureAuthentication(config, spec.Auth, k8sClient)
-		if err != nil {
-			return nil, "", errors.Join(errors.New("failed to configure authentication"), err)
-		}
+	// Use common auth package to build config
+	config, err := auth.BuildConfig(host, spec.Auth, spec.CA, k8sClient)
+	if err != nil {
+		return nil, "", err
 	}
 
 	return config, clusterName, nil

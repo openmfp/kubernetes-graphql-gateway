@@ -1,7 +1,6 @@
 package targetcluster
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,11 +9,11 @@ import (
 	"github.com/go-openapi/spec"
 	"github.com/openmfp/golang-commons/logger"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
 
+	"github.com/openmfp/kubernetes-graphql-gateway/common/auth"
 	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/resolver"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/schema"
@@ -158,78 +157,31 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 
 // buildConfigFromMetadata creates rest.Config from cluster metadata
 func buildConfigFromMetadata(metadata *ClusterMetadata, log *logger.Logger) (*rest.Config, error) {
-	config := &rest.Config{
-		Host: metadata.Host,
-		TLSClientConfig: rest.TLSClientConfig{
-			Insecure: true, // Start with insecure, will be overridden if CA is provided
-		},
-	}
+	var authType, token, kubeconfig, certData, keyData, caData string
 
-	// Handle CA data
-	if metadata.CA != nil && metadata.CA.Data != "" {
-		caData, err := base64.StdEncoding.DecodeString(metadata.CA.Data)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode CA data: %w", err)
-		}
-		config.TLSClientConfig.CAData = caData
-		config.TLSClientConfig.Insecure = false
-		log.Debug().Msg("configured CA certificate from metadata")
-	}
-
-	// Handle authentication
 	if metadata.Auth != nil {
-		switch metadata.Auth.Type {
-		case "token":
-			if metadata.Auth.Token != "" {
-				tokenData, err := base64.StdEncoding.DecodeString(metadata.Auth.Token)
-				if err != nil {
-					return nil, fmt.Errorf("failed to decode token: %w", err)
-				}
-				config.BearerToken = string(tokenData)
-				log.Debug().Msg("configured bearer token authentication from metadata")
-			}
-		case "kubeconfig":
-			if metadata.Auth.Kubeconfig != "" {
-				kubeconfigData, err := base64.StdEncoding.DecodeString(metadata.Auth.Kubeconfig)
-				if err != nil {
-					return nil, fmt.Errorf("failed to decode kubeconfig: %w", err)
-				}
-
-				clientConfig, err := clientcmd.NewClientConfigFromBytes(kubeconfigData)
-				if err != nil {
-					return nil, fmt.Errorf("failed to parse kubeconfig: %w", err)
-				}
-
-				kubeconfigRestConfig, err := clientConfig.ClientConfig()
-				if err != nil {
-					return nil, fmt.Errorf("failed to build rest config from kubeconfig: %w", err)
-				}
-
-				// Use the auth info from kubeconfig but keep host from metadata
-				config.BearerToken = kubeconfigRestConfig.BearerToken
-				config.Username = kubeconfigRestConfig.Username
-				config.Password = kubeconfigRestConfig.Password
-				config.TLSClientConfig.CertData = kubeconfigRestConfig.TLSClientConfig.CertData
-				config.TLSClientConfig.KeyData = kubeconfigRestConfig.TLSClientConfig.KeyData
-
-				log.Debug().Msg("configured authentication from kubeconfig metadata")
-			}
-		case "clientCert":
-			if metadata.Auth.CertData != "" && metadata.Auth.KeyData != "" {
-				certData, err := base64.StdEncoding.DecodeString(metadata.Auth.CertData)
-				if err != nil {
-					return nil, fmt.Errorf("failed to decode cert data: %w", err)
-				}
-				keyData, err := base64.StdEncoding.DecodeString(metadata.Auth.KeyData)
-				if err != nil {
-					return nil, fmt.Errorf("failed to decode key data: %w", err)
-				}
-				config.TLSClientConfig.CertData = certData
-				config.TLSClientConfig.KeyData = keyData
-				log.Debug().Msg("configured client certificate authentication from metadata")
-			}
-		}
+		authType = metadata.Auth.Type
+		token = metadata.Auth.Token
+		kubeconfig = metadata.Auth.Kubeconfig
+		certData = metadata.Auth.CertData
+		keyData = metadata.Auth.KeyData
 	}
+
+	if metadata.CA != nil {
+		caData = metadata.CA.Data
+	}
+
+	// Use common auth package
+	config, err := auth.BuildConfigFromMetadata(metadata.Host, authType, token, kubeconfig, certData, keyData, caData)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Debug().
+		Str("host", metadata.Host).
+		Str("authType", authType).
+		Bool("hasCA", caData != "").
+		Msg("configured cluster from metadata")
 
 	return config, nil
 }
