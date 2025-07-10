@@ -121,7 +121,7 @@ func NewReconciler(
 		log:            log,
 	}
 
-	// Create lifecycle manager with subroutines
+	// Create lifecycle manager with subroutines and condition management
 	r.lifecycleManager = lifecycle.NewLifecycleManager(
 		log,
 		"cluster-access-reconciler",
@@ -130,7 +130,7 @@ func NewReconciler(
 		[]lifecycle.Subroutine{
 			&generateSchemaSubroutine{reconciler: r},
 		},
-	)
+	).WithConditionManagement()
 
 	return r, nil
 }

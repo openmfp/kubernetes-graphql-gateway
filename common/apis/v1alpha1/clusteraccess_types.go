@@ -110,3 +110,15 @@ type ClusterAccessList struct {
 func init() {
 	SchemeBuilder.Register(&ClusterAccess{}, &ClusterAccessList{})
 }
+
+// GetConditions returns the conditions from the ClusterAccess status
+// This method implements the RuntimeObjectConditions interface
+func (ca *ClusterAccess) GetConditions() []metav1.Condition {
+	return ca.Status.Conditions
+}
+
+// SetConditions sets the conditions in the ClusterAccess status
+// This method implements the RuntimeObjectConditions interface
+func (ca *ClusterAccess) SetConditions(conditions []metav1.Condition) {
+	ca.Status.Conditions = conditions
+}
