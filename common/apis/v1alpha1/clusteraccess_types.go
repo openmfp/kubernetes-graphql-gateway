@@ -45,7 +45,7 @@ type AuthConfig struct {
 
 	// ServiceAccount is the name of the service account to use
 	// +optional
-	ServiceAccount string `json:"serviceAccount,omitempty"`
+	ServiceAccount *ServiceAccountRef `json:"serviceAccount,omitempty"`
 
 	// ClientCertificateRef points to secrets containing client certificate and key for mTLS
 	// +optional
@@ -83,6 +83,13 @@ type ClusterAccessStatus struct {
 	// Conditions represent the latest available observations of the cluster access state
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
+type ServiceAccountRef struct {
+	Name            string          `json:"name"`
+	Namespace       string          `json:"namespace"`
+	Audience        []string        `json:"audience"`
+	TokenExpiration metav1.Duration `json:"token_expiration" default:"3600s"`
 }
 
 //+kubebuilder:object:root=true

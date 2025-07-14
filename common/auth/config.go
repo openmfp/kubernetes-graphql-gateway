@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 
+	authv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
+
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -254,9 +256,40 @@ func ConfigureAuthentication(config *rest.Config, auth *gatewayv1alpha1.AuthConf
 		return nil
 	}
 
-	if auth.ServiceAccount != "" {
-		// TODO: Implement service account-based authentication
-		return errors.New("service account authentication not yet implemented")
+	if auth.ServiceAccount != nil {
+		// Build the TokenRequest object
+		tokenRequest := &authv1.TokenRequest{
+			Spec: authv1.TokenRequestSpec{
+				Audiences: auth.ServiceAccount.Audience,
+				// Optionally set ExpirationSeconds, BoundObjectRef, etc.
+				ExpirationSeconds: func() *int64 {
+					secs := int64(auth.ServiceAccount.TokenExpiration.Duration.Seconds())
+					return &secs
+				}(),
+			},
+		}
+
+		// Get the service account token using the Kubernetes API
+		sa := &corev1.ServiceAccount{}
+		err := k8sClient.Get(ctx, types.NamespacedName{
+			Name:      auth.ServiceAccount.Name,
+			Namespace: auth.ServiceAccount.Namespace,
+		}, sa)
+		if err != nil {
+			return errors.Join(errors.New("failed to get service account"), err)
+		}
+
+		err = k8sClient.SubResource("token").Create(ctx, sa, tokenRequest)
+		if err != nil {
+			return errors.Join(errors.New("failed to create token request for service account"), err)
+		}
+
+		if tokenRequest.Status.Token == "" {
+			return errors.New("received empty token from TokenRequest API")
+		}
+
+		config.BearerToken = tokenRequest.Status.Token
+		return nil
 	}
 
 	// No authentication configured - this might work for some clusters
