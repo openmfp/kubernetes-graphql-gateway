@@ -93,11 +93,6 @@ spec:
                         type: string
                       token_expiration:
                         type: string
-                    required:
-                    - audience
-                    - name
-                    - namespace
-                    - token_expiration
                     type: object
                 type: object
               ca:

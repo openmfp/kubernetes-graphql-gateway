@@ -257,15 +257,22 @@ func ConfigureAuthentication(config *rest.Config, auth *gatewayv1alpha1.AuthConf
 	}
 
 	if auth.ServiceAccount != nil {
+		var expirationSeconds int64
+		if auth.ServiceAccount.TokenExpiration != nil {
+			// If TokenExpiration is provided, use its value
+			expirationSeconds = int64(auth.ServiceAccount.TokenExpiration.Duration.Seconds())
+		} else {
+			// If TokenExpiration is nil, use the desired default (3600 seconds = 1 hour)
+			expirationSeconds = 3600
+			fmt.Println("Warning: auth.ServiceAccount.TokenExpiration is nil, defaulting to 3600 seconds.")
+		}
+
 		// Build the TokenRequest object
 		tokenRequest := &authv1.TokenRequest{
 			Spec: authv1.TokenRequestSpec{
 				Audiences: auth.ServiceAccount.Audience,
 				// Optionally set ExpirationSeconds, BoundObjectRef, etc.
-				ExpirationSeconds: func() *int64 {
-					secs := int64(auth.ServiceAccount.TokenExpiration.Duration.Seconds())
-					return &secs
-				}(),
+				ExpirationSeconds: &expirationSeconds,
 			},
 		}
 
@@ -289,6 +296,8 @@ func ConfigureAuthentication(config *rest.Config, auth *gatewayv1alpha1.AuthConf
 		}
 
 		config.BearerToken = tokenRequest.Status.Token
+
+		fmt.Println("Token:", config.BearerToken)
 		return nil
 	}
 
