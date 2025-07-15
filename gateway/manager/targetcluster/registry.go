@@ -47,8 +47,8 @@ func (cr *ClusterRegistry) LoadCluster(schemaFilePath string) error {
 	cr.mu.Lock()
 	defer cr.mu.Unlock()
 
-	// Extract cluster name from filename
-	name := strings.TrimSuffix(filepath.Base(schemaFilePath), filepath.Ext(schemaFilePath))
+	// Extract cluster name from file path, preserving subdirectory structure
+	name := cr.extractClusterNameFromPath(schemaFilePath)
 
 	cr.log.Info().
 		Str("cluster", name).
@@ -83,8 +83,8 @@ func (cr *ClusterRegistry) RemoveCluster(schemaFilePath string) error {
 	cr.mu.Lock()
 	defer cr.mu.Unlock()
 
-	// Extract cluster name from filename
-	name := strings.TrimSuffix(filepath.Base(schemaFilePath), filepath.Ext(schemaFilePath))
+	// Extract cluster name from file path, preserving subdirectory structure
+	name := cr.extractClusterNameFromPath(schemaFilePath)
 
 	cr.log.Info().
 		Str("cluster", name).
@@ -305,25 +305,59 @@ func (cr *ClusterRegistry) validateToken(token string, cluster *TargetCluster) (
 }
 
 // extractClusterName extracts the cluster name from the request path
-// Expected format: /{clusterName}/graphql
+// Expected formats:
+//   - Regular workspace: /{clusterName}/graphql
+//   - Virtual workspace: /virtual-workspace/{virtualWorkspaceName}/graphql
 func (cr *ClusterRegistry) extractClusterName(w http.ResponseWriter, r *http.Request) (string, bool) {
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-	if len(parts) != 2 {
-		cr.log.Error().
-			Str("path", r.URL.Path).
-			Msg("Invalid path format, expected /{clusterName}/graphql")
-		http.NotFound(w, r)
-		return "", false
-	}
 
-	clusterName := parts[0]
-	if clusterName == "" {
+	var clusterName string
+
+	// Handle virtual workspace format: /virtual-workspace/{virtualWorkspaceName}/graphql
+	if len(parts) == 3 && parts[0] == "virtual-workspace" && parts[2] == "graphql" {
+		virtualWorkspaceName := parts[1]
+		if virtualWorkspaceName == "" {
+			cr.log.Error().
+				Str("path", r.URL.Path).
+				Msg("Empty virtual workspace name in path")
+			http.NotFound(w, r)
+			return "", false
+		}
+		// Map virtual workspace path to schema file name
+		clusterName = fmt.Sprintf("virtual-workspace/%s", virtualWorkspaceName)
+	} else if len(parts) == 2 && parts[1] == "graphql" {
+		// Handle regular workspace format: /{clusterName}/graphql
+		clusterName = parts[0]
+		if clusterName == "" {
+			cr.log.Error().
+				Str("path", r.URL.Path).
+				Msg("Empty cluster name in path")
+			http.NotFound(w, r)
+			return "", false
+		}
+	} else {
 		cr.log.Error().
 			Str("path", r.URL.Path).
-			Msg("Empty cluster name in path")
+			Msg("Invalid path format, expected /{clusterName}/graphql or /virtual-workspace/{virtualWorkspaceName}/graphql")
 		http.NotFound(w, r)
 		return "", false
 	}
 
 	return clusterName, true
+}
+
+// extractClusterNameFromPath extracts cluster name from schema file path, preserving subdirectory structure
+func (cr *ClusterRegistry) extractClusterNameFromPath(schemaFilePath string) string {
+	// First try to find relative path from definitions directory
+	if strings.Contains(schemaFilePath, "definitions/") {
+		parts := strings.Split(schemaFilePath, "definitions/")
+		if len(parts) >= 2 {
+			relativePath := parts[len(parts)-1]
+			// Remove file extension
+			return strings.TrimSuffix(relativePath, filepath.Ext(relativePath))
+		}
+	}
+
+	// Fallback to just filename without extension
+	return strings.TrimSuffix(filepath.Base(schemaFilePath), filepath.Ext(schemaFilePath))
 }

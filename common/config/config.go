@@ -7,7 +7,7 @@ type Config struct {
 	IntrospectionAuthentication bool   `mapstructure:"introspection-authentication"`
 
 	Listener struct {
-		// Listener fields will be added here
+		VirtualWorkspacesConfigPath string `mapstructure:"virtual-workspaces-config-path"`
 	} `mapstructure:",squash"`
 
 	Gateway struct {

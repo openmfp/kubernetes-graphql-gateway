@@ -61,6 +61,7 @@ func initConfig() {
 	// Listener
 	v.SetDefault("listener-apiexport-workspace", ":root")
 	v.SetDefault("listener-apiexport-name", "kcp.io")
+	v.SetDefault("virtual-workspaces-config-path", "./bin/virtual-workspaces/config.yaml")
 
 	// Gateway
 	v.SetDefault("gateway-port", "8080")

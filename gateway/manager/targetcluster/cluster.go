@@ -222,6 +222,9 @@ func (tc *TargetCluster) GetConfig() *rest.Config {
 
 // GetEndpoint returns the HTTP endpoint for this cluster's GraphQL API
 func (tc *TargetCluster) GetEndpoint(appCfg appConfig.Config) string {
+	// tc.name already contains the correct path format:
+	// - For virtual workspaces: "virtual-workspace/{name}"
+	// - For regular workspaces: "{workspace-name}"
 	path := tc.name
 
 	if appCfg.LocalDevelopment {
