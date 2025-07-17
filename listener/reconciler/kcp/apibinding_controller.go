@@ -79,7 +79,15 @@ func (r *APIBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			logger.Error().Err(err1).Msg("failed to resolve server JSON schema")
 			return ctrl.Result{}, err1
 		}
-		if err := r.IOHandler.Write(actualJSON, clusterPath); err != nil {
+
+		// Inject KCP cluster metadata into the schema
+		schemaWithMetadata, err := injectKCPClusterMetadata(actualJSON, clusterPath, r.Log)
+		if err != nil {
+			logger.Error().Err(err).Msg("failed to inject KCP cluster metadata")
+			return ctrl.Result{}, err
+		}
+
+		if err := r.IOHandler.Write(schemaWithMetadata, clusterPath); err != nil {
 			logger.Error().Err(err).Msg("failed to write JSON to filesystem")
 			return ctrl.Result{}, err
 		}
@@ -96,8 +104,16 @@ func (r *APIBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error().Err(err).Msg("failed to resolve server JSON schema")
 		return ctrl.Result{}, err
 	}
-	if !bytes.Equal(actualJSON, savedJSON) {
-		if err := r.IOHandler.Write(actualJSON, clusterPath); err != nil {
+
+	// Inject KCP cluster metadata into the new schema
+	schemaWithMetadata, err := injectKCPClusterMetadata(actualJSON, clusterPath, r.Log)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to inject KCP cluster metadata")
+		return ctrl.Result{}, err
+	}
+
+	if !bytes.Equal(schemaWithMetadata, savedJSON) {
+		if err := r.IOHandler.Write(schemaWithMetadata, clusterPath); err != nil {
 			logger.Error().Err(err).Msg("failed to write JSON to filesystem")
 			return ctrl.Result{}, err
 		}

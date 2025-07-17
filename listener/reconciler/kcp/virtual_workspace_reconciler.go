@@ -126,8 +126,14 @@ func (r *VirtualWorkspaceReconciler) processVirtualWorkspace(ctx context.Context
 	}
 	r.log.Debug().Str("workspace", workspace.Name).Int("schemaSize", len(schemaJSON)).Msg("API schema resolved")
 
+	// Inject KCP cluster metadata into the schema, using virtual workspace URL as host
+	schemaWithMetadata, err := injectKCPClusterMetadata(schemaJSON, workspacePath, r.log, workspace.URL)
+	if err != nil {
+		return fmt.Errorf("failed to inject KCP cluster metadata: %w", err)
+	}
+
 	// Write the schema to file
-	if err := r.ioHandler.Write(schemaJSON, workspacePath); err != nil {
+	if err := r.ioHandler.Write(schemaWithMetadata, workspacePath); err != nil {
 		return fmt.Errorf("failed to write schema file: %w", err)
 	}
 

@@ -307,15 +307,16 @@ func (cr *ClusterRegistry) validateToken(token string, cluster *TargetCluster) (
 // extractClusterName extracts the cluster name from the request path
 // Expected formats:
 //   - Regular workspace: /{clusterName}/graphql
-//   - Virtual workspace: /virtual-workspace/{virtualWorkspaceName}/graphql
+//   - Virtual workspace: /virtual-workspace/{virtualWorkspaceName}/{kcpWorkspace}/graphql
 func (cr *ClusterRegistry) extractClusterName(w http.ResponseWriter, r *http.Request) (string, bool) {
 	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 
 	var clusterName string
 
-	// Handle virtual workspace format: /virtual-workspace/{virtualWorkspaceName}/graphql
-	if len(parts) == 3 && parts[0] == "virtual-workspace" && parts[2] == "graphql" {
+	// Handle virtual workspace format: /virtual-workspace/{virtualWorkspaceName}/{kcpWorkspace}/graphql
+	if len(parts) == 4 && parts[0] == "virtual-workspace" && parts[3] == "graphql" {
 		virtualWorkspaceName := parts[1]
+		kcpWorkspace := parts[2]
 		if virtualWorkspaceName == "" {
 			cr.log.Error().
 				Str("path", r.URL.Path).
@@ -323,8 +324,18 @@ func (cr *ClusterRegistry) extractClusterName(w http.ResponseWriter, r *http.Req
 			http.NotFound(w, r)
 			return "", false
 		}
-		// Map virtual workspace path to schema file name
+		if kcpWorkspace == "" {
+			cr.log.Error().
+				Str("path", r.URL.Path).
+				Msg("Empty KCP workspace name in path")
+			http.NotFound(w, r)
+			return "", false
+		}
+		// Map virtual workspace path to schema file name, but store KCP workspace for later use
 		clusterName = fmt.Sprintf("virtual-workspace/%s", virtualWorkspaceName)
+
+		// Store the KCP workspace name in the request context for later retrieval
+		*r = *r.WithContext(context.WithValue(r.Context(), "kcpWorkspace", kcpWorkspace))
 	} else if len(parts) == 2 && parts[1] == "graphql" {
 		// Handle regular workspace format: /{clusterName}/graphql
 		clusterName = parts[0]
@@ -338,7 +349,7 @@ func (cr *ClusterRegistry) extractClusterName(w http.ResponseWriter, r *http.Req
 	} else {
 		cr.log.Error().
 			Str("path", r.URL.Path).
-			Msg("Invalid path format, expected /{clusterName}/graphql or /virtual-workspace/{virtualWorkspaceName}/graphql")
+			Msg("Invalid path format, expected /{clusterName}/graphql or /virtual-workspace/{virtualWorkspaceName}/{kcpWorkspace}/graphql")
 		http.NotFound(w, r)
 		return "", false
 	}
