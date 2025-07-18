@@ -36,7 +36,14 @@ func NewUnauthorizedRoundTripper() http.RoundTripper {
 }
 
 func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	q
+	rt.log.Info().
+		Str("req.Host", req.Host).
+		Str("req.URL.Host", req.URL.Host).
+		Str("path", req.URL.Path).
+		Str("method", req.Method).
+		Bool("shouldImpersonate", rt.appCfg.Gateway.ShouldImpersonate).
+		Str("usernameClaim", rt.appCfg.Gateway.UsernameClaim).
+		Msg("RoundTripper processing request")
 
 	if rt.appCfg.LocalDevelopment {
 		rt.log.Debug().Str("path", req.URL.Path).Msg("Local development mode, using admin credentials")

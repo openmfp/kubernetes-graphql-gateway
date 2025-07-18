@@ -4,7 +4,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
+	"strings"
 
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
@@ -28,7 +30,7 @@ func injectKCPClusterMetadata(schemaJSON []byte, clusterPath string, log *logger
 	}
 
 	// Determine which host to use
-	host := kubeconfigHost
+	var host string
 	if len(hostOverride) > 0 && hostOverride[0] != "" {
 		host = hostOverride[0]
 		log.Info().
@@ -36,6 +38,16 @@ func injectKCPClusterMetadata(schemaJSON []byte, clusterPath string, log *logger
 			Str("originalHost", kubeconfigHost).
 			Str("overrideHost", host).
 			Msg("using host override for virtual workspace")
+	} else {
+		// For normal workspaces, ensure we use a clean KCP host by stripping any virtual workspace paths
+		host = stripVirtualWorkspacePath(kubeconfigHost)
+		if host != kubeconfigHost {
+			log.Info().
+				Str("clusterPath", clusterPath).
+				Str("originalHost", kubeconfigHost).
+				Str("cleanedHost", host).
+				Msg("cleaned virtual workspace path from kubeconfig host for normal workspace")
+		}
 	}
 
 	// Create cluster metadata
@@ -178,4 +190,24 @@ func extractCAFromKubeconfigData(kubeconfigData []byte, log *logger.Logger) []by
 
 	log.Debug().Msg("no CA data found in kubeconfig")
 	return nil
+}
+
+// stripVirtualWorkspacePath removes virtual workspace paths from a URL to get the base KCP host
+// This ensures normal workspaces get clean URLs like /clusters/{workspace} instead of /services/apiexport/.../clusters/{workspace}
+func stripVirtualWorkspacePath(hostURL string) string {
+	parsedURL, err := url.Parse(hostURL)
+	if err != nil {
+		// If we can't parse the URL, return it as-is
+		return hostURL
+	}
+
+	// Check if the path contains a virtual workspace pattern: /services/apiexport/...
+	if strings.HasPrefix(parsedURL.Path, "/services/apiexport/") {
+		// Strip the virtual workspace path to get the base KCP host
+		parsedURL.Path = ""
+		return parsedURL.String()
+	}
+
+	// If it's not a virtual workspace URL, return as-is
+	return hostURL
 }
