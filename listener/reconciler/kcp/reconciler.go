@@ -15,8 +15,10 @@ import (
 )
 
 type KCPReconciler struct {
-	mgr ctrl.Manager
-	log *logger.Logger
+	mgr                        ctrl.Manager
+	log                        *logger.Logger
+	virtualWorkspaceReconciler *VirtualWorkspaceReconciler
+	configWatcher              *ConfigWatcher
 }
 
 func NewKCPReconciler(
@@ -77,11 +79,28 @@ func NewKCPReconciler(
 		return nil, err
 	}
 
+	// Setup virtual workspace components
+	virtualWSManager := NewVirtualWorkspaceManager()
+	virtualWorkspaceReconciler := NewVirtualWorkspaceReconciler(
+		virtualWSManager,
+		ioHandler,
+		schemaResolver,
+		log,
+	)
+
+	configWatcher, err := NewConfigWatcher(virtualWSManager, log)
+	if err != nil {
+		log.Error().Err(err).Msg("failed to create config watcher")
+		return nil, err
+	}
+
 	log.Info().Msg("Successfully configured KCP reconciler with workspace discovery")
 
 	return &KCPReconciler{
-		mgr: mgr,
-		log: log,
+		mgr:                        mgr,
+		log:                        log,
+		virtualWorkspaceReconciler: virtualWorkspaceReconciler,
+		configWatcher:              configWatcher,
 	}, nil
 }
 
@@ -97,4 +116,22 @@ func (r *KCPReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 func (r *KCPReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Controllers are already set up in the constructor
 	return nil
+}
+
+// StartVirtualWorkspaceWatching starts watching virtual workspace configuration
+func (r *KCPReconciler) StartVirtualWorkspaceWatching(ctx context.Context, configPath string) error {
+	if configPath == "" {
+		r.log.Info().Msg("no virtual workspace config path provided, skipping virtual workspace watching")
+		return nil
+	}
+
+	r.log.Info().Str("configPath", configPath).Msg("starting virtual workspace configuration watching")
+
+	// Start config watcher with a wrapper function
+	changeHandler := func(config *VirtualWorkspacesConfig) {
+		if err := r.virtualWorkspaceReconciler.ReconcileConfig(ctx, config); err != nil {
+			r.log.Error().Err(err).Msg("failed to reconcile virtual workspaces config")
+		}
+	}
+	return r.configWatcher.Start(ctx, configPath, changeHandler)
 }

@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/go-openapi/spec"
 	"github.com/openmfp/golang-commons/logger"
 	"k8s.io/client-go/rest"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
 
@@ -17,7 +17,6 @@ import (
 	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/resolver"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/schema"
-	kcputil "github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp"
 )
 
 // FileData represents the data extracted from a schema file
@@ -99,38 +98,20 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 	var config *rest.Config
 	var err error
 
-	// In multicluster mode, we MUST have metadata to connect
-	if appCfg.EnableKcp {
-		tc.log.Info().
-			Str("cluster", tc.name).
-			Bool("enableKcp", appCfg.EnableKcp).
-			Bool("localDevelopment", appCfg.LocalDevelopment).
-			Msg("Using standard config for connection (single cluster, KCP mode, or local development)")
+	// All workspaces (both virtual and normal) now use metadata from schema files
+	if metadata == nil {
+		return fmt.Errorf("cluster %s requires cluster metadata in schema file", tc.name)
+	}
 
-		config, err = ctrl.GetConfig()
-		if err != nil {
-			return fmt.Errorf("failed to get Kubernetes config: %w", err)
-		}
+	tc.log.Info().
+		Str("cluster", tc.name).
+		Str("host", metadata.Host).
+		Bool("isVirtualWorkspace", strings.HasPrefix(tc.name, "virtual-workspace/")).
+		Msg("Using cluster metadata from schema file for connection")
 
-		// For KCP mode, modify the config to point to the specific workspace
-		config, err = kcputil.ConfigForKCPCluster(tc.name, config)
-		if err != nil {
-			return fmt.Errorf("failed to configure KCP workspace: %w", err)
-		}
-	} else { // clusterAccess path
-		if metadata == nil {
-			return fmt.Errorf("multicluster mode requires cluster metadata in schema file")
-		}
-
-		tc.log.Info().
-			Str("cluster", tc.name).
-			Str("host", metadata.Host).
-			Msg("Using cluster metadata for connection (multicluster mode)")
-
-		config, err = buildConfigFromMetadata(metadata, tc.log)
-		if err != nil {
-			return fmt.Errorf("failed to build config from metadata: %w", err)
-		}
+	config, err = buildConfigFromMetadata(metadata, tc.log)
+	if err != nil {
+		return fmt.Errorf("failed to build config from metadata: %w", err)
 	}
 
 	// Apply round tripper
@@ -222,13 +203,26 @@ func (tc *TargetCluster) GetConfig() *rest.Config {
 
 // GetEndpoint returns the HTTP endpoint for this cluster's GraphQL API
 func (tc *TargetCluster) GetEndpoint(appCfg appConfig.Config) string {
+	// tc.name already contains the correct path format:
+	// - For virtual workspaces: "virtual-workspace/{name}" (requires additional /{kcpWorkspace} parameter in actual URL)
+	// - For regular workspaces: "{workspace-name}"
 	path := tc.name
 
 	if appCfg.LocalDevelopment {
-		return fmt.Sprintf("http://localhost:%s/%s/graphql", appCfg.Gateway.Port, path)
+		endpoint := fmt.Sprintf("http://localhost:%s/%s", appCfg.Gateway.Port, path)
+		// For virtual workspaces, indicate that additional parameter is needed
+		if strings.HasPrefix(path, "virtual-workspace/") {
+			endpoint += "/{kcpWorkspace}"
+		}
+		return endpoint + "/graphql"
 	}
 
-	return fmt.Sprintf("/%s/graphql", path)
+	endpoint := fmt.Sprintf("/%s", path)
+	// For virtual workspaces, indicate that additional parameter is needed
+	if strings.HasPrefix(path, "virtual-workspace/") {
+		endpoint += "/{kcpWorkspace}"
+	}
+	return endpoint + "/graphql"
 }
 
 // ServeHTTP handles HTTP requests for this cluster

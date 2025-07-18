@@ -3,6 +3,7 @@ package watcher
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/fsnotify/fsnotify"
@@ -57,23 +58,14 @@ func NewFileWatcher(
 func (s *FileWatcher) Initialize(watchPath string) error {
 	s.watchPath = watchPath
 
-	// Add path to watcher
-	if err := s.watcher.Add(watchPath); err != nil {
-		return fmt.Errorf("failed to add watch path: %w", err)
+	// Add path and subdirectories to watcher
+	if err := s.addWatchRecursively(watchPath); err != nil {
+		return fmt.Errorf("failed to add watch paths: %w", err)
 	}
 
-	// Process existing files
-	files, err := filepath.Glob(filepath.Join(watchPath, "*"))
-	if err != nil {
-		return fmt.Errorf("failed to glob files: %w", err)
-	}
-
-	for _, file := range files {
-		// Load cluster directly using full path
-		if err := s.clusterRegistry.LoadCluster(file); err != nil {
-			s.log.Error().Err(err).Str("file", file).Msg("Failed to load cluster from existing file")
-			continue
-		}
+	// Process existing files recursively
+	if err := s.processExistingFiles(watchPath); err != nil {
+		return fmt.Errorf("failed to process existing files: %w", err)
 	}
 
 	// Start watching for file system events
@@ -106,50 +98,94 @@ func (s *FileWatcher) Close() error {
 	return s.watcher.Close()
 }
 
+// addWatchRecursively adds the directory and all subdirectories to the watcher
+func (s *FileWatcher) addWatchRecursively(dir string) error {
+	if err := s.watcher.Add(dir); err != nil {
+		return fmt.Errorf("failed to add watch path %s: %w", dir, err)
+	}
+
+	// Find subdirectories
+	entries, err := filepath.Glob(filepath.Join(dir, "*"))
+	if err != nil {
+		return fmt.Errorf("failed to glob directory %s: %w", dir, err)
+	}
+
+	for _, entry := range entries {
+		if dirInfo, err := os.Stat(entry); err == nil && dirInfo.IsDir() {
+			if err := s.addWatchRecursively(entry); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// processExistingFiles processes all existing files in the directory and subdirectories
+func (s *FileWatcher) processExistingFiles(dir string) error {
+	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+
+		// Load cluster directly using full path
+		if err := s.clusterRegistry.LoadCluster(path); err != nil {
+			s.log.Error().Err(err).Str("file", path).Msg("Failed to load cluster from existing file")
+			// Continue processing other files instead of failing
+		}
+
+		return nil
+	})
+}
+
 func (s *FileWatcher) handleEvent(event fsnotify.Event) {
 	s.log.Info().Str("event", event.String()).Msg("File event")
 
-	filename := filepath.Base(event.Name)
+	filePath := event.Name
 	switch event.Op {
 	case fsnotify.Create:
-		s.OnFileChanged(filename)
+		s.OnFileChanged(filePath)
 	case fsnotify.Write:
-		s.OnFileChanged(filename)
+		s.OnFileChanged(filePath)
 	case fsnotify.Rename:
-		s.OnFileDeleted(filename)
+		s.OnFileDeleted(filePath)
 	case fsnotify.Remove:
-		s.OnFileDeleted(filename)
+		s.OnFileDeleted(filePath)
 	default:
 		err := ErrUnknownFileEvent
-		s.log.Error().Err(err).Str("filename", filename).Msg("Unknown file event")
-		sentry.CaptureError(sentry.SentryError(err), nil, sentry.Extras{"filename": filename, "event": event.String()})
+		s.log.Error().Err(err).Str("filepath", filePath).Msg("Unknown file event")
+		sentry.CaptureError(sentry.SentryError(err), nil, sentry.Extras{"filepath": filePath, "event": event.String()})
 	}
 }
 
-func (s *FileWatcher) OnFileChanged(filename string) {
-	// Construct full file path
-	filePath := filepath.Join(s.watchPath, filename)
+func (s *FileWatcher) OnFileChanged(filePath string) {
+	// Check if this is actually a file (not a directory)
+	if info, err := os.Stat(filePath); err != nil || info.IsDir() {
+		return
+	}
 
 	// Delegate to cluster registry
 	if err := s.clusterRegistry.UpdateCluster(filePath); err != nil {
-		s.log.Error().Err(err).Str("filename", filename).Str("path", filePath).Msg("Failed to update cluster")
-		sentry.CaptureError(err, sentry.Tags{"filename": filename})
+		s.log.Error().Err(err).Str("path", filePath).Msg("Failed to update cluster")
+		sentry.CaptureError(err, sentry.Tags{"filepath": filePath})
 		return
 	}
 
-	s.log.Info().Str("filename", filename).Msg("Successfully updated cluster from file change")
+	s.log.Info().Str("path", filePath).Msg("Successfully updated cluster from file change")
 }
 
-func (s *FileWatcher) OnFileDeleted(filename string) {
-	// Construct full file path
-	filePath := filepath.Join(s.watchPath, filename)
-
+func (s *FileWatcher) OnFileDeleted(filePath string) {
 	// Delegate to cluster registry
 	if err := s.clusterRegistry.RemoveCluster(filePath); err != nil {
-		s.log.Error().Err(err).Str("filename", filename).Str("path", filePath).Msg("Failed to remove cluster")
-		sentry.CaptureError(err, sentry.Tags{"filename": filename})
+		s.log.Error().Err(err).Str("path", filePath).Msg("Failed to remove cluster")
+		sentry.CaptureError(err, sentry.Tags{"filepath": filePath})
 		return
 	}
 
-	s.log.Info().Str("filename", filename).Msg("Successfully removed cluster from file deletion")
+	s.log.Info().Str("path", filePath).Msg("Successfully removed cluster from file deletion")
 }
