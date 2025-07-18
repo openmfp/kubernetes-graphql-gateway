@@ -10,7 +10,6 @@ import (
 	"github.com/go-openapi/spec"
 	"github.com/openmfp/golang-commons/logger"
 	"k8s.io/client-go/rest"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/kcp"
 
@@ -18,7 +17,6 @@ import (
 	appConfig "github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/resolver"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/schema"
-	kcputil "github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp"
 )
 
 // FileData represents the data extracted from a schema file
@@ -100,42 +98,20 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 	var config *rest.Config
 	var err error
 
-	// Virtual workspaces (starting with "virtual-workspace/") use metadata, normal workspaces use standard KCP logic
-	if strings.HasPrefix(tc.name, "virtual-workspace/") {
-		// Virtual workspace: use metadata from schema file
-		if metadata == nil {
-			return fmt.Errorf("virtual workspace %s requires cluster metadata in schema file", tc.name)
-		}
+	// All workspaces (both virtual and normal) now use metadata from schema files
+	if metadata == nil {
+		return fmt.Errorf("cluster %s requires cluster metadata in schema file", tc.name)
+	}
 
-		tc.log.Info().
-			Str("cluster", tc.name).
-			Str("host", metadata.Host).
-			Msg("Using cluster metadata from schema file for virtual workspace connection")
+	tc.log.Info().
+		Str("cluster", tc.name).
+		Str("host", metadata.Host).
+		Bool("isVirtualWorkspace", strings.HasPrefix(tc.name, "virtual-workspace/")).
+		Msg("Using cluster metadata from schema file for connection")
 
-		config, err = buildConfigFromMetadata(metadata, tc.log)
-		if err != nil {
-			return fmt.Errorf("failed to build config from metadata: %w", err)
-		}
-	} else {
-		// Normal workspace: use standard KCP connection logic
-		tc.log.Info().
-			Str("cluster", tc.name).
-			Bool("enableKcp", appCfg.EnableKcp).
-			Bool("localDevelopment", appCfg.LocalDevelopment).
-			Msg("Using standard config for normal workspace connection")
-
-		config, err = ctrl.GetConfig()
-		if err != nil {
-			return fmt.Errorf("failed to get Kubernetes config: %w", err)
-		}
-
-		// For KCP mode, modify the config to point to the specific workspace
-		if appCfg.EnableKcp {
-			config, err = kcputil.ConfigForKCPCluster(tc.name, config)
-			if err != nil {
-				return fmt.Errorf("failed to configure KCP workspace: %w", err)
-			}
-		}
+	config, err = buildConfigFromMetadata(metadata, tc.log)
+	if err != nil {
+		return fmt.Errorf("failed to build config from metadata: %w", err)
 	}
 
 	// Apply round tripper
