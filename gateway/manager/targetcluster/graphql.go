@@ -61,7 +61,7 @@ func SetContexts(r *http.Request, workspace, token string, enableKcp bool) *http
 		// This allows the URL to specify the actual KCP workspace (e.g., root, root:orgs)
 		// while keeping the file mapping based on the virtual workspace name
 		kcpWorkspaceName := workspace
-		if kcpWorkspace, ok := r.Context().Value("kcpWorkspace").(string); ok && kcpWorkspace != "" {
+		if kcpWorkspace, ok := r.Context().Value(kcpWorkspaceKey).(string); ok && kcpWorkspace != "" {
 			kcpWorkspaceName = kcpWorkspace
 		}
 		r = r.WithContext(kontext.WithCluster(r.Context(), logicalcluster.Name(kcpWorkspaceName)))

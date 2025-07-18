@@ -1,11 +1,12 @@
 package roundtripper
 
 import (
+	"net/http"
+	"strings"
+
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/openmfp/golang-commons/logger"
 	"k8s.io/client-go/transport"
-	"net/http"
-	"strings"
 
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 )
@@ -35,13 +36,7 @@ func NewUnauthorizedRoundTripper() http.RoundTripper {
 }
 
 func (rt *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	rt.log.Debug().
-		Str("path", req.URL.Path).
-		Str("method", req.Method).
-		Bool("localDev", rt.appCfg.LocalDevelopment).
-		Bool("shouldImpersonate", rt.appCfg.Gateway.ShouldImpersonate).
-		Str("usernameClaim", rt.appCfg.Gateway.UsernameClaim).
-		Msg("RoundTripper processing request")
+	q
 
 	if rt.appCfg.LocalDevelopment {
 		rt.log.Debug().Str("path", req.URL.Path).Msg("Local development mode, using admin credentials")
@@ -124,6 +119,12 @@ func isDiscoveryRequest(req *http.Request) bool {
 	if len(parts) >= 3 && parts[0] == "clusters" {
 		// Remove /clusters/<workspace> prefix
 		parts = parts[2:]
+	}
+
+	// Handle virtual workspace prefixes: /services/<service>/clusters/<workspace>/api or /services/<service>/clusters/<workspace>/apis
+	if len(parts) >= 5 && parts[0] == "services" && parts[2] == "clusters" {
+		// Remove /services/<service>/clusters/<workspace> prefix
+		parts = parts[4:]
 	}
 
 	switch {

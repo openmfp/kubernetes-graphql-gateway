@@ -74,7 +74,7 @@ func TestExtractClusterNameWithKCPWorkspace(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			// Extract cluster name
-			clusterName, success := registry.extractClusterName(w, req)
+			clusterName, _, success := registry.extractClusterName(w, req)
 
 			// Check if the operation succeeded as expected
 			if success != tt.shouldSucceed {
@@ -92,7 +92,7 @@ func TestExtractClusterNameWithKCPWorkspace(t *testing.T) {
 			}
 
 			// Check KCP workspace in context
-			if kcpWorkspace, ok := req.Context().Value("kcpWorkspace").(string); ok {
+			if kcpWorkspace, ok := req.Context().Value(kcpWorkspaceKey).(string); ok {
 				if kcpWorkspace != tt.expectedKCPWorkspace {
 					t.Errorf("KCP workspace in context = %v, want %v", kcpWorkspace, tt.expectedKCPWorkspace)
 				}
@@ -146,7 +146,7 @@ func TestSetContextsWithKCPWorkspace(t *testing.T) {
 			// Create a test request with KCP workspace in context if provided
 			req := httptest.NewRequest("GET", "/test", nil)
 			if tt.contextKCPWorkspace != "" {
-				req = req.WithContext(context.WithValue(req.Context(), "kcpWorkspace", tt.contextKCPWorkspace))
+				req = req.WithContext(context.WithValue(req.Context(), kcpWorkspaceKey, tt.contextKCPWorkspace))
 			}
 
 			// Call SetContexts
