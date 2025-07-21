@@ -65,6 +65,147 @@ func TestExtractClusterNameWithKCPWorkspace(t *testing.T) {
 			expectedKCPWorkspace: "",
 			shouldSucceed:        false,
 		},
+		{
+			name:                 "empty cluster name in regular workspace",
+			path:                 "//graphql",
+			expectedClusterName:  "",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        false,
+		},
+		{
+			name:                 "just graphql endpoint without cluster",
+			path:                 "/graphql",
+			expectedClusterName:  "",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        false,
+		},
+		{
+			name:                 "trailing slash",
+			path:                 "/test-cluster/graphql/",
+			expectedClusterName:  "test-cluster",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        true,
+		},
+		{
+			name:                 "multiple consecutive slashes in regular workspace",
+			path:                 "//test-cluster//graphql",
+			expectedClusterName:  "",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        false,
+		},
+		{
+			name:                 "empty virtual workspace name",
+			path:                 "/virtual-workspace//workspace/graphql",
+			expectedClusterName:  "",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        false,
+		},
+		{
+			name:                 "wrong endpoint in regular workspace",
+			path:                 "/test-cluster/api",
+			expectedClusterName:  "",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        false,
+		},
+		{
+			name:                 "wrong endpoint in virtual workspace",
+			path:                 "/virtual-workspace/custom-ws/root/api",
+			expectedClusterName:  "",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        false,
+		},
+		{
+			name:                 "extra path segments after graphql",
+			path:                 "/test-cluster/graphql/extra",
+			expectedClusterName:  "",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        false,
+		},
+		{
+			name:                 "extra path segments in virtual workspace",
+			path:                 "/virtual-workspace/custom-ws/root/graphql/extra",
+			expectedClusterName:  "",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        false,
+		},
+		{
+			name:                 "cluster name with special characters",
+			path:                 "/test-cluster_123.domain/graphql",
+			expectedClusterName:  "test-cluster_123.domain",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        true,
+		},
+		{
+			name:                 "virtual workspace with special characters",
+			path:                 "/virtual-workspace/custom-ws_123.domain/root:org-123/graphql",
+			expectedClusterName:  "virtual-workspace/custom-ws_123.domain",
+			expectedKCPWorkspace: "root:org-123",
+			shouldSucceed:        true,
+		},
+		{
+			name:                 "root path",
+			path:                 "/",
+			expectedClusterName:  "",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        false,
+		},
+
+		{
+			name:                 "just cluster name without graphql",
+			path:                 "/test-cluster",
+			expectedClusterName:  "",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        false,
+		},
+		{
+			name:                 "virtual workspace missing graphql endpoint",
+			path:                 "/virtual-workspace/custom-ws/root",
+			expectedClusterName:  "",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        false,
+		},
+		{
+			name:                 "virtual workspace with only name",
+			path:                 "/virtual-workspace/custom-ws",
+			expectedClusterName:  "",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        false,
+		},
+		{
+			name:                 "virtual workspace keyword but wrong structure",
+			path:                 "/virtual-workspace/graphql",
+			expectedClusterName:  "virtual-workspace",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        true,
+		},
+		{
+			name:                 "case sensitive virtual workspace keyword",
+			path:                 "/Virtual-Workspace/custom-ws/root/graphql",
+			expectedClusterName:  "",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        false,
+		},
+		{
+			name:                 "case sensitive graphql endpoint",
+			path:                 "/test-cluster/GraphQL",
+			expectedClusterName:  "",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        false,
+		},
+		{
+			name:                 "long cluster name",
+			path:                 "/very-long-cluster-name-with-many-segments-and-special-chars_123.example.com/graphql",
+			expectedClusterName:  "very-long-cluster-name-with-many-segments-and-special-chars_123.example.com",
+			expectedKCPWorkspace: "",
+			shouldSucceed:        true,
+		},
+		{
+			name:                 "long virtual workspace components",
+			path:                 "/virtual-workspace/very-long-workspace-name_123.example.com/very:long:namespaced:workspace:path/graphql",
+			expectedClusterName:  "virtual-workspace/very-long-workspace-name_123.example.com",
+			expectedKCPWorkspace: "very:long:namespaced:workspace:path",
+			shouldSucceed:        true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -74,7 +215,7 @@ func TestExtractClusterNameWithKCPWorkspace(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			// Extract cluster name
-			clusterName, _, success := registry.extractClusterName(w, req)
+			clusterName, modifiedReq, success := registry.extractClusterName(w, req)
 
 			// Check if the operation succeeded as expected
 			if success != tt.shouldSucceed {
@@ -91,8 +232,8 @@ func TestExtractClusterNameWithKCPWorkspace(t *testing.T) {
 				t.Errorf("extractClusterName() clusterName = %v, want %v", clusterName, tt.expectedClusterName)
 			}
 
-			// Check KCP workspace in context
-			if kcpWorkspace, ok := req.Context().Value(kcpWorkspaceKey).(string); ok {
+			// Check KCP workspace in context - use the modified request returned by extractClusterName
+			if kcpWorkspace, ok := modifiedReq.Context().Value(kcpWorkspaceKey).(string); ok {
 				if kcpWorkspace != tt.expectedKCPWorkspace {
 					t.Errorf("KCP workspace in context = %v, want %v", kcpWorkspace, tt.expectedKCPWorkspace)
 				}
