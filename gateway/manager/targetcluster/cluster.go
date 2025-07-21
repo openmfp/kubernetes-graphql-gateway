@@ -19,6 +19,12 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/schema"
 )
 
+const (
+	VIRTUAL_WORKSPACE_PREFIX = "virtual-workspace"
+	DEFAULT_KCP_WORKSPACE    = "root"
+	GRAPHQL_SUFFIX           = "graphql"
+)
+
 // FileData represents the data extracted from a schema file
 type FileData struct {
 	Definitions     map[string]any   `json:"definitions"`
@@ -95,10 +101,7 @@ func NewTargetCluster(
 
 // connect establishes connection to the target cluster
 func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetadata, roundTripperFactory func(http.RoundTripper, rest.TLSClientConfig) http.RoundTripper) error {
-	var config *rest.Config
-	var err error
-
-	// All workspaces (both virtual and normal) now use metadata from schema files
+	// All clusters now use metadata from schema files to get kubeconfig
 	if metadata == nil {
 		return fmt.Errorf("cluster %s requires cluster metadata in schema file", tc.name)
 	}
@@ -109,29 +112,27 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 		Bool("isVirtualWorkspace", strings.HasPrefix(tc.name, "virtual-workspace/")).
 		Msg("Using cluster metadata from schema file for connection")
 
-	config, err = buildConfigFromMetadata(metadata, tc.log)
+	var err error
+	tc.restCfg, err = buildConfigFromMetadata(metadata, tc.log)
 	if err != nil {
 		return fmt.Errorf("failed to build config from metadata: %w", err)
 	}
 
-	// Apply round tripper
 	if roundTripperFactory != nil {
-		config.Wrap(func(rt http.RoundTripper) http.RoundTripper {
-			return roundTripperFactory(rt, config.TLSClientConfig)
+		tc.restCfg.Wrap(func(rt http.RoundTripper) http.RoundTripper {
+			return roundTripperFactory(rt, tc.restCfg.TLSClientConfig)
 		})
 	}
 
 	// Create client - use KCP-aware client only for KCP mode, standard client otherwise
 	if appCfg.EnableKcp {
-		tc.client, err = kcp.NewClusterAwareClientWithWatch(config, client.Options{})
+		tc.client, err = kcp.NewClusterAwareClientWithWatch(tc.restCfg, client.Options{})
 	} else {
-		tc.client, err = client.NewWithWatch(config, client.Options{})
+		tc.client, err = client.NewWithWatch(tc.restCfg, client.Options{})
 	}
 	if err != nil {
 		return fmt.Errorf("failed to create cluster client: %w", err)
 	}
-
-	tc.restCfg = config
 
 	return nil
 }
@@ -203,26 +204,20 @@ func (tc *TargetCluster) GetConfig() *rest.Config {
 
 // GetEndpoint returns the HTTP endpoint for this cluster's GraphQL API
 func (tc *TargetCluster) GetEndpoint(appCfg appConfig.Config) string {
-	// tc.name already contains the correct path format:
-	// - For virtual workspaces: "virtual-workspace/{name}" (requires additional /{kcpWorkspace} parameter in actual URL)
+	// Build the path with virtual workspace suffix if needed
+	// tc.name format:
+	// - For virtual workspaces: "virtual-workspace/{name}"
 	// - For regular workspaces: "{workspace-name}"
 	path := tc.name
+	if strings.HasPrefix(path, VIRTUAL_WORKSPACE_PREFIX) {
+		path = fmt.Sprintf("%s/%s", path, DEFAULT_KCP_WORKSPACE)
+	}
 
 	if appCfg.LocalDevelopment {
-		endpoint := fmt.Sprintf("http://localhost:%s/%s", appCfg.Gateway.Port, path)
-		// For virtual workspaces, indicate that additional parameter is needed
-		if strings.HasPrefix(path, "virtual-workspace/") {
-			endpoint += "/{kcpWorkspace}"
-		}
-		return endpoint + "/graphql"
+		return fmt.Sprintf("http://localhost:%s/%s/%s", appCfg.Gateway.Port, path, GRAPHQL_SUFFIX)
 	}
 
-	endpoint := fmt.Sprintf("/%s", path)
-	// For virtual workspaces, indicate that additional parameter is needed
-	if strings.HasPrefix(path, "virtual-workspace/") {
-		endpoint += "/{kcpWorkspace}"
-	}
-	return endpoint + "/graphql"
+	return fmt.Sprintf("/%s/%s", path, GRAPHQL_SUFFIX)
 }
 
 // ServeHTTP handles HTTP requests for this cluster

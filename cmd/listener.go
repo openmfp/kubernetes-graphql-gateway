@@ -116,6 +116,7 @@ var listenCmd = &cobra.Command{
 				go func() {
 					if err := kcpReconciler.StartVirtualWorkspaceWatching(ctx, appCfg.Listener.VirtualWorkspacesConfigPath); err != nil {
 						log.Error().Err(err).Msg("failed to start virtual workspace watching")
+						os.Exit(1)
 					}
 				}()
 			}
