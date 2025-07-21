@@ -23,22 +23,16 @@ func TestExtractClusterNameWithKCPWorkspace(t *testing.T) {
 		expectedKCPWorkspace string
 		shouldSucceed        bool
 	}{
+
 		{
-			name:                 "regular workspace",
-			path:                 "/test-cluster/graphql",
-			expectedClusterName:  "test-cluster",
-			expectedKCPWorkspace: "",
-			shouldSucceed:        true,
-		},
-		{
-			name:                 "virtual workspace with KCP workspace",
+			name:                 "virtual_workspace_with_KCP_workspace",
 			path:                 "/virtual-workspace/custom-ws/root/graphql",
 			expectedClusterName:  "virtual-workspace/custom-ws",
 			expectedKCPWorkspace: "root",
 			shouldSucceed:        true,
 		},
 		{
-			name:                 "virtual workspace with namespaced KCP workspace",
+			name:                 "virtual_workspace with namespaced KCP workspace",
 			path:                 "/virtual-workspace/custom-ws/root:orgs/graphql",
 			expectedClusterName:  "virtual-workspace/custom-ws",
 			expectedKCPWorkspace: "root:orgs",
@@ -58,20 +52,7 @@ func TestExtractClusterNameWithKCPWorkspace(t *testing.T) {
 			expectedKCPWorkspace: "",
 			shouldSucceed:        false,
 		},
-		{
-			name:                 "invalid path",
-			path:                 "/invalid/path",
-			expectedClusterName:  "",
-			expectedKCPWorkspace: "",
-			shouldSucceed:        false,
-		},
-		{
-			name:                 "empty cluster name in regular workspace",
-			path:                 "//graphql",
-			expectedClusterName:  "",
-			expectedKCPWorkspace: "",
-			shouldSucceed:        false,
-		},
+
 		{
 			name:                 "just graphql endpoint without cluster",
 			path:                 "/graphql",
@@ -100,13 +81,7 @@ func TestExtractClusterNameWithKCPWorkspace(t *testing.T) {
 			expectedKCPWorkspace: "",
 			shouldSucceed:        false,
 		},
-		{
-			name:                 "wrong endpoint in regular workspace",
-			path:                 "/test-cluster/api",
-			expectedClusterName:  "",
-			expectedKCPWorkspace: "",
-			shouldSucceed:        false,
-		},
+
 		{
 			name:                 "wrong endpoint in virtual workspace",
 			path:                 "/virtual-workspace/custom-ws/root/api",

@@ -15,42 +15,42 @@ func TestMatchURL(t *testing.T) {
 		expectedValid        bool
 	}{
 		{
-			name:                 "regular workspace pattern",
+			name:                 "regular_workspace_pattern",
 			path:                 "/test-cluster/graphql",
 			expectedCluster:      "test-cluster",
 			expectedKCPWorkspace: "",
 			expectedValid:        true,
 		},
 		{
-			name:                 "virtual workspace pattern",
+			name:                 "virtual_workspace_pattern",
 			path:                 "/virtual-workspace/my-workspace/root/graphql",
 			expectedCluster:      "virtual-workspace/my-workspace",
 			expectedKCPWorkspace: "root",
 			expectedValid:        true,
 		},
 		{
-			name:                 "virtual workspace with complex names",
+			name:                 "virtual_workspace_with_complex_names",
 			path:                 "/virtual-workspace/complex-ws_123.domain/root:org:team/graphql",
 			expectedCluster:      "virtual-workspace/complex-ws_123.domain",
 			expectedKCPWorkspace: "root:org:team",
 			expectedValid:        true,
 		},
 		{
-			name:                 "invalid path",
+			name:                 "invalid_path",
 			path:                 "/invalid/path/structure",
 			expectedCluster:      "",
 			expectedKCPWorkspace: "",
 			expectedValid:        false,
 		},
 		{
-			name:                 "missing graphql endpoint",
+			name:                 "missing_graphql_endpoint",
 			path:                 "/test-cluster/api",
 			expectedCluster:      "",
 			expectedKCPWorkspace: "",
 			expectedValid:        false,
 		},
 		{
-			name:                 "empty cluster name",
+			name:                 "empty_cluster_name",
 			path:                 "//graphql",
 			expectedCluster:      "",
 			expectedKCPWorkspace: "",
