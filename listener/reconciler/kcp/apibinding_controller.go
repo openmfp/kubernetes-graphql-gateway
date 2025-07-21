@@ -11,7 +11,9 @@ import (
 	"github.com/openmfp/golang-commons/logger"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/workspacefile"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -72,56 +74,49 @@ func (r *APIBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	savedJSON, err := r.IOHandler.Read(clusterPath)
-	if errors.Is(err, fs.ErrNotExist) {
-		actualJSON, err1 := r.APISchemaResolver.Resolve(dc, rm)
-		if err1 != nil {
-			logger.Error().Err(err1).Msg("failed to resolve server JSON schema")
-			return ctrl.Result{}, err1
-		}
-
-		// Inject KCP cluster metadata into the schema
-		schemaWithMetadata, err := injectKCPClusterMetadata(actualJSON, clusterPath, r.Log)
-		if err != nil {
-			logger.Error().Err(err).Msg("failed to inject KCP cluster metadata")
-			return ctrl.Result{}, err
-		}
-
-		if err := r.IOHandler.Write(schemaWithMetadata, clusterPath); err != nil {
-			logger.Error().Err(err).Msg("failed to write JSON to filesystem")
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
-	}
-
+	// Generate current schema
+	currentSchema, err := r.generateCurrentSchema(dc, rm, clusterPath)
 	if err != nil {
-		logger.Error().Err(err).Msg("failed to read JSON from filesystem")
 		return ctrl.Result{}, err
 	}
 
-	actualJSON, err := r.APISchemaResolver.Resolve(dc, rm)
-	if err != nil {
-		logger.Error().Err(err).Msg("failed to resolve server JSON schema")
+	// Read existing schema (if it exists)
+	savedSchema, err := r.IOHandler.Read(clusterPath)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		logger.Error().Err(err).Msg("failed to read existing schema file")
 		return ctrl.Result{}, err
 	}
 
-	// Inject KCP cluster metadata into the new schema
-	schemaWithMetadata, err := injectKCPClusterMetadata(actualJSON, clusterPath, r.Log)
-	if err != nil {
-		logger.Error().Err(err).Msg("failed to inject KCP cluster metadata")
-		return ctrl.Result{}, err
-	}
-
-	if !bytes.Equal(schemaWithMetadata, savedJSON) {
-		if err := r.IOHandler.Write(schemaWithMetadata, clusterPath); err != nil {
-			logger.Error().Err(err).Msg("failed to write JSON to filesystem")
+	// Write if file doesn't exist or content has changed
+	if errors.Is(err, fs.ErrNotExist) || !bytes.Equal(currentSchema, savedSchema) {
+		if err := r.IOHandler.Write(currentSchema, clusterPath); err != nil {
+			logger.Error().Err(err).Msg("failed to write schema to filesystem")
 			return ctrl.Result{}, err
 		}
+		logger.Info().Msg("schema file updated")
 	}
 
 	return ctrl.Result{}, nil
 }
 
+// generateCurrentSchema is a subroutine that resolves the current API schema and injects KCP metadata
+func (r *APIBindingReconciler) generateCurrentSchema(dc discovery.DiscoveryInterface, rm meta.RESTMapper, clusterPath string) ([]byte, error) {
+	// Resolve current schema from API server
+	rawSchema, err := r.APISchemaResolver.Resolve(dc, rm)
+	if err != nil {
+		r.Log.Error().Err(err).Msg("failed to resolve server JSON schema")
+		return nil, err
+	}
+
+	// Inject KCP cluster metadata
+	schemaWithMetadata, err := injectKCPClusterMetadata(rawSchema, clusterPath, r.Log)
+	if err != nil {
+		r.Log.Error().Err(err).Msg("failed to inject KCP cluster metadata")
+		return nil, err
+	}
+
+	return schemaWithMetadata, nil
+}
 func (r *APIBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&kcpapis.APIBinding{}).

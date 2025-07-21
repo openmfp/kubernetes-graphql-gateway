@@ -63,9 +63,9 @@ func (s *FileWatcher) Initialize(watchPath string) error {
 		return fmt.Errorf("failed to add watch paths: %w", err)
 	}
 
-	// Process existing files recursively
-	if err := s.processExistingFiles(watchPath); err != nil {
-		return fmt.Errorf("failed to process existing files: %w", err)
+	// Process all files in directory recursively
+	if err := s.loadAllFiles(watchPath); err != nil {
+		return fmt.Errorf("failed to load files: %w", err)
 	}
 
 	// Start watching for file system events
@@ -121,8 +121,8 @@ func (s *FileWatcher) addWatchRecursively(dir string) error {
 	return nil
 }
 
-// processExistingFiles processes all existing files in the directory and subdirectories
-func (s *FileWatcher) processExistingFiles(dir string) error {
+// loadAllFiles loads all files in the directory and subdirectories
+func (s *FileWatcher) loadAllFiles(dir string) error {
 	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -135,7 +135,7 @@ func (s *FileWatcher) processExistingFiles(dir string) error {
 
 		// Load cluster directly using full path
 		if err := s.clusterRegistry.LoadCluster(path); err != nil {
-			s.log.Error().Err(err).Str("file", path).Msg("Failed to load cluster from existing file")
+			s.log.Error().Err(err).Str("file", path).Msg("Failed to load cluster from file")
 			// Continue processing other files instead of failing
 		}
 
