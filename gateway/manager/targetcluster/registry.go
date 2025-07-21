@@ -310,54 +310,24 @@ func (cr *ClusterRegistry) validateToken(token string, cluster *TargetCluster) (
 	}
 }
 
-// extractClusterName extracts the cluster name from the request path
+// extractClusterName extracts the cluster name from the request path using pattern matching
 // Expected formats:
 //   - Regular workspace: /{clusterName}/graphql
 //   - Virtual workspace: /virtual-workspace/{virtualWorkspaceName}/{kcpWorkspace}/graphql
 func (cr *ClusterRegistry) extractClusterName(w http.ResponseWriter, r *http.Request) (string, *http.Request, bool) {
-	parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+	clusterName, kcpWorkspace, valid := MatchURL(r.URL.Path)
 
-	var clusterName string
-
-	// Handle virtual workspace format: /virtual-workspace/{virtualWorkspaceName}/{kcpWorkspace}/graphql
-	if len(parts) == 4 && parts[0] == "virtual-workspace" && parts[3] == "graphql" {
-		virtualWorkspaceName := parts[1]
-		kcpWorkspace := parts[2]
-		if virtualWorkspaceName == "" {
-			cr.log.Error().
-				Str("path", r.URL.Path).
-				Msg("Empty virtual workspace name in path")
-			http.NotFound(w, r)
-			return "", r, false
-		}
-		if kcpWorkspace == "" {
-			cr.log.Error().
-				Str("path", r.URL.Path).
-				Msg("Empty KCP workspace name in path")
-			http.NotFound(w, r)
-			return "", r, false
-		}
-		// Map virtual workspace path to schema file name, but store KCP workspace for later use
-		clusterName = fmt.Sprintf("virtual-workspace/%s", virtualWorkspaceName)
-
-		// Store the KCP workspace name in the request context for later retrieval
-		r = r.WithContext(context.WithValue(r.Context(), kcpWorkspaceKey, kcpWorkspace))
-	} else if len(parts) == 2 && parts[1] == "graphql" {
-		// Handle regular workspace format: /{clusterName}/graphql
-		clusterName = parts[0]
-		if clusterName == "" {
-			cr.log.Error().
-				Str("path", r.URL.Path).
-				Msg("Empty cluster name in path")
-			http.NotFound(w, r)
-			return "", r, false
-		}
-	} else {
+	if !valid {
 		cr.log.Error().
 			Str("path", r.URL.Path).
 			Msg("Invalid path format, expected /{clusterName}/graphql or /virtual-workspace/{virtualWorkspaceName}/{kcpWorkspace}/graphql")
 		http.NotFound(w, r)
 		return "", r, false
+	}
+
+	// Store the KCP workspace name in the request context if present
+	if kcpWorkspace != "" {
+		r = r.WithContext(context.WithValue(r.Context(), kcpWorkspaceKey, kcpWorkspace))
 	}
 
 	return clusterName, r, true

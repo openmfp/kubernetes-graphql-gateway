@@ -1,0 +1,57 @@
+package targetcluster
+
+import (
+	"fmt"
+	"strings"
+)
+
+// MatchURL attempts to match the given path against known patterns and extract variables
+func MatchURL(path string) (clusterName string, kcpWorkspace string, valid bool) {
+	// Try virtual workspace pattern: /virtual-workspace/{virtualWorkspaceName}/{kcpWorkspace}/graphql
+	if vars := matchPattern("/virtual-workspace/{virtualWorkspaceName}/{kcpWorkspace}/graphql", path); vars != nil {
+		virtualWorkspaceName := vars["virtualWorkspaceName"]
+		kcpWorkspace := vars["kcpWorkspace"]
+		if virtualWorkspaceName == "" || kcpWorkspace == "" {
+			return "", "", false
+		}
+		return fmt.Sprintf("virtual-workspace/%s", virtualWorkspaceName), kcpWorkspace, true
+	}
+
+	// Try regular workspace pattern: /{clusterName}/graphql
+	if vars := matchPattern("/{clusterName}/graphql", path); vars != nil {
+		clusterName := vars["clusterName"]
+		if clusterName == "" {
+			return "", "", false
+		}
+		return clusterName, "", true
+	}
+
+	return "", "", false
+}
+
+// matchPattern matches a path against a pattern and extracts variables
+func matchPattern(pattern, path string) map[string]string {
+	patternParts := strings.Split(strings.Trim(pattern, "/"), "/")
+	pathParts := strings.Split(strings.Trim(path, "/"), "/")
+
+	if len(patternParts) != len(pathParts) {
+		return nil
+	}
+
+	vars := make(map[string]string)
+
+	for i, patternPart := range patternParts {
+		pathPart := pathParts[i]
+
+		if strings.HasPrefix(patternPart, "{") && strings.HasSuffix(patternPart, "}") {
+			varName := patternPart[1 : len(patternPart)-1]
+			vars[varName] = pathPart
+		} else {
+			if patternPart != pathPart {
+				return nil
+			}
+		}
+	}
+
+	return vars
+}

@@ -28,7 +28,7 @@ virtualWorkspaces:
 Set the configuration path using:
 
 ```bash
-export VIRTUAL_WORKSPACES_CONFIG_PATH="/etc/config/virtual-workspaces.yaml"
+export VIRTUAL_WORKSPACES_CONFIG_PATH="./bin/virtual-workspaces/config.yaml"
 ```
 
 ## URL Pattern
