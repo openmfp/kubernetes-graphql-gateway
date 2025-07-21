@@ -3,131 +3,65 @@ package kcp
 import (
 	"context"
 	"fmt"
-	"path/filepath"
-	"sync"
-	"time"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/openmfp/golang-commons/logger"
+	"github.com/openmfp/kubernetes-graphql-gateway/common/watcher"
 )
 
 // ConfigWatcher watches the virtual workspaces configuration file for changes
 type ConfigWatcher struct {
-	watcher          *fsnotify.Watcher
+	fileWatcher      *watcher.FileWatcher
 	virtualWSManager *VirtualWorkspaceManager
 	log              *logger.Logger
-	mu               sync.Mutex
-	isRunning        bool
+	changeHandler    func(*VirtualWorkspacesConfig)
 }
 
 // NewConfigWatcher creates a new config file watcher
 func NewConfigWatcher(virtualWSManager *VirtualWorkspaceManager, log *logger.Logger) (*ConfigWatcher, error) {
-	watcher, err := fsnotify.NewWatcher()
+	c := &ConfigWatcher{
+		virtualWSManager: virtualWSManager,
+		log:              log,
+	}
+
+	fileWatcher, err := watcher.NewFileWatcher(c, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create file watcher: %w", err)
 	}
 
-	return &ConfigWatcher{
-		watcher:          watcher,
-		virtualWSManager: virtualWSManager,
-		log:              log,
-	}, nil
+	c.fileWatcher = fileWatcher
+	return c, nil
 }
 
-// Start starts watching the configuration file
-func (c *ConfigWatcher) Start(ctx context.Context, configPath string, changeHandler func(*VirtualWorkspacesConfig)) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.isRunning {
-		return fmt.Errorf("config watcher is already running")
-	}
-
-	if configPath == "" {
-		c.log.Info().Msg("no virtual workspaces config path provided, skipping config watcher")
-		return nil
-	}
-
-	// Watch the directory containing the config file
-	configDir := filepath.Dir(configPath)
-	if err := c.watcher.Add(configDir); err != nil {
-		return fmt.Errorf("failed to watch config directory %s: %w", configDir, err)
-	}
-
-	c.isRunning = true
-	c.log.Info().Str("configPath", configPath).Msg("started watching virtual workspaces config file")
+// Watch starts watching the configuration file and blocks until context is cancelled
+func (c *ConfigWatcher) Watch(ctx context.Context, configPath string, changeHandler func(*VirtualWorkspacesConfig)) error {
+	// Store change handler for use in event callbacks
+	c.changeHandler = changeHandler
 
 	// Load initial configuration
-	if err := c.loadAndNotify(configPath, changeHandler); err != nil {
-		c.log.Error().Err(err).Msg("failed to load initial virtual workspaces config")
-	}
-
-	go c.watchLoop(ctx, configPath, changeHandler)
-
-	return nil
-}
-
-// Stop stops the config watcher
-func (c *ConfigWatcher) Stop() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if !c.isRunning {
-		return nil
-	}
-
-	c.isRunning = false
-	return c.watcher.Close()
-}
-
-// watchLoop runs the file watching loop
-func (c *ConfigWatcher) watchLoop(ctx context.Context, configPath string, changeHandler func(*VirtualWorkspacesConfig)) {
-	debounceTimer := time.NewTimer(0)
-	if !debounceTimer.Stop() {
-		<-debounceTimer.C
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			c.log.Info().Msg("stopping virtual workspaces config watcher due to context cancellation")
-			return
-
-		case event, ok := <-c.watcher.Events:
-			if !ok {
-				c.log.Info().Msg("config watcher events channel closed")
-				return
-			}
-
-			// Check if the event is for our config file
-			if filepath.Clean(event.Name) != filepath.Clean(configPath) {
-				continue
-			}
-
-			if event.Op&(fsnotify.Write|fsnotify.Create) != 0 {
-				c.log.Debug().Str("event", event.String()).Msg("config file changed")
-
-				// Debounce file changes to avoid multiple rapid reloads
-				debounceTimer.Reset(500 * time.Millisecond)
-			}
-
-		case err, ok := <-c.watcher.Errors:
-			if !ok {
-				c.log.Info().Msg("config watcher errors channel closed")
-				return
-			}
-			c.log.Error().Err(err).Msg("config watcher error")
-
-		case <-debounceTimer.C:
-			if err := c.loadAndNotify(configPath, changeHandler); err != nil {
-				c.log.Error().Err(err).Msg("failed to reload virtual workspaces config")
-			}
+	if configPath != "" {
+		if err := c.loadAndNotify(configPath); err != nil {
+			c.log.Error().Err(err).Msg("failed to load initial virtual workspaces config")
 		}
 	}
+
+	// Watch single file with 500ms debouncing
+	return c.fileWatcher.WatchSingleFile(ctx, configPath, 500)
+}
+
+// OnFileChanged implements watcher.FileEventHandler
+func (c *ConfigWatcher) OnFileChanged(filepath string) {
+	if err := c.loadAndNotify(filepath); err != nil {
+		c.log.Error().Err(err).Msg("failed to reload virtual workspaces config")
+	}
+}
+
+// OnFileDeleted implements watcher.FileEventHandler
+func (c *ConfigWatcher) OnFileDeleted(filepath string) {
+	c.log.Warn().Str("configPath", filepath).Msg("virtual workspaces config file deleted")
 }
 
 // loadAndNotify loads the config and notifies the change handler
-func (c *ConfigWatcher) loadAndNotify(configPath string, changeHandler func(*VirtualWorkspacesConfig)) error {
+func (c *ConfigWatcher) loadAndNotify(configPath string) error {
 	config, err := c.virtualWSManager.LoadConfig(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
@@ -135,6 +69,8 @@ func (c *ConfigWatcher) loadAndNotify(configPath string, changeHandler func(*Vir
 
 	c.log.Info().Int("virtualWorkspaces", len(config.VirtualWorkspaces)).Msg("loaded virtual workspaces config")
 
-	changeHandler(config)
+	if c.changeHandler != nil {
+		c.changeHandler(config)
+	}
 	return nil
 }

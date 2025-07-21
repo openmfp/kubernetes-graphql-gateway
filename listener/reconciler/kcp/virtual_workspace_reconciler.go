@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/openmfp/golang-commons/logger"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/workspacefile"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+
+	"github.com/openmfp/golang-commons/logger"
+
+	"github.com/openmfp/kubernetes-graphql-gateway/common/auth"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/workspacefile"
 )
 
 // Virtual workspaces are now fully supported by native discovery clients
@@ -127,7 +130,7 @@ func (r *VirtualWorkspaceReconciler) processVirtualWorkspace(ctx context.Context
 	r.log.Debug().Str("workspace", workspace.Name).Int("schemaSize", len(schemaJSON)).Msg("API schema resolved")
 
 	// Inject KCP cluster metadata into the schema, using virtual workspace URL as host
-	schemaWithMetadata, err := injectKCPClusterMetadata(schemaJSON, workspacePath, r.log, workspace.URL)
+	schemaWithMetadata, err := auth.InjectKCPMetadataFromEnv(schemaJSON, workspacePath, r.log, workspace.URL)
 	if err != nil {
 		return fmt.Errorf("failed to inject KCP cluster metadata: %w", err)
 	}

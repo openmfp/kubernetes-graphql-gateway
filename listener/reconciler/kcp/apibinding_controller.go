@@ -8,15 +8,18 @@ import (
 	"strings"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
-	"github.com/openmfp/golang-commons/logger"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
-	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/workspacefile"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/openmfp/golang-commons/logger"
+
+	"github.com/openmfp/kubernetes-graphql-gateway/common/auth"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/workspacefile"
 )
 
 // APIBindingReconciler reconciles an APIBinding object
@@ -108,8 +111,9 @@ func (r *APIBindingReconciler) generateCurrentSchema(dc discovery.DiscoveryInter
 		return nil, err
 	}
 
+	// injectKCPClusterMetadata(rawSchema, clusterPath, r.Log)
 	// Inject KCP cluster metadata
-	schemaWithMetadata, err := injectKCPClusterMetadata(rawSchema, clusterPath, r.Log)
+	schemaWithMetadata, err := auth.InjectKCPMetadataFromEnv(rawSchema, clusterPath, r.Log)
 	if err != nil {
 		r.Log.Error().Err(err).Msg("failed to inject KCP cluster metadata")
 		return nil, err

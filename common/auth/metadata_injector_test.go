@@ -1,4 +1,4 @@
-package kcp
+package auth
 
 import (
 	"encoding/json"
@@ -10,9 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/openmfp/golang-commons/logger/testlogger"
+	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
 )
 
-func TestInjectKCPClusterMetadata(t *testing.T) {
+func TestInjectKCPMetadataFromEnv(t *testing.T) {
 	log := testlogger.New().HideLogOutput().Logger
 
 	// Create a temporary kubeconfig for testing
@@ -100,7 +101,7 @@ users:
 			}
 		}`)
 
-		result, err := injectKCPClusterMetadata(schemaJSON, "virtual-workspace/custom-ws", log, overrideURL)
+		result, err := InjectKCPMetadataFromEnv(schemaJSON, "virtual-workspace/custom-ws", log, overrideURL)
 		require.NoError(t, err)
 		assert.NotNil(t, result)
 
@@ -124,7 +125,7 @@ users:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := injectKCPClusterMetadata(tt.schemaJSON, tt.clusterPath, log)
+			result, err := InjectKCPMetadataFromEnv(tt.schemaJSON, tt.clusterPath, log)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -184,7 +185,128 @@ users:
 	}
 }
 
-func TestExtractKubeconfigData(t *testing.T) {
+func TestInjectClusterMetadata(t *testing.T) {
+	log := testlogger.New().HideLogOutput().Logger
+
+	tests := []struct {
+		name         string
+		schemaJSON   []byte
+		config       MetadataInjectionConfig
+		expectedHost string
+		expectedPath string
+		expectError  bool
+	}{
+		{
+			name: "basic_metadata_injection",
+			schemaJSON: []byte(`{
+				"definitions": {
+					"test.resource": {
+						"type": "object",
+						"properties": {
+							"metadata": {
+								"type": "object"
+							}
+						}
+					}
+				}
+			}`),
+			config: MetadataInjectionConfig{
+				Host: "https://test-cluster.example.com:6443",
+				Path: "test-cluster",
+			},
+			expectedHost: "https://test-cluster.example.com:6443",
+			expectedPath: "test-cluster",
+			expectError:  false,
+		},
+		{
+			name: "with_host_override",
+			schemaJSON: []byte(`{
+				"definitions": {
+					"test.resource": {
+						"type": "object"
+					}
+				}
+			}`),
+			config: MetadataInjectionConfig{
+				Host:         "https://original.example.com:6443",
+				Path:         "virtual-workspace/test",
+				HostOverride: "https://override.example.com:6443/services/test",
+			},
+			expectedHost: "https://override.example.com:6443/services/test",
+			expectedPath: "virtual-workspace/test",
+			expectError:  false,
+		},
+		{
+			name: "virtual_workspace_path_stripping",
+			schemaJSON: []byte(`{
+				"definitions": {
+					"test.resource": {
+						"type": "object"
+					}
+				}
+			}`),
+			config: MetadataInjectionConfig{
+				Host: "https://kcp.example.com:6443/services/apiexport/some/path",
+				Path: "test-workspace",
+			},
+			expectedHost: "https://kcp.example.com:6443", // Should be stripped
+			expectedPath: "test-workspace",
+			expectError:  false,
+		},
+		{
+			name: "invalid_json",
+			schemaJSON: []byte(`{
+				"definitions": {
+					"test.resource": invalid-json
+				}
+			}`),
+			config: MetadataInjectionConfig{
+				Host: "https://test.example.com:6443",
+				Path: "test",
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Use nil client since we're not testing auth/CA extraction here
+			result, err := InjectClusterMetadata(tt.schemaJSON, tt.config, nil, log)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.NotNil(t, result)
+
+			// Parse the result to verify metadata injection
+			var resultData map[string]interface{}
+			err = json.Unmarshal(result, &resultData)
+			require.NoError(t, err)
+
+			// Check that metadata was injected
+			metadata, exists := resultData["x-cluster-metadata"]
+			require.True(t, exists, "x-cluster-metadata should be present")
+
+			metadataMap, ok := metadata.(map[string]interface{})
+			require.True(t, ok, "x-cluster-metadata should be a map")
+
+			// Verify host
+			host, exists := metadataMap["host"]
+			require.True(t, exists, "host should be present")
+			assert.Equal(t, tt.expectedHost, host)
+
+			// Verify path
+			path, exists := metadataMap["path"]
+			require.True(t, exists, "path should be present")
+			assert.Equal(t, tt.expectedPath, path)
+		})
+	}
+}
+
+func TestExtractKubeconfigFromEnv(t *testing.T) {
 	log := testlogger.New().HideLogOutput().Logger
 
 	tests := []struct {
@@ -247,7 +369,7 @@ clusters:
 			cleanup := tt.setupEnv()
 			defer cleanup()
 
-			kubeconfigData, host, err := extractKubeconfigData(log)
+			kubeconfigData, host, err := extractKubeconfigFromEnv(log)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -262,4 +384,57 @@ clusters:
 			assert.Equal(t, tt.expectedHost, host)
 		})
 	}
+}
+
+func TestStripVirtualWorkspacePath(t *testing.T) {
+	tests := []struct {
+		name     string
+		hostURL  string
+		expected string
+	}{
+		{
+			name:     "virtual_workspace_path",
+			hostURL:  "https://kcp.example.com:6443/services/apiexport/some/path",
+			expected: "https://kcp.example.com:6443",
+		},
+		{
+			name:     "no_virtual_workspace_path",
+			hostURL:  "https://kcp.example.com:6443",
+			expected: "https://kcp.example.com:6443",
+		},
+		{
+			name:     "different_path",
+			hostURL:  "https://kcp.example.com:6443/api/v1/clusters",
+			expected: "https://kcp.example.com:6443/api/v1/clusters",
+		},
+		{
+			name:     "invalid_url",
+			hostURL:  "not-a-valid-url",
+			expected: "not-a-valid-url",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := stripVirtualWorkspacePath(tt.hostURL)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestExtractAuthDataForMetadata(t *testing.T) {
+	// Note: This would require mocking k8s client and secrets
+	// For now, just test the nil case
+	t.Run("nil_auth_config", func(t *testing.T) {
+		result, err := extractAuthDataForMetadata(nil, nil)
+		assert.NoError(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("empty_auth_config", func(t *testing.T) {
+		auth := &gatewayv1alpha1.AuthConfig{}
+		result, err := extractAuthDataForMetadata(auth, nil)
+		assert.NoError(t, err)
+		assert.Nil(t, result)
+	})
 }
