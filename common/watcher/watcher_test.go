@@ -824,8 +824,8 @@ func TestWatchDirectory_ErrorLogging(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 		// Create a nested directory to test the recursive add functionality
 		nestedDir := filepath.Join(tempDir, "nested", "deep")
-		os.MkdirAll(nestedDir, 0755)
-		os.WriteFile(filepath.Join(nestedDir, "test.txt"), []byte("test"), 0644)
+		_ = os.MkdirAll(nestedDir, 0755)
+		_ = os.WriteFile(filepath.Join(nestedDir, "test.txt"), []byte("test"), 0644)
 	}()
 
 	// Wait for timeout
@@ -887,7 +887,7 @@ func TestWatchDirectory_ErrorInLoop(t *testing.T) {
 	go func() {
 		time.Sleep(25 * time.Millisecond)
 		// Try to add a watch to a path that will cause an error
-		watcher.watcher.Add("/dev/null/nonexistent")
+		_ = watcher.watcher.Add("/dev/null/nonexistent")
 	}()
 
 	// Wait for timeout
@@ -928,11 +928,11 @@ func TestWatchSingleFile_TimerStop(t *testing.T) {
 	// Trigger multiple file changes quickly to test timer stopping/restarting
 	go func() {
 		time.Sleep(10 * time.Millisecond)
-		os.WriteFile(tempFile, []byte("change1"), 0644)
+		_ = os.WriteFile(tempFile, []byte("change1"), 0644)
 		time.Sleep(10 * time.Millisecond)
-		os.WriteFile(tempFile, []byte("change2"), 0644)
+		_ = os.WriteFile(tempFile, []byte("change2"), 0644)
 		time.Sleep(10 * time.Millisecond)
-		os.WriteFile(tempFile, []byte("change3"), 0644)
+		_ = os.WriteFile(tempFile, []byte("change3"), 0644)
 	}()
 
 	// Wait for timeout
