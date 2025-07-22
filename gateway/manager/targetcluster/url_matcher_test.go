@@ -3,6 +3,7 @@ package targetcluster_test
 import (
 	"testing"
 
+	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager/targetcluster"
 )
 
@@ -60,7 +61,11 @@ func TestMatchURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clusterName, kcpWorkspace, valid := targetcluster.MatchURL(tt.path)
+			cfg := config.Config{}
+			cfg.Url.VirtualWorkspacePrefix = "virtual-workspace"
+			cfg.Url.GraphqlSuffix = "graphql"
+
+			clusterName, kcpWorkspace, valid := targetcluster.MatchURL(tt.path, cfg)
 
 			if valid != tt.expectedValid {
 				t.Errorf("Match() valid = %v, want %v", valid, tt.expectedValid)
