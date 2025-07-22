@@ -17,7 +17,6 @@ import (
 
 	"github.com/openmfp/golang-commons/logger"
 
-	"github.com/openmfp/kubernetes-graphql-gateway/common/auth"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/workspacefile"
 )
@@ -104,22 +103,17 @@ func (r *APIBindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 // generateCurrentSchema is a subroutine that resolves the current API schema and injects KCP metadata
 func (r *APIBindingReconciler) generateCurrentSchema(dc discovery.DiscoveryInterface, rm meta.RESTMapper, clusterPath string) ([]byte, error) {
-	// Resolve current schema from API server
-	rawSchema, err := r.APISchemaResolver.Resolve(dc, rm)
-	if err != nil {
-		r.Log.Error().Err(err).Msg("failed to resolve server JSON schema")
-		return nil, err
-	}
-
-	// injectKCPClusterMetadata(rawSchema, clusterPath, r.Log)
-	// Inject KCP cluster metadata
-	schemaWithMetadata, err := auth.InjectKCPMetadataFromEnv(rawSchema, clusterPath, r.Log)
-	if err != nil {
-		r.Log.Error().Err(err).Msg("failed to inject KCP cluster metadata")
-		return nil, err
-	}
-
-	return schemaWithMetadata, nil
+	// Use shared schema generation logic
+	return generateSchemaWithMetadata(
+		SchemaGenerationParams{
+			ClusterPath:     clusterPath,
+			DiscoveryClient: dc,
+			RESTMapper:      rm,
+			// No HostOverride for regular workspaces - uses environment kubeconfig
+		},
+		r.APISchemaResolver,
+		r.Log,
+	)
 }
 func (r *APIBindingReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
