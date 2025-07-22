@@ -756,7 +756,7 @@ func TestWatchSingleFile_ErrorsInLoop(t *testing.T) {
 	go func() {
 		time.Sleep(25 * time.Millisecond)
 		// This should generate an error in the watcher
-		watcher.watcher.Add("/invalid/path/that/does/not/exist")
+		_ = watcher.watcher.Add("/invalid/path/that/does/not/exist")
 	}()
 
 	// Wait for watch to finish
@@ -792,7 +792,7 @@ func TestWatchDirectory_ErrorsInLoop(t *testing.T) {
 	go func() {
 		time.Sleep(25 * time.Millisecond)
 		// This should generate an error in the watcher
-		watcher.watcher.Add("/invalid/path/that/does/not/exist")
+		_ = watcher.watcher.Add("/invalid/path/that/does/not/exist")
 	}()
 
 	// Wait for watch to finish
