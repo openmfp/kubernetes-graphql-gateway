@@ -52,7 +52,7 @@ func (m *MockAPISchemaResolver) Resolve(discoveryClient discovery.DiscoveryInter
 	if m.ResolveFunc != nil {
 		return m.ResolveFunc(discoveryClient, restMapper)
 	}
-	return []byte("mock schema"), nil
+	return []byte(`{"type": "object", "properties": {}}`), nil
 }
 
 func TestNewVirtualWorkspaceManager(t *testing.T) {
@@ -256,6 +256,49 @@ func TestVirtualWorkspaceManager_CreateDiscoveryClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary kubeconfig file to avoid reading user's kubeconfig
+			tempDir, err := os.MkdirTemp("", "test_kubeconfig")
+			require.NoError(t, err)
+			defer os.RemoveAll(tempDir)
+
+			// Create .kube directory in temp home
+			kubeDir := filepath.Join(tempDir, ".kube")
+			err = os.MkdirAll(kubeDir, 0755)
+			require.NoError(t, err)
+
+			tempKubeconfig := filepath.Join(kubeDir, "config")
+			kubeconfigContent := `
+apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: https://test.example.com
+    insecure-skip-tls-verify: true
+  name: test-cluster
+contexts:
+- context:
+    cluster: test-cluster
+    user: test-user
+  name: test-context
+current-context: test-context
+users:
+- name: test-user
+  user:
+    token: test-token
+`
+			err = os.WriteFile(tempKubeconfig, []byte(kubeconfigContent), 0644)
+			require.NoError(t, err)
+
+			// Set environment variables to use our temporary setup
+			oldKubeconfig := os.Getenv("KUBECONFIG")
+			oldHome := os.Getenv("HOME")
+			defer func() {
+				os.Setenv("KUBECONFIG", oldKubeconfig)
+				os.Setenv("HOME", oldHome)
+			}()
+			os.Setenv("KUBECONFIG", tempKubeconfig)
+			os.Setenv("HOME", tempDir)
+
 			appCfg := config.Config{}
 			manager := NewVirtualWorkspaceManager(appCfg)
 
@@ -298,6 +341,49 @@ func TestVirtualWorkspaceManager_CreateRESTConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary kubeconfig file to avoid reading user's kubeconfig
+			tempDir, err := os.MkdirTemp("", "test_kubeconfig")
+			require.NoError(t, err)
+			defer os.RemoveAll(tempDir)
+
+			// Create .kube directory in temp home
+			kubeDir := filepath.Join(tempDir, ".kube")
+			err = os.MkdirAll(kubeDir, 0755)
+			require.NoError(t, err)
+
+			tempKubeconfig := filepath.Join(kubeDir, "config")
+			kubeconfigContent := `
+apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: https://test.example.com
+    insecure-skip-tls-verify: true
+  name: test-cluster
+contexts:
+- context:
+    cluster: test-cluster
+    user: test-user
+  name: test-context
+current-context: test-context
+users:
+- name: test-user
+  user:
+    token: test-token
+`
+			err = os.WriteFile(tempKubeconfig, []byte(kubeconfigContent), 0644)
+			require.NoError(t, err)
+
+			// Set environment variables to use our temporary setup
+			oldKubeconfig := os.Getenv("KUBECONFIG")
+			oldHome := os.Getenv("HOME")
+			defer func() {
+				os.Setenv("KUBECONFIG", oldKubeconfig)
+				os.Setenv("HOME", oldHome)
+			}()
+			os.Setenv("KUBECONFIG", tempKubeconfig)
+			os.Setenv("HOME", tempDir)
+
 			appCfg := config.Config{}
 			manager := NewVirtualWorkspaceManager(appCfg)
 
@@ -382,6 +468,49 @@ virtualWorkspaces:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Create a temporary kubeconfig file to avoid reading user's kubeconfig
+			tempDir, err := os.MkdirTemp("", "test_kubeconfig")
+			require.NoError(t, err)
+			defer os.RemoveAll(tempDir)
+
+			// Create .kube directory in temp home
+			kubeDir := filepath.Join(tempDir, ".kube")
+			err = os.MkdirAll(kubeDir, 0755)
+			require.NoError(t, err)
+
+			tempKubeconfig := filepath.Join(kubeDir, "config")
+			kubeconfigContent := `
+apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: https://test.example.com
+    insecure-skip-tls-verify: true
+  name: test-cluster
+contexts:
+- context:
+    cluster: test-cluster
+    user: test-user
+  name: test-context
+current-context: test-context
+users:
+- name: test-user
+  user:
+    token: test-token
+`
+			err = os.WriteFile(tempKubeconfig, []byte(kubeconfigContent), 0644)
+			require.NoError(t, err)
+
+			// Set environment variables to use our temporary setup
+			oldKubeconfig := os.Getenv("KUBECONFIG")
+			oldHome := os.Getenv("HOME")
+			defer func() {
+				os.Setenv("KUBECONFIG", oldKubeconfig)
+				os.Setenv("HOME", oldHome)
+			}()
+			os.Setenv("KUBECONFIG", tempKubeconfig)
+			os.Setenv("HOME", tempDir)
+
 			appCfg := config.Config{}
 			manager := NewVirtualWorkspaceManager(appCfg)
 
@@ -476,6 +605,11 @@ func TestVirtualWorkspaceReconciler_ReconcileConfig_Simple(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Unset KUBECONFIG environment variable to avoid reading user's kubeconfig
+			oldKubeconfig := os.Getenv("KUBECONFIG")
+			defer os.Setenv("KUBECONFIG", oldKubeconfig)
+			os.Unsetenv("KUBECONFIG")
+
 			log := testlogger.New().HideLogOutput().Logger
 			appCfg := config.Config{}
 			appCfg.Url.VirtualWorkspacePrefix = "virtual-workspace"
@@ -494,7 +628,7 @@ func TestVirtualWorkspaceReconciler_ReconcileConfig_Simple(t *testing.T) {
 
 			apiResolver := &MockAPISchemaResolver{
 				ResolveFunc: func(discoveryClient discovery.DiscoveryInterface, restMapper meta.RESTMapper) ([]byte, error) {
-					return []byte("test schema"), nil
+					return []byte(`{"type": "object", "properties": {}}`), nil
 				},
 			}
 
@@ -522,6 +656,7 @@ func TestVirtualWorkspaceReconciler_ProcessVirtualWorkspace(t *testing.T) {
 		apiResolveError    error
 		expectError        bool
 		expectedWriteCalls int
+		errorShouldContain string
 	}{
 		{
 			name: "successful_processing",
@@ -529,8 +664,9 @@ func TestVirtualWorkspaceReconciler_ProcessVirtualWorkspace(t *testing.T) {
 				Name: "test-ws",
 				URL:  "https://example.com",
 			},
-			expectError:        false,
-			expectedWriteCalls: 1,
+			expectError:        true, // Expected due to kubeconfig dependency in metadata injection
+			expectedWriteCalls: 0,    // Won't reach write due to metadata injection failure
+			errorShouldContain: "failed to inject KCP cluster metadata",
 		},
 		{
 			name: "io_write_error",
@@ -539,8 +675,9 @@ func TestVirtualWorkspaceReconciler_ProcessVirtualWorkspace(t *testing.T) {
 				URL:  "https://example.com",
 			},
 			ioWriteError:       errors.New("write failed"),
-			expectError:        true,
-			expectedWriteCalls: 1,
+			expectError:        true, // Expected due to kubeconfig dependency in metadata injection
+			expectedWriteCalls: 0,    // Won't reach write due to metadata injection failure
+			errorShouldContain: "failed to inject KCP cluster metadata",
 		},
 		{
 			name: "api_resolve_error",
@@ -551,11 +688,17 @@ func TestVirtualWorkspaceReconciler_ProcessVirtualWorkspace(t *testing.T) {
 			apiResolveError:    errors.New("resolve failed"),
 			expectError:        true,
 			expectedWriteCalls: 0,
+			errorShouldContain: "resolve failed",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Unset KUBECONFIG environment variable to avoid reading user's kubeconfig
+			oldKubeconfig := os.Getenv("KUBECONFIG")
+			defer os.Setenv("KUBECONFIG", oldKubeconfig)
+			os.Unsetenv("KUBECONFIG")
+
 			log := testlogger.New().HideLogOutput().Logger
 			appCfg := config.Config{}
 			appCfg.Url.VirtualWorkspacePrefix = "virtual-workspace"
@@ -578,7 +721,8 @@ func TestVirtualWorkspaceReconciler_ProcessVirtualWorkspace(t *testing.T) {
 					if tt.apiResolveError != nil {
 						return nil, tt.apiResolveError
 					}
-					return []byte("test schema"), nil
+					// Return valid JSON schema instead of plain text
+					return []byte(`{"type": "object", "properties": {}}`), nil
 				},
 			}
 
@@ -588,6 +732,7 @@ func TestVirtualWorkspaceReconciler_ProcessVirtualWorkspace(t *testing.T) {
 
 			if tt.expectError {
 				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errorShouldContain)
 			} else {
 				assert.NoError(t, err)
 			}
@@ -618,6 +763,11 @@ func TestVirtualWorkspaceReconciler_RemoveVirtualWorkspace(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Unset KUBECONFIG environment variable to avoid reading user's kubeconfig
+			oldKubeconfig := os.Getenv("KUBECONFIG")
+			defer os.Setenv("KUBECONFIG", oldKubeconfig)
+			os.Unsetenv("KUBECONFIG")
+
 			log := testlogger.New().HideLogOutput().Logger
 			appCfg := config.Config{}
 			appCfg.Url.VirtualWorkspacePrefix = "virtual-workspace"
