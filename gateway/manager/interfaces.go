@@ -20,5 +20,4 @@ type ClusterManager interface {
 // SchemaWatcher monitors schema files and manages cluster connections
 type SchemaWatcher interface {
 	Initialize(ctx context.Context, watchPath string) error
-	Close() error
 }

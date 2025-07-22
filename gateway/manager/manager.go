@@ -62,9 +62,6 @@ func (g *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Close gracefully shuts down the gateway and all its services
 func (g *Service) Close() error {
-	if g.schemaWatcher != nil {
-		g.schemaWatcher.Close()
-	}
 	if g.clusterRegistry != nil {
 		g.clusterRegistry.Close()
 	}

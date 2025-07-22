@@ -64,12 +64,6 @@ func (s *FileWatcher) Initialize(ctx context.Context, watchPath string) error {
 	return nil
 }
 
-// Close closes the file watcher
-func (s *FileWatcher) Close() error {
-	// The common watcher handles cleanup via context cancellation
-	return nil
-}
-
 // OnFileChanged implements watcher.FileEventHandler
 func (s *FileWatcher) OnFileChanged(filePath string) {
 	// Check if this is actually a file (not a directory)
