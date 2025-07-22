@@ -205,15 +205,15 @@ func (tc *TargetCluster) GetEndpoint(appCfg appConfig.Config) string {
 	// - For virtual workspaces: "virtual-workspace/{name}"
 	// - For regular workspaces: "{workspace-name}"
 	path := tc.name
-	if strings.HasPrefix(path, tc.appCfg.Url.VirtualWorkspacePrefix) {
-		path = fmt.Sprintf("%s/%s", path, tc.appCfg.Url.DefaultKcpWorkspace)
+	if strings.HasPrefix(path, appCfg.Url.VirtualWorkspacePrefix) {
+		path = fmt.Sprintf("%s/%s", path, appCfg.Url.DefaultKcpWorkspace)
 	}
 
 	if appCfg.LocalDevelopment {
-		return fmt.Sprintf("http://localhost:%s/%s/%s", appCfg.Gateway.Port, path, tc.appCfg.Url.GraphqlSuffix)
+		return fmt.Sprintf("http://localhost:%s/%s/%s", appCfg.Gateway.Port, path, appCfg.Url.GraphqlSuffix)
 	}
 
-	return fmt.Sprintf("/%s/%s", path, tc.appCfg.Url.GraphqlSuffix)
+	return fmt.Sprintf("/%s/%s", path, appCfg.Url.GraphqlSuffix)
 }
 
 // ServeHTTP handles HTTP requests for this cluster

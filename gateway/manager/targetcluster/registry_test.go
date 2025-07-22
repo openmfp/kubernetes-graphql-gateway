@@ -12,7 +12,11 @@ import (
 
 func TestExtractClusterNameWithKCPWorkspace(t *testing.T) {
 	log := testlogger.New().HideLogOutput().Logger
-	appCfg := appConfig.Config{} // Default config
+	appCfg := appConfig.Config{}
+	// Set URL configuration for proper URL matching
+	appCfg.Url.VirtualWorkspacePrefix = "virtual-workspace"
+	appCfg.Url.DefaultKcpWorkspace = "root"
+	appCfg.Url.GraphqlSuffix = "graphql"
 
 	registry := NewClusterRegistry(log, appCfg, nil)
 

@@ -25,5 +25,8 @@ func CreateTestConfig(localDev bool, gatewayPort string) appConfig.Config {
 		LocalDevelopment: localDev,
 	}
 	config.Gateway.Port = gatewayPort
+	config.Url.VirtualWorkspacePrefix = "virtual-workspace"
+	config.Url.DefaultKcpWorkspace = "root"
+	config.Url.GraphqlSuffix = "graphql"
 	return config
 }
