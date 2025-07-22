@@ -315,12 +315,17 @@ func (cr *ClusterRegistry) validateToken(token string, cluster *TargetCluster) (
 //   - Regular workspace: /{clusterName}/graphql
 //   - Virtual workspace: /virtual-workspace/{virtualWorkspaceName}/{kcpWorkspace}/graphql
 func (cr *ClusterRegistry) extractClusterName(w http.ResponseWriter, r *http.Request) (string, *http.Request, bool) {
-	clusterName, kcpWorkspace, valid := MatchURL(r.URL.Path)
+	clusterName, kcpWorkspace, valid := MatchURL(r.URL.Path, cr.appCfg)
 
 	if !valid {
 		cr.log.Error().
 			Str("path", r.URL.Path).
-			Msg("Invalid path format, expected /{clusterName}/graphql or /virtual-workspace/{virtualWorkspaceName}/{kcpWorkspace}/graphql")
+			Msg(fmt.Sprintf(
+				"Invalid path format, expected /{clusterName}/%s or /%s/{virtualWorkspaceName}/{kcpWorkspace}/%s",
+				cr.appCfg.Url.GraphqlSuffix,
+				cr.appCfg.Url.VirtualWorkspacePrefix,
+				cr.appCfg.Url.GraphqlSuffix,
+			))
 		http.NotFound(w, r)
 		return "", r, false
 	}

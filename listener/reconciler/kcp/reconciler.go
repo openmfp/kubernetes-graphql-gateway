@@ -75,7 +75,7 @@ func NewKCPReconciler(
 	}
 
 	// Setup virtual workspace components
-	virtualWSManager := NewVirtualWorkspaceManager()
+	virtualWSManager := NewVirtualWorkspaceManager(appCfg)
 	virtualWorkspaceReconciler := NewVirtualWorkspaceReconciler(
 		virtualWSManager,
 		ioHandler,

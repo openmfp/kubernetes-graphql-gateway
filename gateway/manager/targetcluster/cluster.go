@@ -19,12 +19,6 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/schema"
 )
 
-const (
-	VIRTUAL_WORKSPACE_PREFIX = "virtual-workspace"
-	DEFAULT_KCP_WORKSPACE    = "root"
-	GRAPHQL_SUFFIX           = "graphql"
-)
-
 // FileData represents the data extracted from a schema file
 type FileData struct {
 	Definitions     map[string]any   `json:"definitions"`
@@ -55,6 +49,7 @@ type CAMetadata struct {
 
 // TargetCluster represents a single target Kubernetes cluster
 type TargetCluster struct {
+	appCfg        appConfig.Config
 	name          string
 	client        client.WithWatch
 	restCfg       *rest.Config
@@ -77,8 +72,9 @@ func NewTargetCluster(
 	}
 
 	cluster := &TargetCluster{
-		name: name,
-		log:  log,
+		appCfg: appCfg,
+		name:   name,
+		log:    log,
 	}
 
 	// Connect to cluster - use metadata if available, otherwise fall back to standard config
@@ -109,7 +105,7 @@ func (tc *TargetCluster) connect(appCfg appConfig.Config, metadata *ClusterMetad
 	tc.log.Info().
 		Str("cluster", tc.name).
 		Str("host", metadata.Host).
-		Bool("isVirtualWorkspace", strings.HasPrefix(tc.name, "virtual-workspace/")).
+		Bool("isVirtualWorkspace", strings.HasPrefix(tc.name, tc.appCfg.Url.VirtualWorkspacePrefix)).
 		Msg("Using cluster metadata from schema file for connection")
 
 	var err error
@@ -209,15 +205,15 @@ func (tc *TargetCluster) GetEndpoint(appCfg appConfig.Config) string {
 	// - For virtual workspaces: "virtual-workspace/{name}"
 	// - For regular workspaces: "{workspace-name}"
 	path := tc.name
-	if strings.HasPrefix(path, VIRTUAL_WORKSPACE_PREFIX) {
-		path = fmt.Sprintf("%s/%s", path, DEFAULT_KCP_WORKSPACE)
+	if strings.HasPrefix(path, tc.appCfg.Url.VirtualWorkspacePrefix) {
+		path = fmt.Sprintf("%s/%s", path, tc.appCfg.Url.DefaultKcpWorkspace)
 	}
 
 	if appCfg.LocalDevelopment {
-		return fmt.Sprintf("http://localhost:%s/%s/%s", appCfg.Gateway.Port, path, GRAPHQL_SUFFIX)
+		return fmt.Sprintf("http://localhost:%s/%s/%s", appCfg.Gateway.Port, path, tc.appCfg.Url.GraphqlSuffix)
 	}
 
-	return fmt.Sprintf("/%s/%s", path, GRAPHQL_SUFFIX)
+	return fmt.Sprintf("/%s/%s", path, tc.appCfg.Url.GraphqlSuffix)
 }
 
 // ServeHTTP handles HTTP requests for this cluster

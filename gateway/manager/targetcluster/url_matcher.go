@@ -3,22 +3,26 @@ package targetcluster
 import (
 	"fmt"
 	"strings"
+
+	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 )
 
 // MatchURL attempts to match the given path against known patterns and extract variables
-func MatchURL(path string) (clusterName string, kcpWorkspace string, valid bool) {
+func MatchURL(path string, appCfg config.Config) (clusterName string, kcpWorkspace string, valid bool) {
 	// Try virtual workspace pattern: /virtual-workspace/{virtualWorkspaceName}/{kcpWorkspace}/graphql
-	if vars := matchPattern("/virtual-workspace/{virtualWorkspaceName}/{kcpWorkspace}/graphql", path); vars != nil {
+	virtualWorkspacePattern := fmt.Sprintf("/%s/{virtualWorkspaceName}/{kcpWorkspace}/%s", appCfg.Url.VirtualWorkspacePrefix, appCfg.Url.GraphqlSuffix)
+	if vars := matchPattern(virtualWorkspacePattern, path); vars != nil {
 		virtualWorkspaceName := vars["virtualWorkspaceName"]
 		kcpWorkspace := vars["kcpWorkspace"]
 		if virtualWorkspaceName == "" || kcpWorkspace == "" {
 			return "", "", false
 		}
-		return fmt.Sprintf("virtual-workspace/%s", virtualWorkspaceName), kcpWorkspace, true
+		return fmt.Sprintf("%s/%s", appCfg.Url.VirtualWorkspacePrefix, virtualWorkspaceName), kcpWorkspace, true
 	}
 
 	// Try regular workspace pattern: /{clusterName}/graphql
-	if vars := matchPattern("/{clusterName}/graphql", path); vars != nil {
+	workspacePattern := fmt.Sprintf("/{clusterName}/%s", appCfg.Url.GraphqlSuffix)
+	if vars := matchPattern(workspacePattern, path); vars != nil {
 		clusterName := vars["clusterName"]
 		if clusterName == "" {
 			return "", "", false

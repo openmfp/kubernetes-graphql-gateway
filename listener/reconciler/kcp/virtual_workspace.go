@@ -16,6 +16,7 @@ import (
 
 	"github.com/openmfp/golang-commons/logger"
 
+	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/workspacefile"
 )
@@ -39,16 +40,17 @@ type VirtualWorkspacesConfig struct {
 
 // VirtualWorkspaceManager handles virtual workspace operations
 type VirtualWorkspaceManager struct {
+	appCfg config.Config
 }
 
 // NewVirtualWorkspaceManager creates a new virtual workspace manager
-func NewVirtualWorkspaceManager() *VirtualWorkspaceManager {
-	return &VirtualWorkspaceManager{}
+func NewVirtualWorkspaceManager(appCfg config.Config) *VirtualWorkspaceManager {
+	return &VirtualWorkspaceManager{appCfg: appCfg}
 }
 
 // GetWorkspacePath returns the file path for storing the virtual workspace schema
 func (v *VirtualWorkspaceManager) GetWorkspacePath(workspace VirtualWorkspace) string {
-	return fmt.Sprintf("virtual-workspace/%s", workspace.Name)
+	return fmt.Sprintf("%s/%s", v.appCfg.Url.VirtualWorkspacePrefix, workspace.Name)
 }
 
 // createVirtualConfig creates a REST config for a virtual workspace
