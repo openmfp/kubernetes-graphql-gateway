@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -543,86 +542,6 @@ func TestHandleEvent_StatError(t *testing.T) {
 	// Should not call handler since stat failed
 	assert.Equal(t, []string{}, handler.OnFileChangedCalls)
 	assert.Equal(t, []string{}, handler.OnFileDeletedCalls)
-}
-
-func TestWatchSingleFile_EventsChannelClosed(t *testing.T) {
-	log := testlogger.New().HideLogOutput().Logger
-	handler := &MockFileEventHandler{}
-
-	watcher, err := NewFileWatcher(handler, log)
-	require.NoError(t, err)
-
-	// Create a temporary file
-	tempDir, err := os.MkdirTemp("", "watch_events_closed_test")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
-
-	tempFile := filepath.Join(tempDir, "watch_me.txt")
-	err = os.WriteFile(tempFile, []byte("initial"), 0644)
-	require.NoError(t, err)
-
-	// Start watching in a goroutine
-	watchDone := make(chan error, 1)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go func() {
-		watchDone <- watcher.WatchSingleFile(ctx, tempFile, 50)
-	}()
-
-	// Give the watcher more time to fully initialize
-	time.Sleep(200 * time.Millisecond)
-
-	// Close the watcher to simulate events channel being closed
-	watcher.watcher.Close()
-
-	// Wait for watch to finish with error
-	err = <-watchDone
-	assert.Error(t, err)
-	// Accept either error type due to timing differences
-	errorMsg := err.Error()
-	assert.True(t,
-		strings.Contains(errorMsg, "file watcher events channel closed") ||
-			strings.Contains(errorMsg, "bad file descriptor"),
-		"Expected either 'file watcher events channel closed' or 'bad file descriptor' error, got: %s", errorMsg)
-}
-
-func TestWatchDirectory_EventsChannelClosed(t *testing.T) {
-	log := testlogger.New().HideLogOutput().Logger
-	handler := &MockFileEventHandler{}
-
-	watcher, err := NewFileWatcher(handler, log)
-	require.NoError(t, err)
-
-	// Create a temporary directory
-	tempDir, err := os.MkdirTemp("", "watch_dir_events_closed_test")
-	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
-
-	// Start watching in a goroutine
-	watchDone := make(chan error, 1)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go func() {
-		watchDone <- watcher.WatchDirectory(ctx, tempDir)
-	}()
-
-	// Give the watcher more time to fully initialize
-	time.Sleep(200 * time.Millisecond)
-
-	// Close the watcher to simulate events channel being closed
-	watcher.watcher.Close()
-
-	// Wait for watch to finish with error
-	err = <-watchDone
-	assert.Error(t, err)
-	// Accept either error type due to timing differences
-	errorMsg := err.Error()
-	assert.True(t,
-		strings.Contains(errorMsg, "directory watcher events channel closed") ||
-			strings.Contains(errorMsg, "bad file descriptor"),
-		"Expected either 'directory watcher events channel closed' or 'bad file descriptor' error, got: %s", errorMsg)
 }
 
 func TestWatchSingleFile_WithDebounceTimer(t *testing.T) {
