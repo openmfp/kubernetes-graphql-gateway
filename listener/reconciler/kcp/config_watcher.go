@@ -8,16 +8,21 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/common/watcher"
 )
 
+// VirtualWorkspaceConfigManager interface for loading virtual workspace configurations
+type VirtualWorkspaceConfigManager interface {
+	LoadConfig(configPath string) (*VirtualWorkspacesConfig, error)
+}
+
 // ConfigWatcher watches the virtual workspaces configuration file for changes
 type ConfigWatcher struct {
 	fileWatcher      *watcher.FileWatcher
-	virtualWSManager *VirtualWorkspaceManager
+	virtualWSManager VirtualWorkspaceConfigManager
 	log              *logger.Logger
 	changeHandler    func(*VirtualWorkspacesConfig)
 }
 
 // NewConfigWatcher creates a new config file watcher
-func NewConfigWatcher(virtualWSManager *VirtualWorkspaceManager, log *logger.Logger) (*ConfigWatcher, error) {
+func NewConfigWatcher(virtualWSManager VirtualWorkspaceConfigManager, log *logger.Logger) (*ConfigWatcher, error) {
 	c := &ConfigWatcher{
 		virtualWSManager: virtualWSManager,
 		log:              log,
