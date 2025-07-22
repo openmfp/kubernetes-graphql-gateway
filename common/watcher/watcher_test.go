@@ -578,7 +578,7 @@ func TestWatchSingleFile_EventsChannelClosed(t *testing.T) {
 	// Wait for watch to finish with error
 	err = <-watchDone
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "events channel closed")
+	assert.Contains(t, err.Error(), "file watcher events channel closed")
 }
 
 func TestWatchDirectory_EventsChannelClosed(t *testing.T) {
@@ -611,7 +611,7 @@ func TestWatchDirectory_EventsChannelClosed(t *testing.T) {
 	// Wait for watch to finish with error
 	err = <-watchDone
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "events channel closed")
+	assert.Contains(t, err.Error(), "directory watcher events channel closed")
 }
 
 func TestWatchSingleFile_WithDebounceTimer(t *testing.T) {
