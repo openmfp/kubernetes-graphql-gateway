@@ -204,7 +204,7 @@ func (suite *CommonTestSuite) TestMultiClusterHTTPSubscription() {
 	appCfg := suite.appCfg
 	appCfg.OpenApiDefinitionsPath = tempDir
 
-	multiClusterManager, err := manager.NewGateway(suite.log, appCfg)
+	multiClusterManager, err := manager.NewGateway(context.Background(), suite.log, appCfg)
 	require.NoError(suite.T(), err)
 
 	// Start a test server with the multi-cluster manager

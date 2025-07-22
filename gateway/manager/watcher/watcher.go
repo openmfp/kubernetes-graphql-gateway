@@ -45,8 +45,8 @@ func NewFileWatcher(
 	return fw, nil
 }
 
-// Initialize sets up the watcher with the given path and processes existing files
-func (s *FileWatcher) Initialize(watchPath string) error {
+// Initialize sets up the watcher with the given context and path and processes existing files
+func (s *FileWatcher) Initialize(ctx context.Context, watchPath string) error {
 	s.watchPath = watchPath
 
 	// Process all existing files first
@@ -56,7 +56,6 @@ func (s *FileWatcher) Initialize(watchPath string) error {
 
 	// Start watching directory in background goroutine
 	go func() {
-		ctx := context.Background() // TODO: Consider passing context from caller
 		if err := s.fileWatcher.WatchDirectory(ctx, watchPath); err != nil {
 			s.log.Error().Err(err).Msg("directory watcher stopped")
 		}

@@ -1,6 +1,7 @@
 package gateway_test
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -138,7 +139,7 @@ func (suite *CommonTestSuite) SetupTest() {
 
 	suite.graphqlSchema = *g.GetSchema()
 
-	suite.manager, err = manager.NewGateway(suite.log, suite.appCfg)
+	suite.manager, err = manager.NewGateway(context.Background(), suite.log, suite.appCfg)
 	require.NoError(suite.T(), err)
 
 	suite.server = httptest.NewServer(suite.manager)
