@@ -309,8 +309,8 @@ func TestWatchSingleFile_RealFile(t *testing.T) {
 	err = os.WriteFile(tempFile, []byte("initial"), 0644)
 	require.NoError(t, err)
 
-	// Start watching with a short timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	// Start watching with sufficient timeout for file change + debouncing
+	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 
 	// Start watching in a goroutine
@@ -320,18 +320,18 @@ func TestWatchSingleFile_RealFile(t *testing.T) {
 	}()
 
 	// Give the watcher time to start
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(30 * time.Millisecond)
 
 	// Modify the file to trigger an event
 	err = os.WriteFile(tempFile, []byte("modified"), 0644)
 	require.NoError(t, err)
 
-	// Wait for watch to finish
+	// Give time for file change to be detected and debounced
+	time.Sleep(120 * time.Millisecond) // 50ms debounce + extra buffer
+
+	// Wait for watch to finish (should timeout after remaining time)
 	err = <-watchDone
 	assert.Equal(t, context.DeadlineExceeded, err)
-
-	// Give debouncing time to complete
-	time.Sleep(100 * time.Millisecond)
 
 	// Check that file change was detected
 	assert.True(t, len(handler.OnFileChangedCalls) >= 1, "Expected at least 1 file change call")
