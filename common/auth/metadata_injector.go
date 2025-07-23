@@ -38,24 +38,7 @@ func InjectClusterMetadata(ctx context.Context, schemaJSON []byte, config Metada
 	}
 
 	// Determine the host to use
-	host := config.Host
-	if config.HostOverride != "" {
-		host = config.HostOverride
-		log.Info().
-			Str("originalHost", config.Host).
-			Str("overrideHost", host).
-			Msg("using host override for virtual workspace")
-	} else {
-		// For normal workspaces, ensure we use a clean host by stripping any virtual workspace paths
-		cleanedHost := stripVirtualWorkspacePath(config.Host)
-		if cleanedHost != config.Host {
-			host = cleanedHost
-			log.Info().
-				Str("originalHost", config.Host).
-				Str("cleanedHost", host).
-				Msg("cleaned virtual workspace path from host for normal workspace")
-		}
-	}
+	host := determineHost(config.Host, config.HostOverride, log)
 
 	// Create cluster metadata
 	metadata := map[string]interface{}{
@@ -87,22 +70,7 @@ func InjectClusterMetadata(ctx context.Context, schemaJSON []byte, config Metada
 		tryExtractKubeconfigCA(ctx, config.Auth, k8sClient, metadata, log)
 	}
 
-	// Inject the metadata into the schema
-	schemaData["x-cluster-metadata"] = metadata
-
-	// Marshal back to JSON
-	modifiedJSON, err := json.Marshal(schemaData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal modified schema: %w", err)
-	}
-
-	log.Info().
-		Str("host", host).
-		Str("path", config.Path).
-		Bool("hasCA", config.CA != nil || config.Auth != nil).
-		Msg("successfully injected cluster metadata into schema")
-
-	return modifiedJSON, nil
+	return finalizeSchemaInjection(schemaData, metadata, host, config.Path, config.CA != nil || config.Auth != nil, log)
 }
 
 // InjectKCPMetadataFromEnv injects KCP metadata using kubeconfig from environment
@@ -127,25 +95,7 @@ func InjectKCPMetadataFromEnv(schemaJSON []byte, clusterPath string, log *logger
 	}
 
 	// Determine which host to use
-	var host string
-	if override != "" {
-		host = override
-		log.Info().
-			Str("clusterPath", clusterPath).
-			Str("originalHost", kubeconfigHost).
-			Str("overrideHost", host).
-			Msg("using host override for virtual workspace")
-	} else {
-		// For normal workspaces, ensure we use a clean KCP host by stripping any virtual workspace paths
-		host = stripVirtualWorkspacePath(kubeconfigHost)
-		if host != kubeconfigHost {
-			log.Info().
-				Str("clusterPath", clusterPath).
-				Str("originalHost", kubeconfigHost).
-				Str("cleanedHost", host).
-				Msg("cleaned virtual workspace path from kubeconfig host for normal workspace")
-		}
-	}
+	host := determineKCPHost(kubeconfigHost, override, clusterPath, log)
 
 	// Create cluster metadata with environment kubeconfig
 	metadata := map[string]interface{}{
@@ -165,22 +115,7 @@ func InjectKCPMetadataFromEnv(schemaJSON []byte, clusterPath string, log *logger
 		}
 	}
 
-	// Inject the metadata into the schema
-	schemaData["x-cluster-metadata"] = metadata
-
-	// Marshal back to JSON
-	modifiedJSON, err := json.Marshal(schemaData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal modified schema: %w", err)
-	}
-
-	log.Info().
-		Str("clusterPath", clusterPath).
-		Str("host", host).
-		Bool("hasCA", caData != nil).
-		Msg("successfully injected KCP cluster metadata into schema")
-
-	return modifiedJSON, nil
+	return finalizeSchemaInjection(schemaData, metadata, host, clusterPath, caData != nil, log)
 }
 
 // extractAuthDataForMetadata extracts auth data from AuthConfig for metadata injection
@@ -190,105 +125,111 @@ func extractAuthDataForMetadata(ctx context.Context, auth *gatewayv1alpha1.AuthC
 	}
 
 	if auth.SecretRef != nil {
-		secret := &corev1.Secret{}
-		namespace := auth.SecretRef.Namespace
-		if namespace == "" {
-			namespace = "default"
-		}
-
-		err := k8sClient.Get(ctx, types.NamespacedName{
-			Name:      auth.SecretRef.Name,
-			Namespace: namespace,
-		}, secret)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get auth secret: %w", err)
-		}
-
-		tokenData, ok := secret.Data[auth.SecretRef.Key]
-		if !ok {
-			return nil, fmt.Errorf("auth key not found in secret")
-		}
-
-		return map[string]interface{}{
-			"type":  "token",
-			"token": base64.StdEncoding.EncodeToString(tokenData),
-		}, nil
+		return extractTokenAuth(ctx, auth.SecretRef, k8sClient)
 	}
 
 	if auth.KubeconfigSecretRef != nil {
-		secret := &corev1.Secret{}
-		namespace := auth.KubeconfigSecretRef.Namespace
-		if namespace == "" {
-			namespace = "default"
-		}
-
-		err := k8sClient.Get(ctx, types.NamespacedName{
-			Name:      auth.KubeconfigSecretRef.Name,
-			Namespace: namespace,
-		}, secret)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get kubeconfig secret: %w", err)
-		}
-
-		kubeconfigData, ok := secret.Data["kubeconfig"]
-		if !ok {
-			return nil, fmt.Errorf("kubeconfig key not found in secret")
-		}
-
-		return map[string]interface{}{
-			"type":       "kubeconfig",
-			"kubeconfig": base64.StdEncoding.EncodeToString(kubeconfigData),
-		}, nil
+		return extractKubeconfigAuth(ctx, auth.KubeconfigSecretRef, k8sClient)
 	}
 
 	if auth.ClientCertificateRef != nil {
-		secret := &corev1.Secret{}
-		namespace := auth.ClientCertificateRef.Namespace
-		if namespace == "" {
-			namespace = "default"
-		}
-
-		err := k8sClient.Get(ctx, types.NamespacedName{
-			Name:      auth.ClientCertificateRef.Name,
-			Namespace: namespace,
-		}, secret)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get client certificate secret: %w", err)
-		}
-
-		certData, certOk := secret.Data["tls.crt"]
-		keyData, keyOk := secret.Data["tls.key"]
-
-		if !certOk || !keyOk {
-			return nil, fmt.Errorf("client certificate or key not found in secret")
-		}
-
-		return map[string]interface{}{
-			"type":     "clientCert",
-			"certData": base64.StdEncoding.EncodeToString(certData),
-			"keyData":  base64.StdEncoding.EncodeToString(keyData),
-		}, nil
+		return extractClientCertAuth(ctx, auth.ClientCertificateRef, k8sClient)
 	}
 
 	return nil, nil // No auth configured
 }
 
+// extractTokenAuth handles token-based authentication from SecretRef
+func extractTokenAuth(ctx context.Context, secretRef *gatewayv1alpha1.SecretRef, k8sClient client.Client) (map[string]interface{}, error) {
+	secret, err := getSecret(ctx, secretRef.Name, secretRef.Namespace, k8sClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get auth secret: %w", err)
+	}
+
+	tokenData, ok := secret.Data[secretRef.Key]
+	if !ok {
+		return nil, fmt.Errorf("auth key not found in secret")
+	}
+
+	return map[string]interface{}{
+		"type":  "token",
+		"token": base64.StdEncoding.EncodeToString(tokenData),
+	}, nil
+}
+
+// extractKubeconfigAuth handles kubeconfig-based authentication from KubeconfigSecretRef
+func extractKubeconfigAuth(ctx context.Context, kubeconfigRef *gatewayv1alpha1.KubeconfigSecretRef, k8sClient client.Client) (map[string]interface{}, error) {
+	secret, err := getSecret(ctx, kubeconfigRef.Name, kubeconfigRef.Namespace, k8sClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get kubeconfig secret: %w", err)
+	}
+
+	kubeconfigData, ok := secret.Data["kubeconfig"]
+	if !ok {
+		return nil, fmt.Errorf("kubeconfig key not found in secret")
+	}
+
+	return map[string]interface{}{
+		"type":       "kubeconfig",
+		"kubeconfig": base64.StdEncoding.EncodeToString(kubeconfigData),
+	}, nil
+}
+
+// extractClientCertAuth handles client certificate authentication from ClientCertificateRef
+func extractClientCertAuth(ctx context.Context, certRef *gatewayv1alpha1.ClientCertificateRef, k8sClient client.Client) (map[string]interface{}, error) {
+	secret, err := getSecret(ctx, certRef.Name, certRef.Namespace, k8sClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get client certificate secret: %w", err)
+	}
+
+	certData, certOk := secret.Data["tls.crt"]
+	keyData, keyOk := secret.Data["tls.key"]
+
+	if !certOk || !keyOk {
+		return nil, fmt.Errorf("client certificate or key not found in secret")
+	}
+
+	return map[string]interface{}{
+		"type":     "clientCert",
+		"certData": base64.StdEncoding.EncodeToString(certData),
+		"keyData":  base64.StdEncoding.EncodeToString(keyData),
+	}, nil
+}
+
+// getSecret is a helper function to retrieve secrets with namespace defaulting
+func getSecret(ctx context.Context, name, namespace string, k8sClient client.Client) (*corev1.Secret, error) {
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	secret := &corev1.Secret{}
+	err := k8sClient.Get(ctx, types.NamespacedName{
+		Name:      name,
+		Namespace: namespace,
+	}, secret)
+	if err != nil {
+		return nil, err
+	}
+
+	return secret, nil
+}
+
 // extractKubeconfigFromEnv gets kubeconfig data from the same sources as ctrl.GetConfig()
 func extractKubeconfigFromEnv(log *logger.Logger) ([]byte, string, error) {
-	var kubeconfigPath string
-
 	// Check KUBECONFIG environment variable first
-	if kubeconfig := os.Getenv("KUBECONFIG"); kubeconfig != "" {
-		kubeconfigPath = kubeconfig
+	kubeconfigPath := os.Getenv("KUBECONFIG")
+	if kubeconfigPath != "" {
 		log.Debug().Str("source", "KUBECONFIG env var").Str("path", kubeconfigPath).Msg("using kubeconfig from environment variable")
-	} else {
-		// Fall back to default kubeconfig location
-		if home, err := os.UserHomeDir(); err == nil {
-			kubeconfigPath = home + "/.kube/config"
-			log.Debug().Str("source", "default location").Str("path", kubeconfigPath).Msg("using default kubeconfig location")
-		} else {
+	}
+
+	// Fall back to default kubeconfig location if not set
+	if kubeconfigPath == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
 			return nil, "", fmt.Errorf("failed to determine kubeconfig location: %w", err)
 		}
+		kubeconfigPath = home + "/.kube/config"
+		log.Debug().Str("source", "default location").Str("path", kubeconfigPath).Msg("using default kubeconfig location")
 	}
 
 	// Check if file exists
@@ -384,12 +325,12 @@ func extractCAFromKubeconfigData(kubeconfigData []byte, log *logger.Logger) []by
 		return nil
 	}
 
-	if len(cluster.CertificateAuthorityData) > 0 {
-		return cluster.CertificateAuthorityData
+	if len(cluster.CertificateAuthorityData) == 0 {
+		log.Debug().Msg("no CA data found in kubeconfig")
+		return nil
 	}
 
-	log.Debug().Msg("no CA data found in kubeconfig")
-	return nil
+	return cluster.CertificateAuthorityData
 }
 
 // extractCAFromKubeconfigB64 extracts CA certificate data from base64-encoded kubeconfig
@@ -434,4 +375,68 @@ func tryExtractKubeconfigCA(ctx context.Context, auth *gatewayv1alpha1.AuthConfi
 		"data": base64.StdEncoding.EncodeToString(kubeconfigCAData),
 	}
 	log.Info().Msg("extracted CA data from kubeconfig")
+}
+
+// determineHost determines which host to use based on configuration
+func determineHost(originalHost, hostOverride string, log *logger.Logger) string {
+	if hostOverride != "" {
+		log.Info().
+			Str("originalHost", originalHost).
+			Str("overrideHost", hostOverride).
+			Msg("using host override for virtual workspace")
+		return hostOverride
+	}
+
+	// For normal workspaces, ensure we use a clean host by stripping any virtual workspace paths
+	cleanedHost := stripVirtualWorkspacePath(originalHost)
+	if cleanedHost != originalHost {
+		log.Info().
+			Str("originalHost", originalHost).
+			Str("cleanedHost", cleanedHost).
+			Msg("cleaned virtual workspace path from host for normal workspace")
+	}
+	return cleanedHost
+}
+
+// determineKCPHost determines which host to use for KCP metadata injection
+func determineKCPHost(kubeconfigHost, override, clusterPath string, log *logger.Logger) string {
+	if override != "" {
+		log.Info().
+			Str("clusterPath", clusterPath).
+			Str("originalHost", kubeconfigHost).
+			Str("overrideHost", override).
+			Msg("using host override for virtual workspace")
+		return override
+	}
+
+	// For normal workspaces, ensure we use a clean KCP host by stripping any virtual workspace paths
+	host := stripVirtualWorkspacePath(kubeconfigHost)
+	if host != kubeconfigHost {
+		log.Info().
+			Str("clusterPath", clusterPath).
+			Str("originalHost", kubeconfigHost).
+			Str("cleanedHost", host).
+			Msg("cleaned virtual workspace path from kubeconfig host for normal workspace")
+	}
+	return host
+}
+
+// finalizeSchemaInjection finalizes the schema injection process
+func finalizeSchemaInjection(schemaData map[string]interface{}, metadata map[string]interface{}, host, path string, hasCA bool, log *logger.Logger) ([]byte, error) {
+	// Inject the metadata into the schema
+	schemaData["x-cluster-metadata"] = metadata
+
+	// Marshal back to JSON
+	modifiedJSON, err := json.Marshal(schemaData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal modified schema: %w", err)
+	}
+
+	log.Info().
+		Str("host", host).
+		Str("path", path).
+		Bool("hasCA", hasCA).
+		Msg("successfully injected cluster metadata into schema")
+
+	return modifiedJSON, nil
 }

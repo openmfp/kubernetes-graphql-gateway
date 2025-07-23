@@ -459,8 +459,8 @@ func TestExtractAuthDataForMetadata(t *testing.T) {
 
 		// Create fake client with the secret
 		scheme := runtime.NewScheme()
-		corev1.AddToScheme(scheme)
-		gatewayv1alpha1.AddToScheme(scheme)
+		require.NoError(t, corev1.AddToScheme(scheme))
+		require.NoError(t, gatewayv1alpha1.AddToScheme(scheme))
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build()
 
 		// Create auth config
@@ -511,8 +511,8 @@ users:
 		}
 
 		scheme := runtime.NewScheme()
-		corev1.AddToScheme(scheme)
-		gatewayv1alpha1.AddToScheme(scheme)
+		require.NoError(t, corev1.AddToScheme(scheme))
+		require.NoError(t, gatewayv1alpha1.AddToScheme(scheme))
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build()
 
 		auth := &gatewayv1alpha1.AuthConfig{
@@ -546,8 +546,8 @@ users:
 		}
 
 		scheme := runtime.NewScheme()
-		corev1.AddToScheme(scheme)
-		gatewayv1alpha1.AddToScheme(scheme)
+		require.NoError(t, corev1.AddToScheme(scheme))
+		require.NoError(t, gatewayv1alpha1.AddToScheme(scheme))
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build()
 
 		auth := &gatewayv1alpha1.AuthConfig{
@@ -568,8 +568,8 @@ users:
 
 	t.Run("secret_not_found", func(t *testing.T) {
 		scheme := runtime.NewScheme()
-		corev1.AddToScheme(scheme)
-		gatewayv1alpha1.AddToScheme(scheme)
+		require.NoError(t, corev1.AddToScheme(scheme))
+		require.NoError(t, gatewayv1alpha1.AddToScheme(scheme))
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
 		auth := &gatewayv1alpha1.AuthConfig{
@@ -588,8 +588,8 @@ users:
 
 	t.Run("kubeconfig_secret_not_found", func(t *testing.T) {
 		scheme := runtime.NewScheme()
-		corev1.AddToScheme(scheme)
-		gatewayv1alpha1.AddToScheme(scheme)
+		require.NoError(t, corev1.AddToScheme(scheme))
+		require.NoError(t, gatewayv1alpha1.AddToScheme(scheme))
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
 		auth := &gatewayv1alpha1.AuthConfig{
@@ -607,8 +607,8 @@ users:
 
 	t.Run("client_certificate_secret_not_found", func(t *testing.T) {
 		scheme := runtime.NewScheme()
-		corev1.AddToScheme(scheme)
-		gatewayv1alpha1.AddToScheme(scheme)
+		require.NoError(t, corev1.AddToScheme(scheme))
+		require.NoError(t, gatewayv1alpha1.AddToScheme(scheme))
 		fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
 
 		auth := &gatewayv1alpha1.AuthConfig{
