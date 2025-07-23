@@ -71,6 +71,145 @@ func TestInjectClusterMetadata(t *testing.T) {
 			mockSetup: func(m *mocks.MockClient) {},
 			wantErr:   true,
 		},
+		{
+			name:       "empty_cluster_name_uses_empty_path",
+			schemaJSON: []byte(`{"openapi": "3.0.0", "info": {"title": "Test"}}`),
+			clusterAccess: gatewayv1alpha1.ClusterAccess{
+				ObjectMeta: metav1.ObjectMeta{Name: ""},
+				Spec: gatewayv1alpha1.ClusterAccessSpec{
+					Host: "https://example.com",
+				},
+			},
+			mockSetup: func(m *mocks.MockClient) {},
+			wantMetadata: map[string]interface{}{
+				"host": "https://example.com",
+				"path": "",
+			},
+			wantErr: false,
+		},
+		{
+			name:       "empty_path_empty_name_defaults_to_empty",
+			schemaJSON: []byte(`{"openapi": "3.0.0", "info": {"title": "Test"}}`),
+			clusterAccess: gatewayv1alpha1.ClusterAccess{
+				ObjectMeta: metav1.ObjectMeta{Name: ""},
+				Spec: gatewayv1alpha1.ClusterAccessSpec{
+					Host: "https://example.com",
+					Path: "",
+				},
+			},
+			mockSetup: func(m *mocks.MockClient) {},
+			wantMetadata: map[string]interface{}{
+				"host": "https://example.com",
+				"path": "",
+			},
+			wantErr: false,
+		},
+		{
+			name:       "empty_host",
+			schemaJSON: []byte(`{"openapi": "3.0.0", "info": {"title": "Test"}}`),
+			clusterAccess: gatewayv1alpha1.ClusterAccess{
+				ObjectMeta: metav1.ObjectMeta{Name: "no-host-cluster"},
+				Spec: gatewayv1alpha1.ClusterAccessSpec{
+					Host: "",
+				},
+			},
+			mockSetup: func(m *mocks.MockClient) {},
+			wantMetadata: map[string]interface{}{
+				"host": "",
+				"path": "no-host-cluster",
+			},
+			wantErr: false,
+		},
+		{
+			name:       "special_characters_in_name_and_path",
+			schemaJSON: []byte(`{"openapi": "3.0.0", "info": {"title": "Test"}}`),
+			clusterAccess: gatewayv1alpha1.ClusterAccess{
+				ObjectMeta: metav1.ObjectMeta{Name: "special-chars_cluster.test"},
+				Spec: gatewayv1alpha1.ClusterAccessSpec{
+					Host: "https://special.example.com",
+					Path: "special/chars_path.test",
+				},
+			},
+			mockSetup: func(m *mocks.MockClient) {},
+			wantMetadata: map[string]interface{}{
+				"host": "https://special.example.com",
+				"path": "special/chars_path.test",
+			},
+			wantErr: false,
+		},
+		{
+			name:       "minimal_valid_json",
+			schemaJSON: []byte(`{}`),
+			clusterAccess: gatewayv1alpha1.ClusterAccess{
+				ObjectMeta: metav1.ObjectMeta{Name: "minimal"},
+				Spec: gatewayv1alpha1.ClusterAccessSpec{
+					Host: "https://minimal.example.com",
+				},
+			},
+			mockSetup: func(m *mocks.MockClient) {},
+			wantMetadata: map[string]interface{}{
+				"host": "https://minimal.example.com",
+				"path": "minimal",
+			},
+			wantErr: false,
+		},
+		{
+			name:       "long_complex_path",
+			schemaJSON: []byte(`{"openapi": "3.0.0", "info": {"title": "Test"}}`),
+			clusterAccess: gatewayv1alpha1.ClusterAccess{
+				ObjectMeta: metav1.ObjectMeta{Name: "path-test"},
+				Spec: gatewayv1alpha1.ClusterAccessSpec{
+					Host: "https://example.com",
+					Path: "very/long/path/with/multiple/segments",
+				},
+			},
+			mockSetup: func(m *mocks.MockClient) {},
+			wantMetadata: map[string]interface{}{
+				"host": "https://example.com",
+				"path": "very/long/path/with/multiple/segments",
+			},
+			wantErr: false,
+		},
+		{
+			name:       "unicode_characters_in_name",
+			schemaJSON: []byte(`{"openapi": "3.0.0", "info": {"title": "Test"}}`),
+			clusterAccess: gatewayv1alpha1.ClusterAccess{
+				ObjectMeta: metav1.ObjectMeta{Name: "üñíçødé-cluster"},
+				Spec: gatewayv1alpha1.ClusterAccessSpec{
+					Host: "https://unicode.example.com",
+				},
+			},
+			mockSetup: func(m *mocks.MockClient) {},
+			wantMetadata: map[string]interface{}{
+				"host": "https://unicode.example.com",
+				"path": "üñíçødé-cluster",
+			},
+			wantErr: false,
+		},
+		{
+			name:       "malformed_json_brackets",
+			schemaJSON: []byte(`{"openapi": "3.0.0", "info": {"title": "Test"`),
+			clusterAccess: gatewayv1alpha1.ClusterAccess{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-cluster"},
+				Spec: gatewayv1alpha1.ClusterAccessSpec{
+					Host: "https://test-cluster.example.com",
+				},
+			},
+			mockSetup: func(m *mocks.MockClient) {},
+			wantErr:   true,
+		},
+		{
+			name:       "empty_json",
+			schemaJSON: []byte(``),
+			clusterAccess: gatewayv1alpha1.ClusterAccess{
+				ObjectMeta: metav1.ObjectMeta{Name: "test-cluster"},
+				Spec: gatewayv1alpha1.ClusterAccessSpec{
+					Host: "https://test-cluster.example.com",
+				},
+			},
+			mockSetup: func(m *mocks.MockClient) {},
+			wantErr:   true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -111,4 +250,50 @@ func TestInjectClusterMetadata(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInjectClusterMetadata_PathLogic(t *testing.T) {
+	mockLogger, _ := logger.New(logger.DefaultConfig())
+	mockClient := mocks.NewMockClient(t)
+	schemaJSON := []byte(`{"openapi": "3.0.0", "info": {"title": "Test"}}`)
+
+	t.Run("path_precedence_custom_over_name", func(t *testing.T) {
+		clusterAccess := gatewayv1alpha1.ClusterAccess{
+			ObjectMeta: metav1.ObjectMeta{Name: "cluster-name"},
+			Spec: gatewayv1alpha1.ClusterAccessSpec{
+				Host: "https://test.example.com",
+				Path: "custom-path",
+			},
+		}
+
+		result, err := clusteraccess.InjectClusterMetadata(schemaJSON, clusterAccess, mockClient, mockLogger)
+		require.NoError(t, err)
+
+		var resultData map[string]interface{}
+		err = json.Unmarshal(result, &resultData)
+		require.NoError(t, err)
+
+		metadata := resultData["x-cluster-metadata"].(map[string]interface{})
+		assert.Equal(t, "custom-path", metadata["path"])
+	})
+
+	t.Run("fallback_to_name_when_path_empty", func(t *testing.T) {
+		clusterAccess := gatewayv1alpha1.ClusterAccess{
+			ObjectMeta: metav1.ObjectMeta{Name: "fallback-name"},
+			Spec: gatewayv1alpha1.ClusterAccessSpec{
+				Host: "https://test.example.com",
+				Path: "",
+			},
+		}
+
+		result, err := clusteraccess.InjectClusterMetadata(schemaJSON, clusterAccess, mockClient, mockLogger)
+		require.NoError(t, err)
+
+		var resultData map[string]interface{}
+		err = json.Unmarshal(result, &resultData)
+		require.NoError(t, err)
+
+		metadata := resultData["x-cluster-metadata"].(map[string]interface{})
+		assert.Equal(t, "fallback-name", metadata["path"])
+	})
 }
