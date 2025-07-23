@@ -3,6 +3,7 @@ package watcher
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -95,13 +96,13 @@ func (s *FileWatcher) OnFileDeleted(filePath string) {
 
 // loadAllFiles loads all files in the directory and subdirectories
 func (s *FileWatcher) loadAllFiles(dir string) error {
-	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+	return filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Skip directories
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
 		}
 
