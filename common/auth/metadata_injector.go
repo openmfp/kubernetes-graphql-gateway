@@ -63,21 +63,13 @@ func InjectClusterMetadata(schemaJSON []byte, config MetadataInjectionConfig, k8
 		"path": config.Path,
 	}
 
-	// Extract auth data and potentially CA data
-	var kubeconfigCAData []byte
+	// Add auth data if configured
 	if config.Auth != nil {
 		authMetadata, err := extractAuthDataForMetadata(config.Auth, k8sClient)
 		if err != nil {
 			log.Warn().Err(err).Msg("failed to extract auth data for metadata")
 		} else if authMetadata != nil {
 			metadata["auth"] = authMetadata
-
-			// If auth type is kubeconfig, extract CA data from kubeconfig
-			if authType, ok := authMetadata["type"].(string); ok && authType == "kubeconfig" {
-				if kubeconfigB64, ok := authMetadata["kubeconfig"].(string); ok {
-					kubeconfigCAData = extractCAFromKubeconfigB64(kubeconfigB64, log)
-				}
-			}
 		}
 	}
 
@@ -91,12 +83,8 @@ func InjectClusterMetadata(schemaJSON []byte, config MetadataInjectionConfig, k8
 				"data": base64.StdEncoding.EncodeToString(caData),
 			}
 		}
-	} else if kubeconfigCAData != nil {
-		// Use CA data extracted from kubeconfig
-		metadata["ca"] = map[string]interface{}{
-			"data": base64.StdEncoding.EncodeToString(kubeconfigCAData),
-		}
-		log.Info().Msg("extracted CA data from kubeconfig")
+	} else if config.Auth != nil {
+		tryExtractKubeconfigCA(config.Auth, k8sClient, metadata, log)
 	}
 
 	// Inject the metadata into the schema
@@ -111,7 +99,7 @@ func InjectClusterMetadata(schemaJSON []byte, config MetadataInjectionConfig, k8
 	log.Info().
 		Str("host", host).
 		Str("path", config.Path).
-		Bool("hasCA", kubeconfigCAData != nil || config.CA != nil).
+		Bool("hasCA", config.CA != nil || config.Auth != nil).
 		Msg("successfully injected cluster metadata into schema")
 
 	return modifiedJSON, nil
@@ -415,4 +403,37 @@ func extractCAFromKubeconfigB64(kubeconfigB64 string, log *logger.Logger) []byte
 	}
 
 	return extractCAFromKubeconfigData(kubeconfigData, log)
+}
+
+// tryExtractKubeconfigCA attempts to extract CA data from kubeconfig auth and adds it to metadata
+func tryExtractKubeconfigCA(auth *gatewayv1alpha1.AuthConfig, k8sClient client.Client, metadata map[string]interface{}, log *logger.Logger) {
+	authMetadata, err := extractAuthDataForMetadata(auth, k8sClient)
+	if err != nil {
+		log.Warn().Err(err).Msg("failed to extract auth data for CA extraction")
+		return
+	}
+
+	if authMetadata == nil {
+		return
+	}
+
+	authType, ok := authMetadata["type"].(string)
+	if !ok || authType != "kubeconfig" {
+		return
+	}
+
+	kubeconfigB64, ok := authMetadata["kubeconfig"].(string)
+	if !ok {
+		return
+	}
+
+	kubeconfigCAData := extractCAFromKubeconfigB64(kubeconfigB64, log)
+	if kubeconfigCAData == nil {
+		return
+	}
+
+	metadata["ca"] = map[string]interface{}{
+		"data": base64.StdEncoding.EncodeToString(kubeconfigCAData),
+	}
+	log.Info().Msg("extracted CA data from kubeconfig")
 }
