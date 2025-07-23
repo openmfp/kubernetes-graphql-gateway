@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/openmfp/golang-commons/logger/testlogger"
+	"github.com/openmfp/kubernetes-graphql-gateway/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -223,7 +223,7 @@ func TestConfigWatcher_Watch_EmptyPath(t *testing.T) {
 	watcher, err := NewConfigWatcher(virtualWSManager, log)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), common.ShortTimeout)
 	defer cancel()
 
 	var handlerCalled bool

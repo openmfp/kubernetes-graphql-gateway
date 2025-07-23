@@ -10,6 +10,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/openmfp/golang-commons/logger/testlogger"
+	"github.com/openmfp/kubernetes-graphql-gateway/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -269,7 +270,7 @@ func TestWatchSingleFile_EmptyPath(t *testing.T) {
 	require.NoError(t, err)
 	defer watcher.watcher.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), common.ShortTimeout)
 	defer cancel()
 
 	err = watcher.WatchSingleFile(ctx, "", 100)
@@ -285,7 +286,7 @@ func TestWatchOptionalFile_EmptyPath(t *testing.T) {
 	require.NoError(t, err)
 	defer watcher.watcher.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), common.ShortTimeout)
 	defer cancel()
 
 	err = watcher.WatchOptionalFile(ctx, "", 100)
@@ -309,7 +310,7 @@ func TestWatchOptionalFile_WithPath(t *testing.T) {
 	err = os.WriteFile(tempFile, []byte("initial"), 0644)
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), common.ShortTimeout)
 	defer cancel()
 
 	// Should behave exactly like WatchSingleFile when path is provided
@@ -325,7 +326,7 @@ func TestWatchOptionalFile_EmptyPathWithCancellation(t *testing.T) {
 	require.NoError(t, err)
 	defer watcher.watcher.Close()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	watchDone := make(chan error, 1)
 	go func() {
@@ -351,7 +352,7 @@ func TestWatchSingleFile_InvalidDirectory(t *testing.T) {
 	require.NoError(t, err)
 	defer watcher.watcher.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), common.ShortTimeout)
 	defer cancel()
 
 	// Try to watch a file in a non-existent directory
@@ -378,7 +379,7 @@ func TestWatchSingleFile_RealFile(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start watching with sufficient timeout for file change + debouncing
-	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), common.LongTimeout)
 	defer cancel()
 
 	// Start watching in a goroutine
@@ -416,7 +417,7 @@ func TestWatchDirectory_InvalidPath(t *testing.T) {
 	require.NoError(t, err)
 	defer watcher.watcher.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), common.ShortTimeout)
 	defer cancel()
 
 	err = watcher.WatchDirectory(ctx, "/non/existent/directory")
@@ -437,8 +438,7 @@ func TestWatchDirectory_RealDirectory(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
-	// Use longer timeout to be more robust against system load
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), common.LongTimeout)
 	defer cancel()
 
 	// Start watching in a goroutine
@@ -545,7 +545,7 @@ func TestWatchSingleFile_ContextCancellation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create context that we'll cancel
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	// Start watching in a goroutine
 	watchDone := make(chan error, 1)
@@ -578,7 +578,7 @@ func TestWatchDirectory_ContextCancellation(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Create context that we'll cancel
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 
 	// Start watching in a goroutine
 	watchDone := make(chan error, 1)
@@ -642,8 +642,7 @@ func TestWatchSingleFile_WithDebounceTimer(t *testing.T) {
 	err = os.WriteFile(tempFile, []byte("initial"), 0644)
 	require.NoError(t, err)
 
-	// Start watching with shorter debounce to make test more reliable
-	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), common.LongTimeout)
 	defer cancel()
 
 	// Start watching in a goroutine
@@ -752,7 +751,7 @@ func TestWatchSingleFile_ErrorsInLoop(t *testing.T) {
 
 	// Start watching in a goroutine
 	watchDone := make(chan error, 1)
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), common.ShortTimeout)
 	defer cancel()
 
 	go func() {
@@ -789,7 +788,7 @@ func TestWatchDirectory_ErrorsInLoop(t *testing.T) {
 
 	// Start watching in a goroutine
 	watchDone := make(chan error, 1)
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), common.ShortTimeout)
 	defer cancel()
 
 	go func() {
@@ -867,7 +866,7 @@ func TestWatchSingleFile_NilHandler(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start watching with short timeout to avoid long test run
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), common.ShortTimeout)
 	defer cancel()
 
 	err = watcher.WatchSingleFile(ctx, tempFile, 10)
@@ -888,7 +887,7 @@ func TestWatchDirectory_ErrorLogging(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Start watching in a goroutine
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), common.ShortTimeout)
 	defer cancel()
 
 	watchDone := make(chan error, 1)
@@ -952,7 +951,7 @@ func TestWatchDirectory_ErrorInLoop(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Start watching in a goroutine
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), common.ShortTimeout)
 	defer cancel()
 
 	watchDone := make(chan error, 1)
@@ -994,7 +993,7 @@ func TestWatchSingleFile_TimerStop(t *testing.T) {
 	require.NoError(t, err)
 
 	// Start watching with a longer timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	ctx, cancel := context.WithTimeout(t.Context(), common.LongTimeout)
 	defer cancel()
 
 	watchDone := make(chan error, 1)

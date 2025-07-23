@@ -569,7 +569,7 @@ users:
 			// 2. Use integration tests for the full flow
 			// 3. Create a wrapper that can be mocked
 
-			got, err := reconciler.Reconcile(context.Background(), tt.req)
+			got, err := reconciler.Reconcile(t.Context(), tt.req)
 
 			if tt.wantErr {
 				assert.Error(t, err)

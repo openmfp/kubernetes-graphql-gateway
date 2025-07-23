@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -278,7 +277,7 @@ func TestInjectClusterMetadata(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Use nil client since we're not testing auth/CA extraction here
-			result, err := InjectClusterMetadata(context.Background(), tt.schemaJSON, tt.config, nil, log)
+			result, err := InjectClusterMetadata(t.Context(), tt.schemaJSON, tt.config, nil, log)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -430,7 +429,7 @@ func TestStripVirtualWorkspacePath(t *testing.T) {
 }
 
 func TestExtractAuthDataForMetadata(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("nil_auth_config", func(t *testing.T) {
 		result, err := extractAuthDataForMetadata(ctx, nil, nil)

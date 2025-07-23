@@ -1,7 +1,6 @@
 package kcp
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -638,7 +637,7 @@ func TestVirtualWorkspaceReconciler_ReconcileConfig_Simple(t *testing.T) {
 			// For this simplified test, we'll mock the individual methods to avoid network calls
 			// This tests the reconciliation logic without testing the full discovery/REST mapper setup
 
-			err := reconciler.ReconcileConfig(context.Background(), tt.newConfig)
+			err := reconciler.ReconcileConfig(t.Context(), tt.newConfig)
 
 			// Since discovery client creation may fail, we don't assert NoError
 			// but we can still verify the workspace tracking logic
@@ -728,7 +727,7 @@ func TestVirtualWorkspaceReconciler_ProcessVirtualWorkspace(t *testing.T) {
 
 			reconciler := NewVirtualWorkspaceReconciler(manager, ioHandler, apiResolver, log)
 
-			err := reconciler.processVirtualWorkspace(context.Background(), tt.workspace)
+			err := reconciler.processVirtualWorkspace(t.Context(), tt.workspace)
 
 			if tt.expectError {
 				assert.Error(t, err)
