@@ -289,7 +289,7 @@ func TestWatchOptionalFile_EmptyPath(t *testing.T) {
 	defer cancel()
 
 	err = watcher.WatchOptionalFile(ctx, "", 100)
-	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.NoError(t, err) // Graceful termination is not an error
 }
 
 func TestWatchOptionalFile_WithPath(t *testing.T) {
@@ -314,7 +314,33 @@ func TestWatchOptionalFile_WithPath(t *testing.T) {
 
 	// Should behave exactly like WatchSingleFile when path is provided
 	err = watcher.WatchOptionalFile(ctx, tempFile, 50)
-	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.NoError(t, err) // Graceful termination (timeout) is not an error
+}
+
+func TestWatchOptionalFile_EmptyPathWithCancellation(t *testing.T) {
+	log := testlogger.New().HideLogOutput().Logger
+	handler := &MockFileEventHandler{}
+
+	watcher, err := NewFileWatcher(handler, log)
+	require.NoError(t, err)
+	defer watcher.watcher.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	watchDone := make(chan error, 1)
+	go func() {
+		watchDone <- watcher.WatchOptionalFile(ctx, "", 100)
+	}()
+
+	// Give time for watcher to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Cancel the context
+	cancel()
+
+	// Wait for watch to finish
+	err = <-watchDone
+	assert.NoError(t, err) // Graceful termination via cancellation is not an error
 }
 
 func TestWatchSingleFile_InvalidDirectory(t *testing.T) {
@@ -373,7 +399,7 @@ func TestWatchSingleFile_RealFile(t *testing.T) {
 
 	// Wait for watch to finish (should timeout after remaining time)
 	err = <-watchDone
-	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.NoError(t, err) // Graceful termination (timeout) is not an error
 
 	// Check that file change was detected
 	assert.True(t, len(handler.OnFileChangedCalls) >= 1, "Expected at least 1 file change call")
@@ -411,8 +437,8 @@ func TestWatchDirectory_RealDirectory(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
-	// Start watching with a short timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	// Use longer timeout to be more robust against system load
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
 	// Start watching in a goroutine
@@ -422,20 +448,33 @@ func TestWatchDirectory_RealDirectory(t *testing.T) {
 	}()
 
 	// Give the watcher time to start
-	time.Sleep(50 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 
 	// Create a file to trigger an event
 	testFile := filepath.Join(tempDir, "new_file.txt")
 	err = os.WriteFile(testFile, []byte("content"), 0644)
 	require.NoError(t, err)
 
+	// Wait for file change to be detected with retry logic
+	detected := false
+	for i := 0; i < 20; i++ { // Check for up to 400ms (20 * 20ms)
+		if len(handler.OnFileChangedCalls) > 0 {
+			detected = true
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	// Cancel context to stop watcher gracefully
+	cancel()
+
 	// Wait for watch to finish
 	err = <-watchDone
-	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.NoError(t, err) // Graceful termination is not an error
 
 	// Check that file creation was detected
-	assert.True(t, len(handler.OnFileChangedCalls) >= 1, "Expected at least 1 file change call")
-	if len(handler.OnFileChangedCalls) > 0 {
+	assert.True(t, detected, "Expected file change to be detected")
+	if detected {
 		assert.Equal(t, testFile, handler.OnFileChangedCalls[0])
 	}
 }
@@ -522,7 +561,7 @@ func TestWatchSingleFile_ContextCancellation(t *testing.T) {
 
 	// Wait for watch to finish
 	err = <-watchDone
-	assert.Equal(t, context.Canceled, err)
+	assert.NoError(t, err) // Graceful termination is not an error
 }
 
 func TestWatchDirectory_ContextCancellation(t *testing.T) {
@@ -555,7 +594,7 @@ func TestWatchDirectory_ContextCancellation(t *testing.T) {
 
 	// Wait for watch to finish
 	err = <-watchDone
-	assert.Equal(t, context.Canceled, err)
+	assert.NoError(t, err) // Graceful termination is not an error
 }
 
 func TestHandleEvent_StatError(t *testing.T) {
@@ -628,7 +667,7 @@ func TestWatchSingleFile_WithDebounceTimer(t *testing.T) {
 
 	// Wait for watch to finish
 	err = <-watchDone
-	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.NoError(t, err) // Graceful termination (timeout) is not an error
 
 	// Should have received at least one change (due to debouncing, multiple rapid changes = 1 call)
 	// Note: This test focuses on exercising the debounce timer logic, not on exact callback behavior
@@ -733,7 +772,7 @@ func TestWatchSingleFile_ErrorsInLoop(t *testing.T) {
 
 	// Wait for watch to finish
 	err = <-watchDone
-	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.NoError(t, err) // Graceful termination (timeout) is not an error
 }
 
 func TestWatchDirectory_ErrorsInLoop(t *testing.T) {
@@ -769,7 +808,7 @@ func TestWatchDirectory_ErrorsInLoop(t *testing.T) {
 
 	// Wait for watch to finish
 	err = <-watchDone
-	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.NoError(t, err) // Graceful termination (timeout) is not an error
 }
 
 func TestAddWatchRecursively_DirectAddError(t *testing.T) {
@@ -832,7 +871,7 @@ func TestWatchSingleFile_NilHandler(t *testing.T) {
 	defer cancel()
 
 	err = watcher.WatchSingleFile(ctx, tempFile, 10)
-	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.NoError(t, err) // Graceful termination (timeout) is not an error
 }
 
 // TestWatchDirectory_ErrorLogging tests that errors are properly logged during directory watching
@@ -871,7 +910,7 @@ func TestWatchDirectory_ErrorLogging(t *testing.T) {
 
 	// Wait for timeout
 	err = <-watchDone
-	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.NoError(t, err) // Graceful termination (timeout) is not an error
 }
 
 // TestHandleEvent_NonExistentPath tests handleEvent with non-existent file path to cover stat error branch
@@ -933,7 +972,7 @@ func TestWatchDirectory_ErrorInLoop(t *testing.T) {
 
 	// Wait for timeout
 	err = <-watchDone
-	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.NoError(t, err) // Graceful termination (timeout) is not an error
 }
 
 // TestWatchSingleFile_TimerStop tests the timer stop path in watchWithDebounce
@@ -978,7 +1017,7 @@ func TestWatchSingleFile_TimerStop(t *testing.T) {
 
 	// Wait for timeout
 	err = <-watchDone
-	assert.Equal(t, context.DeadlineExceeded, err)
+	assert.NoError(t, err) // Graceful termination (timeout) is not an error
 }
 
 // TestSimpleWatcherUsage tests basic watcher usage to add coverage

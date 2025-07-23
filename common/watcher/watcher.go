@@ -60,9 +60,9 @@ func (w *FileWatcher) WatchSingleFile(ctx context.Context, filePath string, debo
 // This is useful for optional configuration files where the watcher should still run even if no file is configured
 func (w *FileWatcher) WatchOptionalFile(ctx context.Context, filePath string, debounceMs int) error {
 	if filePath == "" {
-		w.log.Info().Msg("no file path provided, waiting for context cancellation")
+		w.log.Info().Msg("no file path provided, waiting for graceful termination")
 		<-ctx.Done()
-		return ctx.Err()
+		return nil // Graceful termination is not an error
 	}
 
 	return w.WatchSingleFile(ctx, filePath, debounceMs)
@@ -95,9 +95,8 @@ func (w *FileWatcher) watchWithDebounce(ctx context.Context, targetFile string, 
 	for {
 		select {
 		case <-ctx.Done():
-			w.log.Info().Msg("stopping file watcher")
-			return ctx.Err()
-
+			w.log.Info().Msg("stopping file watcher gracefully")
+			return nil // Graceful termination is not an error
 		case event, ok := <-w.watcher.Events:
 			if !ok {
 				return fmt.Errorf("file watcher events channel closed")
@@ -129,8 +128,8 @@ func (w *FileWatcher) watchImmediate(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			w.log.Info().Msg("stopping directory watcher")
-			return ctx.Err()
+			w.log.Info().Msg("stopping directory watcher gracefully")
+			return nil // Graceful termination is not an error
 
 		case event, ok := <-w.watcher.Events:
 			if !ok {

@@ -234,7 +234,7 @@ func TestConfigWatcher_Watch_EmptyPath(t *testing.T) {
 	// Test with empty config path - should not try to load initial config
 	err = watcher.Watch(ctx, "", changeHandler)
 
-	// Should timeout since we're trying to watch an empty path
-	assert.Equal(t, context.DeadlineExceeded, err)
+	// Should complete gracefully without error since graceful termination is not an error
+	assert.NoError(t, err)
 	assert.False(t, handlerCalled) // Should not call handler for empty path initial load
 }
