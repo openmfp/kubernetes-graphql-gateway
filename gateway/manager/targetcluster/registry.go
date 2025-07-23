@@ -205,7 +205,7 @@ func (cr *ClusterRegistry) handleAuth(w http.ResponseWriter, r *http.Request, to
 
 		if cr.appCfg.IntrospectionAuthentication {
 			if IsIntrospectionQuery(r) {
-				valid, err := cr.validateToken(token, cluster)
+				valid, err := cr.validateToken(r.Context(), token, cluster)
 				if err != nil {
 					cr.log.Error().Err(err).Str("cluster", cluster.name).Msg("Error validating token")
 					http.Error(w, "Token validation failed", http.StatusUnauthorized)
@@ -236,7 +236,7 @@ func (cr *ClusterRegistry) handleCORS(w http.ResponseWriter, r *http.Request) bo
 	return false
 }
 
-func (cr *ClusterRegistry) validateToken(token string, cluster *TargetCluster) (bool, error) {
+func (cr *ClusterRegistry) validateToken(ctx context.Context, token string, cluster *TargetCluster) (bool, error) {
 	if cluster == nil {
 		return false, errors.New("no cluster provided to validate token")
 	}
@@ -267,7 +267,6 @@ func (cr *ClusterRegistry) validateToken(token string, cluster *TargetCluster) (
 
 	// Use namespaces endpoint for token validation - it's a resource endpoint (not discovery)
 	// so it will use the token authentication instead of being routed to admin credentials
-	ctx := context.Background()
 	apiURL, err := url.JoinPath(clusterConfig.Host, "/api/v1/namespaces")
 	if err != nil {
 		return false, fmt.Errorf("failed to construct API URL: %w", err)

@@ -165,7 +165,7 @@ func TestBuildTargetClusterConfigFromTyped(t *testing.T) {
 			mockClient := mocks.NewMockClient(t)
 			tt.mockSetup(mockClient)
 
-			gotConfig, gotCluster, err := clusteraccess.BuildTargetClusterConfigFromTyped(tt.clusterAccess, mockClient)
+			gotConfig, gotCluster, err := clusteraccess.BuildTargetClusterConfigFromTyped(context.Background(), tt.clusterAccess, mockClient)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -304,7 +304,7 @@ func TestExtractCAData(t *testing.T) {
 			mockClient := mocks.NewMockClient(t)
 			tt.mockSetup(mockClient)
 
-			got, err := clusteraccess.ExtractCAData(tt.ca, mockClient)
+			got, err := clusteraccess.ExtractCAData(context.Background(), tt.ca, mockClient)
 
 			if tt.wantErr {
 				assert.Error(t, err)

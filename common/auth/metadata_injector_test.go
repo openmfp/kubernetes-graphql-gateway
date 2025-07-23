@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -271,7 +272,7 @@ func TestInjectClusterMetadata(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Use nil client since we're not testing auth/CA extraction here
-			result, err := InjectClusterMetadata(tt.schemaJSON, tt.config, nil, log)
+			result, err := InjectClusterMetadata(context.Background(), tt.schemaJSON, tt.config, nil, log)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -426,14 +427,14 @@ func TestExtractAuthDataForMetadata(t *testing.T) {
 	// Note: This would require mocking k8s client and secrets
 	// For now, just test the nil case
 	t.Run("nil_auth_config", func(t *testing.T) {
-		result, err := extractAuthDataForMetadata(nil, nil)
+		result, err := extractAuthDataForMetadata(context.Background(), nil, nil)
 		assert.NoError(t, err)
 		assert.Nil(t, result)
 	})
 
 	t.Run("empty_auth_config", func(t *testing.T) {
 		auth := &gatewayv1alpha1.AuthConfig{}
-		result, err := extractAuthDataForMetadata(auth, nil)
+		result, err := extractAuthDataForMetadata(context.Background(), auth, nil)
 		assert.NoError(t, err)
 		assert.Nil(t, result)
 	})

@@ -256,7 +256,7 @@ clusters:
 				},
 			}
 
-			err := ConfigureAuthentication(config, tt.auth, mockClient)
+			err := ConfigureAuthentication(context.Background(), config, tt.auth, mockClient)
 
 			if tt.wantErr {
 				assert.Error(t, err)

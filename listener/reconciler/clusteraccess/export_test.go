@@ -1,6 +1,8 @@
 package clusteraccess
 
 import (
+	"context"
+
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd/api"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -13,12 +15,14 @@ import (
 // Exported functions for testing private functions
 
 // Config builder exports
-func ExtractCAData(ca *gatewayv1alpha1.CAConfig, k8sClient client.Client) ([]byte, error) {
-	return auth.ExtractCAData(ca, k8sClient)
+// ExtractCAData exposes the common auth ExtractCAData function for testing
+func ExtractCAData(ctx context.Context, ca *gatewayv1alpha1.CAConfig, k8sClient client.Client) ([]byte, error) {
+	return auth.ExtractCAData(ctx, ca, k8sClient)
 }
 
-func ConfigureAuthentication(config *rest.Config, authConfig *gatewayv1alpha1.AuthConfig, k8sClient client.Client) error {
-	return auth.ConfigureAuthentication(config, authConfig, k8sClient)
+// ConfigureAuthentication exposes the common auth ConfigureAuthentication function for testing
+func ConfigureAuthentication(ctx context.Context, config *rest.Config, authConfig *gatewayv1alpha1.AuthConfig, k8sClient client.Client) error {
+	return auth.ConfigureAuthentication(ctx, config, authConfig, k8sClient)
 }
 
 func ExtractAuthFromKubeconfig(config *rest.Config, authInfo *api.AuthInfo) error {
@@ -26,8 +30,8 @@ func ExtractAuthFromKubeconfig(config *rest.Config, authInfo *api.AuthInfo) erro
 }
 
 // Metadata injector exports - now all delegated to common auth package
-func InjectClusterMetadata(schemaJSON []byte, clusterAccess gatewayv1alpha1.ClusterAccess, k8sClient client.Client, log *logger.Logger) ([]byte, error) {
-	return injectClusterMetadata(schemaJSON, clusterAccess, k8sClient, log)
+func InjectClusterMetadata(ctx context.Context, schemaJSON []byte, clusterAccess gatewayv1alpha1.ClusterAccess, k8sClient client.Client, log *logger.Logger) ([]byte, error) {
+	return injectClusterMetadata(ctx, schemaJSON, clusterAccess, k8sClient, log)
 }
 
 // The following functions are now part of the common auth package

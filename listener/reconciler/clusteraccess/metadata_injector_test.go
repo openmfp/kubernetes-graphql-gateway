@@ -1,6 +1,7 @@
 package clusteraccess_test
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -217,7 +218,7 @@ func TestInjectClusterMetadata(t *testing.T) {
 			mockClient := mocks.NewMockClient(t)
 			tt.mockSetup(mockClient)
 
-			result, err := clusteraccess.InjectClusterMetadata(tt.schemaJSON, tt.clusterAccess, mockClient, mockLogger)
+			result, err := clusteraccess.InjectClusterMetadata(context.Background(), tt.schemaJSON, tt.clusterAccess, mockClient, mockLogger)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -266,7 +267,7 @@ func TestInjectClusterMetadata_PathLogic(t *testing.T) {
 			},
 		}
 
-		result, err := clusteraccess.InjectClusterMetadata(schemaJSON, clusterAccess, mockClient, mockLogger)
+		result, err := clusteraccess.InjectClusterMetadata(context.Background(), schemaJSON, clusterAccess, mockClient, mockLogger)
 		require.NoError(t, err)
 
 		var resultData map[string]interface{}
@@ -286,7 +287,7 @@ func TestInjectClusterMetadata_PathLogic(t *testing.T) {
 			},
 		}
 
-		result, err := clusteraccess.InjectClusterMetadata(schemaJSON, clusterAccess, mockClient, mockLogger)
+		result, err := clusteraccess.InjectClusterMetadata(context.Background(), schemaJSON, clusterAccess, mockClient, mockLogger)
 		require.NoError(t, err)
 
 		var resultData map[string]interface{}

@@ -1,6 +1,8 @@
 package clusteraccess
 
 import (
+	"context"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openmfp/golang-commons/logger"
@@ -8,7 +10,7 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/common/auth"
 )
 
-func injectClusterMetadata(schemaJSON []byte, clusterAccess gatewayv1alpha1.ClusterAccess, k8sClient client.Client, log *logger.Logger) ([]byte, error) {
+func injectClusterMetadata(ctx context.Context, schemaJSON []byte, clusterAccess gatewayv1alpha1.ClusterAccess, k8sClient client.Client, log *logger.Logger) ([]byte, error) {
 	// Determine the path
 	path := clusterAccess.Spec.Path
 	if path == "" {
@@ -24,5 +26,5 @@ func injectClusterMetadata(schemaJSON []byte, clusterAccess gatewayv1alpha1.Clus
 	}
 
 	// Use the common metadata injection function
-	return auth.InjectClusterMetadata(schemaJSON, config, k8sClient, log)
+	return auth.InjectClusterMetadata(ctx, schemaJSON, config, k8sClient, log)
 }

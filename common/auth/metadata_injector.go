@@ -30,7 +30,7 @@ type MetadataInjectionConfig struct {
 
 // InjectClusterMetadata injects cluster metadata into schema JSON
 // This unified function handles both KCP and ClusterAccess use cases
-func InjectClusterMetadata(schemaJSON []byte, config MetadataInjectionConfig, k8sClient client.Client, log *logger.Logger) ([]byte, error) {
+func InjectClusterMetadata(ctx context.Context, schemaJSON []byte, config MetadataInjectionConfig, k8sClient client.Client, log *logger.Logger) ([]byte, error) {
 	// Parse the existing schema JSON
 	var schemaData map[string]interface{}
 	if err := json.Unmarshal(schemaJSON, &schemaData); err != nil {
@@ -65,7 +65,7 @@ func InjectClusterMetadata(schemaJSON []byte, config MetadataInjectionConfig, k8
 
 	// Add auth data if configured
 	if config.Auth != nil {
-		authMetadata, err := extractAuthDataForMetadata(config.Auth, k8sClient)
+		authMetadata, err := extractAuthDataForMetadata(ctx, config.Auth, k8sClient)
 		if err != nil {
 			log.Warn().Err(err).Msg("failed to extract auth data for metadata")
 		} else if authMetadata != nil {
@@ -75,7 +75,7 @@ func InjectClusterMetadata(schemaJSON []byte, config MetadataInjectionConfig, k8
 
 	// Add CA data - prefer explicit CA config, fallback to kubeconfig CA
 	if config.CA != nil {
-		caData, err := ExtractCAData(config.CA, k8sClient)
+		caData, err := ExtractCAData(ctx, config.CA, k8sClient)
 		if err != nil {
 			log.Warn().Err(err).Msg("failed to extract CA data for metadata")
 		} else if caData != nil {
@@ -84,7 +84,7 @@ func InjectClusterMetadata(schemaJSON []byte, config MetadataInjectionConfig, k8
 			}
 		}
 	} else if config.Auth != nil {
-		tryExtractKubeconfigCA(config.Auth, k8sClient, metadata, log)
+		tryExtractKubeconfigCA(ctx, config.Auth, k8sClient, metadata, log)
 	}
 
 	// Inject the metadata into the schema
@@ -184,12 +184,10 @@ func InjectKCPMetadataFromEnv(schemaJSON []byte, clusterPath string, log *logger
 }
 
 // extractAuthDataForMetadata extracts auth data from AuthConfig for metadata injection
-func extractAuthDataForMetadata(auth *gatewayv1alpha1.AuthConfig, k8sClient client.Client) (map[string]interface{}, error) {
+func extractAuthDataForMetadata(ctx context.Context, auth *gatewayv1alpha1.AuthConfig, k8sClient client.Client) (map[string]interface{}, error) {
 	if auth == nil {
 		return nil, nil
 	}
-
-	ctx := context.Background()
 
 	if auth.SecretRef != nil {
 		secret := &corev1.Secret{}
@@ -406,8 +404,8 @@ func extractCAFromKubeconfigB64(kubeconfigB64 string, log *logger.Logger) []byte
 }
 
 // tryExtractKubeconfigCA attempts to extract CA data from kubeconfig auth and adds it to metadata
-func tryExtractKubeconfigCA(auth *gatewayv1alpha1.AuthConfig, k8sClient client.Client, metadata map[string]interface{}, log *logger.Logger) {
-	authMetadata, err := extractAuthDataForMetadata(auth, k8sClient)
+func tryExtractKubeconfigCA(ctx context.Context, auth *gatewayv1alpha1.AuthConfig, k8sClient client.Client, metadata map[string]interface{}, log *logger.Logger) {
+	authMetadata, err := extractAuthDataForMetadata(ctx, auth, k8sClient)
 	if err != nil {
 		log.Warn().Err(err).Msg("failed to extract auth data for CA extraction")
 		return
