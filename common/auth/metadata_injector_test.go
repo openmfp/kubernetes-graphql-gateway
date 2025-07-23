@@ -10,8 +10,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"encoding/base64"
+
 	"github.com/openmfp/golang-commons/logger/testlogger"
 	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestInjectKCPMetadataFromEnv(t *testing.T) {
@@ -424,18 +430,197 @@ func TestStripVirtualWorkspacePath(t *testing.T) {
 }
 
 func TestExtractAuthDataForMetadata(t *testing.T) {
-	// Note: This would require mocking k8s client and secrets
-	// For now, just test the nil case
+	ctx := context.Background()
+
 	t.Run("nil_auth_config", func(t *testing.T) {
-		result, err := extractAuthDataForMetadata(context.Background(), nil, nil)
+		result, err := extractAuthDataForMetadata(ctx, nil, nil)
 		assert.NoError(t, err)
 		assert.Nil(t, result)
 	})
 
 	t.Run("empty_auth_config", func(t *testing.T) {
 		auth := &gatewayv1alpha1.AuthConfig{}
-		result, err := extractAuthDataForMetadata(context.Background(), auth, nil)
+		result, err := extractAuthDataForMetadata(ctx, auth, nil)
 		assert.NoError(t, err)
+		assert.Nil(t, result)
+	})
+
+	t.Run("secret_ref_token_auth", func(t *testing.T) {
+		// Create mock secret with token
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-token-secret",
+				Namespace: "test-namespace",
+			},
+			Data: map[string][]byte{
+				"token": []byte("test-token-123"),
+			},
+		}
+
+		// Create fake client with the secret
+		scheme := runtime.NewScheme()
+		corev1.AddToScheme(scheme)
+		gatewayv1alpha1.AddToScheme(scheme)
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build()
+
+		// Create auth config
+		auth := &gatewayv1alpha1.AuthConfig{
+			SecretRef: &gatewayv1alpha1.SecretRef{
+				Name:      "test-token-secret",
+				Namespace: "test-namespace",
+				Key:       "token",
+			},
+		}
+
+		result, err := extractAuthDataForMetadata(ctx, auth, fakeClient)
+		assert.NoError(t, err)
+		require.NotNil(t, result)
+
+		assert.Equal(t, "token", result["type"])
+		assert.Equal(t, base64.StdEncoding.EncodeToString([]byte("test-token-123")), result["token"])
+	})
+
+	t.Run("kubeconfig_secret_ref", func(t *testing.T) {
+		kubeconfigData := `
+apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: https://test.example.com
+  name: test-cluster
+contexts:
+- context:
+    cluster: test-cluster
+    user: test-user
+  name: test-context
+current-context: test-context
+users:
+- name: test-user
+  user:
+    token: kubeconfig-token-456
+`
+
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "kubeconfig-secret",
+				Namespace: "test-namespace",
+			},
+			Data: map[string][]byte{
+				"kubeconfig": []byte(kubeconfigData),
+			},
+		}
+
+		scheme := runtime.NewScheme()
+		corev1.AddToScheme(scheme)
+		gatewayv1alpha1.AddToScheme(scheme)
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build()
+
+		auth := &gatewayv1alpha1.AuthConfig{
+			KubeconfigSecretRef: &gatewayv1alpha1.KubeconfigSecretRef{
+				Name:      "kubeconfig-secret",
+				Namespace: "test-namespace",
+			},
+		}
+
+		result, err := extractAuthDataForMetadata(ctx, auth, fakeClient)
+		assert.NoError(t, err)
+		require.NotNil(t, result)
+
+		assert.Equal(t, "kubeconfig", result["type"])
+		assert.Equal(t, base64.StdEncoding.EncodeToString([]byte(kubeconfigData)), result["kubeconfig"])
+	})
+
+	t.Run("client_certificate_ref", func(t *testing.T) {
+		certData := []byte("-----BEGIN CERTIFICATE-----\nMIICert\n-----END CERTIFICATE-----")
+		keyData := []byte("-----BEGIN PRIVATE KEY-----\nMIIKey\n-----END PRIVATE KEY-----")
+
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cert-secret",
+				Namespace: "test-namespace",
+			},
+			Data: map[string][]byte{
+				"tls.crt": certData,
+				"tls.key": keyData,
+			},
+		}
+
+		scheme := runtime.NewScheme()
+		corev1.AddToScheme(scheme)
+		gatewayv1alpha1.AddToScheme(scheme)
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(secret).Build()
+
+		auth := &gatewayv1alpha1.AuthConfig{
+			ClientCertificateRef: &gatewayv1alpha1.ClientCertificateRef{
+				Name:      "cert-secret",
+				Namespace: "test-namespace",
+			},
+		}
+
+		result, err := extractAuthDataForMetadata(ctx, auth, fakeClient)
+		assert.NoError(t, err)
+		require.NotNil(t, result)
+
+		assert.Equal(t, "clientCert", result["type"])
+		assert.Equal(t, base64.StdEncoding.EncodeToString(certData), result["certData"])
+		assert.Equal(t, base64.StdEncoding.EncodeToString(keyData), result["keyData"])
+	})
+
+	t.Run("secret_not_found", func(t *testing.T) {
+		scheme := runtime.NewScheme()
+		corev1.AddToScheme(scheme)
+		gatewayv1alpha1.AddToScheme(scheme)
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+		auth := &gatewayv1alpha1.AuthConfig{
+			SecretRef: &gatewayv1alpha1.SecretRef{
+				Name:      "non-existent-secret",
+				Namespace: "test-namespace",
+				Key:       "token",
+			},
+		}
+
+		result, err := extractAuthDataForMetadata(ctx, auth, fakeClient)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get auth secret")
+		assert.Nil(t, result)
+	})
+
+	t.Run("kubeconfig_secret_not_found", func(t *testing.T) {
+		scheme := runtime.NewScheme()
+		corev1.AddToScheme(scheme)
+		gatewayv1alpha1.AddToScheme(scheme)
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+		auth := &gatewayv1alpha1.AuthConfig{
+			KubeconfigSecretRef: &gatewayv1alpha1.KubeconfigSecretRef{
+				Name:      "missing-kubeconfig",
+				Namespace: "test-namespace",
+			},
+		}
+
+		result, err := extractAuthDataForMetadata(ctx, auth, fakeClient)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get kubeconfig secret")
+		assert.Nil(t, result)
+	})
+
+	t.Run("client_certificate_secret_not_found", func(t *testing.T) {
+		scheme := runtime.NewScheme()
+		corev1.AddToScheme(scheme)
+		gatewayv1alpha1.AddToScheme(scheme)
+		fakeClient := fake.NewClientBuilder().WithScheme(scheme).Build()
+
+		auth := &gatewayv1alpha1.AuthConfig{
+			ClientCertificateRef: &gatewayv1alpha1.ClientCertificateRef{
+				Name:      "missing-cert-secret",
+				Namespace: "test-namespace",
+			},
+		}
+
+		result, err := extractAuthDataForMetadata(ctx, auth, fakeClient)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "failed to get client certificate secret")
 		assert.Nil(t, result)
 	})
 }
