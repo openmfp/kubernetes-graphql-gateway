@@ -49,8 +49,8 @@ func (c *ConfigWatcher) Watch(ctx context.Context, configPath string, changeHand
 		}
 	}
 
-	// Watch single file with 500ms debouncing
-	return c.fileWatcher.WatchSingleFile(ctx, configPath, 500)
+	// Watch optional configuration file with 500ms debouncing
+	return c.fileWatcher.WatchOptionalFile(ctx, configPath, 500)
 }
 
 // OnFileChanged implements watcher.FileEventHandler

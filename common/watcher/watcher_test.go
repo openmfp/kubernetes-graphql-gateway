@@ -273,6 +273,47 @@ func TestWatchSingleFile_EmptyPath(t *testing.T) {
 	defer cancel()
 
 	err = watcher.WatchSingleFile(ctx, "", 100)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "file path cannot be empty")
+}
+
+func TestWatchOptionalFile_EmptyPath(t *testing.T) {
+	log := testlogger.New().HideLogOutput().Logger
+	handler := &MockFileEventHandler{}
+
+	watcher, err := NewFileWatcher(handler, log)
+	require.NoError(t, err)
+	defer watcher.watcher.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	err = watcher.WatchOptionalFile(ctx, "", 100)
+	assert.Equal(t, context.DeadlineExceeded, err)
+}
+
+func TestWatchOptionalFile_WithPath(t *testing.T) {
+	log := testlogger.New().HideLogOutput().Logger
+	handler := &MockFileEventHandler{}
+
+	watcher, err := NewFileWatcher(handler, log)
+	require.NoError(t, err)
+	defer watcher.watcher.Close()
+
+	// Create a temporary file
+	tempDir, err := os.MkdirTemp("", "watch_optional_test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	tempFile := filepath.Join(tempDir, "watch_me.txt")
+	err = os.WriteFile(tempFile, []byte("initial"), 0644)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	// Should behave exactly like WatchSingleFile when path is provided
+	err = watcher.WatchOptionalFile(ctx, tempFile, 50)
 	assert.Equal(t, context.DeadlineExceeded, err)
 }
 

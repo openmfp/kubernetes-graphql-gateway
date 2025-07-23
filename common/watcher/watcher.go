@@ -41,9 +41,7 @@ func NewFileWatcher(handler FileEventHandler, log *logger.Logger) (*FileWatcher,
 // WatchSingleFile watches a single file with debouncing
 func (w *FileWatcher) WatchSingleFile(ctx context.Context, filePath string, debounceMs int) error {
 	if filePath == "" {
-		w.log.Info().Msg("no file path provided, skipping file watcher")
-		<-ctx.Done()
-		return ctx.Err()
+		return fmt.Errorf("file path cannot be empty")
 	}
 
 	// Watch the directory containing the file
@@ -56,6 +54,18 @@ func (w *FileWatcher) WatchSingleFile(ctx context.Context, filePath string, debo
 	w.log.Info().Str("filePath", filePath).Msg("started watching file")
 
 	return w.watchWithDebounce(ctx, filePath, time.Duration(debounceMs)*time.Millisecond)
+}
+
+// WatchOptionalFile watches a single file with debouncing, or waits forever if no file path is provided
+// This is useful for optional configuration files where the watcher should still run even if no file is configured
+func (w *FileWatcher) WatchOptionalFile(ctx context.Context, filePath string, debounceMs int) error {
+	if filePath == "" {
+		w.log.Info().Msg("no file path provided, waiting for context cancellation")
+		<-ctx.Done()
+		return ctx.Err()
+	}
+
+	return w.WatchSingleFile(ctx, filePath, debounceMs)
 }
 
 // WatchDirectory watches a directory recursively without debouncing
@@ -75,13 +85,17 @@ func (w *FileWatcher) WatchDirectory(ctx context.Context, dirPath string) error 
 func (w *FileWatcher) watchWithDebounce(ctx context.Context, targetFile string, debounceDelay time.Duration) error {
 	var debounceTimer *time.Timer
 
+	// Ensure timer is always stopped on function exit
+	defer func() {
+		if debounceTimer != nil {
+			debounceTimer.Stop()
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
 			w.log.Info().Msg("stopping file watcher")
-			if debounceTimer != nil {
-				debounceTimer.Stop()
-			}
 			return ctx.Err()
 
 		case event, ok := <-w.watcher.Events:
