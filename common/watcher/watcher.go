@@ -3,6 +3,7 @@ package watcher
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -161,9 +162,26 @@ func (w *FileWatcher) handleEvent(event fsnotify.Event) {
 	switch event.Op {
 	case fsnotify.Create, fsnotify.Write:
 		// Check if this is actually a file (not a directory)
-		if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
+		info, err := os.Stat(filePath)
+		if err == nil && !info.IsDir() {
 			w.handler.OnFileChanged(filePath)
 		}
+		if err == nil && info.IsDir() {
+			w.watcher.Add(filePath)
+			filepath.WalkDir(filePath, func(path string, d fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				// Skip directories
+				if d.IsDir() {
+					return nil
+				}
+				w.handler.OnFileChanged(path)
+
+				return nil
+			})
+		}
+
 	case fsnotify.Rename, fsnotify.Remove:
 		w.handler.OnFileDeleted(filePath)
 	default:
