@@ -167,8 +167,12 @@ func (w *FileWatcher) handleEvent(event fsnotify.Event) {
 			w.handler.OnFileChanged(filePath)
 		}
 		if err == nil && info.IsDir() {
-			w.watcher.Add(filePath)
-			filepath.WalkDir(filePath, func(path string, d fs.DirEntry, err error) error {
+			err := w.watcher.Add(filePath)
+			if err != nil {
+				w.log.Error().Err(err).Str("path", filePath).Msg("failed to add directory to watcher")
+				return
+			}
+			err = filepath.WalkDir(filePath, func(path string, d fs.DirEntry, err error) error {
 				if err != nil {
 					return err
 				}
@@ -180,6 +184,10 @@ func (w *FileWatcher) handleEvent(event fsnotify.Event) {
 
 				return nil
 			})
+			if err != nil {
+				w.log.Error().Err(err).Str("path", filePath).Msg("failed to walk directory")
+				return
+			}
 		}
 
 	case fsnotify.Rename, fsnotify.Remove:
