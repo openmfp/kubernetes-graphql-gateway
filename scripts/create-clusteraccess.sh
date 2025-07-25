@@ -14,6 +14,7 @@ MANAGEMENT_KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
 SERVICE_ACCOUNT_NAME="gateway-reader"
 NAMESPACE="default"
 TOKEN_DURATION="24h"
+ADMIN_ACCESS=false
 
 usage() {
     echo "Usage: $0 --target-kubeconfig <path> [options]"
@@ -26,12 +27,18 @@ usage() {
     echo "  --service-account <name>        Service account name (default: gateway-reader)"
     echo "  --namespace <name>              Namespace for secrets (default: default)"
     echo "  --token-duration <duration>     Token duration (default: 24h)"
+    echo "  --admin-access                  Use admin kubeconfig instead of limited service account (grants full cluster access)"
     echo "  --help                          Show this help message"
     echo ""
     echo "Note: Cluster name will be extracted automatically from the target kubeconfig"
     echo ""
-    echo "Example:"
-    echo "  $0 --target-kubeconfig ~/.kube/target-config"
+    echo "Authentication modes:"
+    echo "  Default (limited): Creates service account with 'view' + 'system:discovery' roles"
+    echo "  --admin-access:    Uses target kubeconfig directly (full cluster admin access)"
+    echo ""
+    echo "Examples:"
+    echo "  $0 --target-kubeconfig ~/.kube/target-config                    # Limited access"
+    echo "  $0 --target-kubeconfig ~/.kube/target-config --admin-access     # Admin access"
 }
 
 log_info() {
@@ -68,6 +75,10 @@ while [[ $# -gt 0 ]]; do
         --token-duration)
             TOKEN_DURATION="$2"
             shift 2
+            ;;
+        --admin-access)
+            ADMIN_ACCESS=true
+            shift
             ;;
         --help)
             usage
@@ -123,12 +134,15 @@ cleanup_existing_resources() {
         log_info "Deleting existing secrets in management cluster..."
         KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl delete secret "${CLUSTER_NAME}-token" --namespace="$NAMESPACE" --ignore-not-found=true
         KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl delete secret "${CLUSTER_NAME}-ca" --namespace="$NAMESPACE" --ignore-not-found=true
+        KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl delete secret "${CLUSTER_NAME}-admin-kubeconfig" --namespace="$NAMESPACE" --ignore-not-found=true
         
-        # Clean up service account and role binding in target cluster
-        log_info "Cleaning up service account and role binding in target cluster..."
-        KUBECONFIG="$TARGET_KUBECONFIG" kubectl delete clusterrolebinding "${SERVICE_ACCOUNT_NAME}-binding" --ignore-not-found=true
-        KUBECONFIG="$TARGET_KUBECONFIG" kubectl delete clusterrolebinding "${SERVICE_ACCOUNT_NAME}-discovery-binding" --ignore-not-found=true
-        KUBECONFIG="$TARGET_KUBECONFIG" kubectl delete serviceaccount "$SERVICE_ACCOUNT_NAME" --namespace="$NAMESPACE" --ignore-not-found=true
+        # Clean up service account and role binding in target cluster (only if not using admin access)
+        if [[ "$ADMIN_ACCESS" != "true" ]]; then
+            log_info "Cleaning up service account and role binding in target cluster..."
+            KUBECONFIG="$TARGET_KUBECONFIG" kubectl delete clusterrolebinding "${SERVICE_ACCOUNT_NAME}-binding" --ignore-not-found=true
+            KUBECONFIG="$TARGET_KUBECONFIG" kubectl delete clusterrolebinding "${SERVICE_ACCOUNT_NAME}-discovery-binding" --ignore-not-found=true
+            KUBECONFIG="$TARGET_KUBECONFIG" kubectl delete serviceaccount "$SERVICE_ACCOUNT_NAME" --namespace="$NAMESPACE" --ignore-not-found=true
+        fi
         
         log_info "Cleanup completed. Creating fresh resources..."
     else
@@ -139,6 +153,11 @@ cleanup_existing_resources() {
 log_info "Creating ClusterAccess resource '$CLUSTER_NAME'"
 log_info "Target kubeconfig: $TARGET_KUBECONFIG"
 log_info "Management kubeconfig: $MANAGEMENT_KUBECONFIG"
+if [[ "$ADMIN_ACCESS" == "true" ]]; then
+    log_info "Authentication mode: Admin kubeconfig (full cluster access)"
+else
+    log_info "Authentication mode: Service account (limited access)"
+fi
 
 # Clean up existing resources if they exist
 cleanup_existing_resources
@@ -176,77 +195,139 @@ if ! KUBECONFIG="$TARGET_KUBECONFIG" kubectl cluster-info &>/dev/null; then
 fi
 log_info "Target cluster is accessible"
 
-# Create service account in target cluster
-log_info "Creating service account '$SERVICE_ACCOUNT_NAME' in target cluster..."
-KUBECONFIG="$TARGET_KUBECONFIG" kubectl create serviceaccount "$SERVICE_ACCOUNT_NAME" --namespace="$NAMESPACE" --dry-run=client -o yaml | \
-KUBECONFIG="$TARGET_KUBECONFIG" kubectl apply -f -
+if [[ "$ADMIN_ACCESS" == "true" ]]; then
+    # Admin access mode: use kubeconfig directly
+    log_info "Using admin kubeconfig mode - skipping service account creation"
+    
+    # Test management cluster connectivity
+    log_info "Testing management cluster connectivity..."
+    if ! KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl cluster-info &>/dev/null; then
+        log_error "Cannot connect to management cluster"
+        exit 1
+    fi
+    log_info "Management cluster is accessible"
+    
+    # Create kubeconfig secret in management cluster
+    log_info "Creating admin kubeconfig secret in management cluster..."
+    KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl create secret generic "${CLUSTER_NAME}-admin-kubeconfig" \
+        --namespace="$NAMESPACE" \
+        --from-file=kubeconfig="$TARGET_KUBECONFIG" \
+        --dry-run=client -o yaml | \
+    KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl apply -f -
+    
+    # Create CA secret in management cluster  
+    log_info "Creating CA secret in management cluster..."
+    echo "$CA_CERT" | KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl create secret generic "${CLUSTER_NAME}-ca" \
+        --namespace="$NAMESPACE" \
+        --from-file=ca.crt=/dev/stdin \
+        --dry-run=client -o yaml | \
+    KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl apply -f -
+    
+    # Create ClusterAccess resource with kubeconfig authentication
+    log_info "Creating ClusterAccess resource with admin kubeconfig..."
+    cat <<EOF | KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl apply -f -
+apiVersion: gateway.openmfp.org/v1alpha1
+kind: ClusterAccess
+metadata:
+  name: $CLUSTER_NAME
+spec:
+  path: $CLUSTER_NAME
+  host: $SERVER_URL
+  ca:
+    secretRef:
+      name: ${CLUSTER_NAME}-ca
+      namespace: $NAMESPACE
+      key: ca.crt
+  auth:
+    kubeconfigSecretRef:
+      name: ${CLUSTER_NAME}-admin-kubeconfig
+      namespace: $NAMESPACE
+EOF
 
-# Create cluster role binding
-log_info "Creating cluster role binding for service account..."
-KUBECONFIG="$TARGET_KUBECONFIG" kubectl create clusterrolebinding "${SERVICE_ACCOUNT_NAME}-binding" \
-    --clusterrole=view \
-    --serviceaccount="${NAMESPACE}:${SERVICE_ACCOUNT_NAME}" \
-    --dry-run=client -o yaml | \
-KUBECONFIG="$TARGET_KUBECONFIG" kubectl apply -f -
+    log_info "ClusterAccess resource '$CLUSTER_NAME' created successfully with admin access!"
+    echo ""
+    log_info "Summary (Admin Access):"
+    echo "  - Admin kubeconfig secret: $NAMESPACE/${CLUSTER_NAME}-admin-kubeconfig (in management cluster)"
+    echo "  - CA secret: $NAMESPACE/${CLUSTER_NAME}-ca (in management cluster)"
+    echo "  - ClusterAccess: $CLUSTER_NAME"
+    echo "  - Server URL: $SERVER_URL"
+    echo "  - Access level: Full cluster admin (can access all resources including ClusterRoles, etc.)"
+    
+else
+    # Service account mode: create limited access service account
+    log_info "Using service account mode - creating limited access"
 
-# Create additional cluster role binding for discovery API
-log_info "Creating discovery API cluster role binding for service account..."
-KUBECONFIG="$TARGET_KUBECONFIG" kubectl create clusterrolebinding "${SERVICE_ACCOUNT_NAME}-discovery-binding" \
-    --clusterrole=system:discovery \
-    --serviceaccount="${NAMESPACE}:${SERVICE_ACCOUNT_NAME}" \
-    --dry-run=client -o yaml | \
-KUBECONFIG="$TARGET_KUBECONFIG" kubectl apply -f -
+    # Create service account in target cluster
+    log_info "Creating service account '$SERVICE_ACCOUNT_NAME' in target cluster..."
+    KUBECONFIG="$TARGET_KUBECONFIG" kubectl create serviceaccount "$SERVICE_ACCOUNT_NAME" --namespace="$NAMESPACE" --dry-run=client -o yaml | \
+    KUBECONFIG="$TARGET_KUBECONFIG" kubectl apply -f -
 
-# Generate token
-log_info "Generating token for service account..."
-TOKEN=$(KUBECONFIG="$TARGET_KUBECONFIG" kubectl create token "$SERVICE_ACCOUNT_NAME" --namespace="$NAMESPACE" --duration="$TOKEN_DURATION")
-if [[ -z "$TOKEN" ]]; then
-    log_error "Failed to generate token"
-    exit 1
-fi
-log_info "Token generated successfully"
+    # Create cluster role binding
+    log_info "Creating cluster role binding for service account..."
+    KUBECONFIG="$TARGET_KUBECONFIG" kubectl create clusterrolebinding "${SERVICE_ACCOUNT_NAME}-binding" \
+        --clusterrole=view \
+        --serviceaccount="${NAMESPACE}:${SERVICE_ACCOUNT_NAME}" \
+        --dry-run=client -o yaml | \
+    KUBECONFIG="$TARGET_KUBECONFIG" kubectl apply -f -
 
-# Test token permissions
-log_info "Testing token permissions..."
-if ! KUBECONFIG="$TARGET_KUBECONFIG" kubectl auth can-i list configmaps --as="system:serviceaccount:${NAMESPACE}:${SERVICE_ACCOUNT_NAME}" &>/dev/null; then
-    log_warn "Token may not have sufficient permissions to list configmaps"
-fi
+    # Create additional cluster role binding for discovery API
+    log_info "Creating discovery API cluster role binding for service account..."
+    KUBECONFIG="$TARGET_KUBECONFIG" kubectl create clusterrolebinding "${SERVICE_ACCOUNT_NAME}-discovery-binding" \
+        --clusterrole=system:discovery \
+        --serviceaccount="${NAMESPACE}:${SERVICE_ACCOUNT_NAME}" \
+        --dry-run=client -o yaml | \
+    KUBECONFIG="$TARGET_KUBECONFIG" kubectl apply -f -
 
-# Test Discovery API permissions
-log_info "Testing Discovery API permissions..."
-if ! KUBECONFIG="$TARGET_KUBECONFIG" kubectl auth can-i get /apis --as="system:serviceaccount:${NAMESPACE}:${SERVICE_ACCOUNT_NAME}" &>/dev/null; then
-    log_error "Token does not have Discovery API permissions. This will cause 'Unauthorized' errors."
-    exit 1
-fi
-log_info "Discovery API permissions verified successfully"
+    # Generate token
+    log_info "Generating token for service account..."
+    TOKEN=$(KUBECONFIG="$TARGET_KUBECONFIG" kubectl create token "$SERVICE_ACCOUNT_NAME" --namespace="$NAMESPACE" --duration="$TOKEN_DURATION")
+    if [[ -z "$TOKEN" ]]; then
+        log_error "Failed to generate token"
+        exit 1
+    fi
+    log_info "Token generated successfully"
 
-# Test management cluster connectivity
-log_info "Testing management cluster connectivity..."
-if ! KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl cluster-info &>/dev/null; then
-    log_error "Cannot connect to management cluster"
-    exit 1
-fi
-log_info "Management cluster is accessible"
+    # Test token permissions
+    log_info "Testing token permissions..."
+    if ! KUBECONFIG="$TARGET_KUBECONFIG" kubectl auth can-i list configmaps --as="system:serviceaccount:${NAMESPACE}:${SERVICE_ACCOUNT_NAME}" &>/dev/null; then
+        log_warn "Token may not have sufficient permissions to list configmaps"
+    fi
 
-# Create token secret in management cluster
-log_info "Creating token secret in management cluster..."
-KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl create secret generic "${CLUSTER_NAME}-token" \
-    --namespace="$NAMESPACE" \
-    --from-literal=token="$TOKEN" \
-    --dry-run=client -o yaml | \
-KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl apply -f -
+    # Test Discovery API permissions
+    log_info "Testing Discovery API permissions..."
+    if ! KUBECONFIG="$TARGET_KUBECONFIG" kubectl auth can-i get /apis --as="system:serviceaccount:${NAMESPACE}:${SERVICE_ACCOUNT_NAME}" &>/dev/null; then
+        log_error "Token does not have Discovery API permissions. This will cause 'Unauthorized' errors."
+        exit 1
+    fi
+    log_info "Discovery API permissions verified successfully"
 
-# Create CA secret in management cluster
-log_info "Creating CA secret in management cluster..."
-echo "$CA_CERT" | KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl create secret generic "${CLUSTER_NAME}-ca" \
-    --namespace="$NAMESPACE" \
-    --from-file=ca.crt=/dev/stdin \
-    --dry-run=client -o yaml | \
-KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl apply -f -
+    # Test management cluster connectivity
+    log_info "Testing management cluster connectivity..."
+    if ! KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl cluster-info &>/dev/null; then
+        log_error "Cannot connect to management cluster"
+        exit 1
+    fi
+    log_info "Management cluster is accessible"
 
-# Create ClusterAccess resource
-log_info "Creating ClusterAccess resource..."
-cat <<EOF | KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl apply -f -
+    # Create token secret in management cluster
+    log_info "Creating token secret in management cluster..."
+    KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl create secret generic "${CLUSTER_NAME}-token" \
+        --namespace="$NAMESPACE" \
+        --from-literal=token="$TOKEN" \
+        --dry-run=client -o yaml | \
+    KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl apply -f -
+
+    # Create CA secret in management cluster
+    log_info "Creating CA secret in management cluster..."
+    echo "$CA_CERT" | KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl create secret generic "${CLUSTER_NAME}-ca" \
+        --namespace="$NAMESPACE" \
+        --from-file=ca.crt=/dev/stdin \
+        --dry-run=client -o yaml | \
+    KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl apply -f -
+
+    # Create ClusterAccess resource with token authentication
+    log_info "Creating ClusterAccess resource with service account token..."
+    cat <<EOF | KUBECONFIG="$MANAGEMENT_KUBECONFIG" kubectl apply -f -
 apiVersion: gateway.openmfp.org/v1alpha1
 kind: ClusterAccess
 metadata:
@@ -266,16 +347,19 @@ spec:
       key: token
 EOF
 
-log_info "ClusterAccess resource '$CLUSTER_NAME' created successfully!"
-echo ""
-log_info "Summary:"
-echo "  - Service account: $NAMESPACE/$SERVICE_ACCOUNT_NAME (in target cluster)"
-echo "  - View permissions: ${SERVICE_ACCOUNT_NAME}-binding (ClusterRoleBinding to 'view')"
-echo "  - Discovery permissions: ${SERVICE_ACCOUNT_NAME}-discovery-binding (ClusterRoleBinding to 'system:discovery')"
-echo "  - Token secret: $NAMESPACE/${CLUSTER_NAME}-token (in management cluster)"
-echo "  - CA secret: $NAMESPACE/${CLUSTER_NAME}-ca (in management cluster)"
-echo "  - ClusterAccess: $CLUSTER_NAME"
-echo "  - Server URL: $SERVER_URL"
+    log_info "ClusterAccess resource '$CLUSTER_NAME' created successfully with limited access!"
+    echo ""
+    log_info "Summary (Limited Access):"
+    echo "  - Service account: $NAMESPACE/$SERVICE_ACCOUNT_NAME (in target cluster)"
+    echo "  - View permissions: ${SERVICE_ACCOUNT_NAME}-binding (ClusterRoleBinding to 'view')"
+    echo "  - Discovery permissions: ${SERVICE_ACCOUNT_NAME}-discovery-binding (ClusterRoleBinding to 'system:discovery')"
+    echo "  - Token secret: $NAMESPACE/${CLUSTER_NAME}-token (in management cluster)"
+    echo "  - CA secret: $NAMESPACE/${CLUSTER_NAME}-ca (in management cluster)"
+    echo "  - ClusterAccess: $CLUSTER_NAME"
+    echo "  - Server URL: $SERVER_URL"
+    echo "  - Access level: Limited (view + discovery API only)"
+fi
+
 echo ""
 log_info "You can now run the listener to generate the schema:"
 echo "  export ENABLE_KCP=false"
