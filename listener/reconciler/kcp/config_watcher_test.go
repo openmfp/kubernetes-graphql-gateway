@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/openmfp/golang-commons/logger/testlogger"
+	"github.com/openmfp/golang-commons/logger"
 	"github.com/openmfp/kubernetes-graphql-gateway/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +36,8 @@ func TestNewConfigWatcher(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			log := testlogger.New().HideLogOutput().Logger
+			log, err := logger.New(logger.DefaultConfig())
+			require.NoError(t, err)
 			virtualWSManager := &MockVirtualWorkspaceConfigManager{}
 
 			watcher, err := NewConfigWatcher(virtualWSManager, log)
@@ -86,7 +87,8 @@ func TestConfigWatcher_OnFileChanged(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			log := testlogger.New().HideLogOutput().Logger
+			log, err := logger.New(logger.DefaultConfig())
+			require.NoError(t, err)
 			virtualWSManager := &MockVirtualWorkspaceConfigManager{
 				LoadConfigFunc: tt.loadConfigFunc,
 			}
@@ -118,7 +120,8 @@ func TestConfigWatcher_OnFileChanged(t *testing.T) {
 }
 
 func TestConfigWatcher_OnFileDeleted(t *testing.T) {
-	log := testlogger.New().HideLogOutput().Logger
+	log, err := logger.New(logger.DefaultConfig())
+	require.NoError(t, err)
 	virtualWSManager := &MockVirtualWorkspaceConfigManager{}
 
 	watcher, err := NewConfigWatcher(virtualWSManager, log)
@@ -172,7 +175,8 @@ func TestConfigWatcher_LoadAndNotify(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			log := testlogger.New().HideLogOutput().Logger
+			log, err := logger.New(logger.DefaultConfig())
+			require.NoError(t, err)
 			virtualWSManager := &MockVirtualWorkspaceConfigManager{
 				LoadConfigFunc: tt.loadConfigFunc,
 			}
@@ -213,7 +217,8 @@ func TestConfigWatcher_LoadAndNotify(t *testing.T) {
 }
 
 func TestConfigWatcher_Watch_EmptyPath(t *testing.T) {
-	log := testlogger.New().HideLogOutput().Logger
+	log, err := logger.New(logger.DefaultConfig())
+	require.NoError(t, err)
 	virtualWSManager := &MockVirtualWorkspaceConfigManager{
 		LoadConfigFunc: func(configPath string) (*VirtualWorkspacesConfig, error) {
 			return &VirtualWorkspacesConfig{}, nil

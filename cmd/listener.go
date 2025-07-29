@@ -21,6 +21,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
+	"github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/workspacefile"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/clusteraccess"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/kcp"
@@ -74,6 +76,8 @@ var listenCmd = &cobra.Command{
 		}
 	},
 	Run: func(cmd *cobra.Command, args []string) {
+		log.Info().Str("LogLevel", log.GetLevel().String()).Msg("Starting the Listener...")
+
 		ctx := ctrl.SetupSignalHandler()
 		restCfg := ctrl.GetConfigOrDie()
 
@@ -123,7 +127,13 @@ var listenCmd = &cobra.Command{
 
 			reconcilerInstance = kcpReconciler
 		} else {
-			reconcilerInstance, err = clusteraccess.CreateMultiClusterReconciler(appCfg, reconcilerOpts, log)
+			ioHandler, err := workspacefile.NewIOHandler(appCfg.OpenApiDefinitionsPath)
+			if err != nil {
+				log.Error().Err(err).Msg("unable to create IO handler")
+				os.Exit(1)
+			}
+
+			reconcilerInstance, err = clusteraccess.NewClusterAccessReconciler(ctx, appCfg, reconcilerOpts, ioHandler, apischema.NewResolver(log), log)
 			if err != nil {
 				log.Error().Err(err).Msg("unable to create cluster access reconciler")
 				os.Exit(1)

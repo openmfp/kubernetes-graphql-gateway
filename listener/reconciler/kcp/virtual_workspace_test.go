@@ -1,6 +1,7 @@
 package kcp
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -11,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 
-	"github.com/openmfp/golang-commons/logger/testlogger"
+	"github.com/openmfp/golang-commons/logger"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 )
 
@@ -557,7 +558,9 @@ func TestNewVirtualWorkspaceReconciler(t *testing.T) {
 	appCfg := config.Config{}
 	manager := NewVirtualWorkspaceManager(appCfg)
 
-	reconciler := NewVirtualWorkspaceReconciler(manager, nil, nil, nil)
+	log, err := logger.New(logger.DefaultConfig())
+	require.NoError(t, err)
+	reconciler := NewVirtualWorkspaceReconciler(manager, nil, nil, log)
 
 	assert.NotNil(t, reconciler)
 	assert.Equal(t, manager, reconciler.virtualWSManager)
@@ -604,12 +607,11 @@ func TestVirtualWorkspaceReconciler_ReconcileConfig_Simple(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Unset KUBECONFIG environment variable to avoid reading user's kubeconfig
+			// Set up test environment where KUBECONFIG is not available
 			oldKubeconfig := os.Getenv("KUBECONFIG")
 			defer os.Setenv("KUBECONFIG", oldKubeconfig)
 			os.Unsetenv("KUBECONFIG")
 
-			log := testlogger.New().HideLogOutput().Logger
 			appCfg := config.Config{}
 			appCfg.Url.VirtualWorkspacePrefix = "virtual-workspace"
 
@@ -631,13 +633,15 @@ func TestVirtualWorkspaceReconciler_ReconcileConfig_Simple(t *testing.T) {
 				},
 			}
 
+			log, err := logger.New(logger.DefaultConfig())
+			require.NoError(t, err)
 			reconciler := NewVirtualWorkspaceReconciler(manager, ioHandler, apiResolver, log)
 			reconciler.currentWorkspaces = tt.initialWorkspaces
 
 			// For this simplified test, we'll mock the individual methods to avoid network calls
 			// This tests the reconciliation logic without testing the full discovery/REST mapper setup
 
-			err := reconciler.ReconcileConfig(t.Context(), tt.newConfig)
+			err = reconciler.ReconcileConfig(context.Background(), tt.newConfig)
 
 			// Since discovery client creation may fail, we don't assert NoError
 			// but we can still verify the workspace tracking logic
@@ -693,12 +697,11 @@ func TestVirtualWorkspaceReconciler_ProcessVirtualWorkspace(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Unset KUBECONFIG environment variable to avoid reading user's kubeconfig
+			// Set up test environment where KUBECONFIG is not available
 			oldKubeconfig := os.Getenv("KUBECONFIG")
 			defer os.Setenv("KUBECONFIG", oldKubeconfig)
 			os.Unsetenv("KUBECONFIG")
 
-			log := testlogger.New().HideLogOutput().Logger
 			appCfg := config.Config{}
 			appCfg.Url.VirtualWorkspacePrefix = "virtual-workspace"
 
@@ -725,9 +728,11 @@ func TestVirtualWorkspaceReconciler_ProcessVirtualWorkspace(t *testing.T) {
 				},
 			}
 
+			log, err := logger.New(logger.DefaultConfig())
+			require.NoError(t, err)
 			reconciler := NewVirtualWorkspaceReconciler(manager, ioHandler, apiResolver, log)
 
-			err := reconciler.processVirtualWorkspace(t.Context(), tt.workspace)
+			err = reconciler.processVirtualWorkspace(context.Background(), tt.workspace)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -762,12 +767,11 @@ func TestVirtualWorkspaceReconciler_RemoveVirtualWorkspace(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Unset KUBECONFIG environment variable to avoid reading user's kubeconfig
+			// Set up test environment where KUBECONFIG is not available
 			oldKubeconfig := os.Getenv("KUBECONFIG")
 			defer os.Setenv("KUBECONFIG", oldKubeconfig)
 			os.Unsetenv("KUBECONFIG")
 
-			log := testlogger.New().HideLogOutput().Logger
 			appCfg := config.Config{}
 			appCfg.Url.VirtualWorkspacePrefix = "virtual-workspace"
 
@@ -786,10 +790,12 @@ func TestVirtualWorkspaceReconciler_RemoveVirtualWorkspace(t *testing.T) {
 				},
 			}
 
+			log, err := logger.New(logger.DefaultConfig())
+			require.NoError(t, err)
 			reconciler := NewVirtualWorkspaceReconciler(manager, nil, nil, log)
 			reconciler.ioHandler = ioHandler
 
-			err := reconciler.removeVirtualWorkspace(tt.workspaceName)
+			err = reconciler.removeVirtualWorkspace(tt.workspaceName)
 
 			if tt.expectError {
 				assert.Error(t, err)
