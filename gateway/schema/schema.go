@@ -474,7 +474,7 @@ func (g *Gateway) shouldInferAsObjectMeta(fieldPath []string) bool {
 		return false
 	}
 
-	// Define whitelist of known metadata fields that should be ObjectMeta
+	// Define allowlist of known metadata fields that should be ObjectMeta
 	pathStr := strings.Join(fieldPath, ".")
 	knownMetadataPaths := []string{
 		"spec.apiExport.metadata",

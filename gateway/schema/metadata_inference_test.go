@@ -50,7 +50,7 @@ func TestShouldInferAsObjectMeta(t *testing.T) {
 			expected:  false,
 		},
 		{
-			name:      "deeply_nested_but_not_whitelisted",
+			name:      "deeply_nested_but_not_allowlisted",
 			fieldPath: []string{"spec", "template", "spec", "metadata"},
 			expected:  false,
 		},
