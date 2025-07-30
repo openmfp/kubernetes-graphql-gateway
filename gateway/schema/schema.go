@@ -453,8 +453,59 @@ func (g *Gateway) handleObjectFieldSpecType(fieldSpec spec.Schema, typePrefix st
 		}
 	}
 
-	// It's an empty object
-	return graphql.String, graphql.String, nil
+	// Check if this should be ObjectMeta
+	if g.shouldInferAsObjectMeta(fieldPath) {
+		return g.getObjectMetaType()
+	}
+
+	// It's an empty object, use StringMap as fallback
+	return stringMapScalar, stringMapScalar, nil
+}
+
+// shouldInferAsObjectMeta checks if a field path should be inferred as ObjectMeta
+func (g *Gateway) shouldInferAsObjectMeta(fieldPath []string) bool {
+	if len(fieldPath) == 0 {
+		return false
+	}
+
+	// Check if the last field in the path is "metadata"
+	lastField := fieldPath[len(fieldPath)-1]
+	if lastField != "metadata" {
+		return false
+	}
+
+	// Define whitelist of known metadata fields that should be ObjectMeta
+	pathStr := strings.Join(fieldPath, ".")
+	knownMetadataPaths := []string{
+		"spec.apiExport.metadata",
+		"spec.providerMetadata.metadata",
+	}
+
+	for _, knownPath := range knownMetadataPaths {
+		if pathStr == knownPath {
+			return true
+		}
+	}
+
+	return false
+}
+
+// getObjectMetaType returns the ObjectMeta type from the schema definitions
+func (g *Gateway) getObjectMetaType() (graphql.Output, graphql.Input, error) {
+	objectMetaKey := "io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
+
+	if g.definitions != nil {
+		if objectMetaSchema, exists := g.definitions[objectMetaKey]; exists {
+			return g.handleObjectFieldSpecType(objectMetaSchema, "ObjectMeta", []string{}, make(map[string]bool))
+		}
+	}
+
+	// Log warning when ObjectMeta definition is missing but expected
+	if g.log != nil {
+		g.log.Error().Msg("ObjectMeta definition not found in schema, falling back to StringMap")
+	}
+
+	return stringMapScalar, stringMapScalar, nil
 }
 
 func (g *Gateway) generateTypeName(typePrefix string, fieldPath []string) string {
