@@ -494,9 +494,16 @@ func (g *Gateway) shouldInferAsObjectMeta(fieldPath []string) bool {
 func (g *Gateway) getObjectMetaType() (graphql.Output, graphql.Input, error) {
 	objectMetaKey := "io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
 
+	// First check if the ObjectMeta type is already cached (most common case)
+	if existingType, exists := g.typesCache[objectMetaKey]; exists {
+		existingInputType := g.inputTypesCache[objectMetaKey]
+		return existingType, existingInputType, nil
+	}
+
+	// If not cached, try to generate it using the same key as normal $ref processing
 	if g.definitions != nil {
 		if objectMetaSchema, exists := g.definitions[objectMetaKey]; exists {
-			return g.handleObjectFieldSpecType(objectMetaSchema, "ObjectMeta", []string{}, make(map[string]bool))
+			return g.handleObjectFieldSpecType(objectMetaSchema, objectMetaKey, []string{}, make(map[string]bool))
 		}
 	}
 
