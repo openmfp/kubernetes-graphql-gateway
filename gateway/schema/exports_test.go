@@ -21,11 +21,3 @@ func (g *Gateway) GenerateTypeNameForTest(typePrefix string, fieldPath []string)
 func SanitizeFieldNameForTest(name string) string {
 	return sanitizeFieldName(name)
 }
-
-func (g *Gateway) ShouldInferAsObjectMetaForTest(fieldPath []string) bool {
-	return g.shouldInferAsObjectMeta(fieldPath)
-}
-
-func (g *Gateway) GetObjectMetaTypeForTest() (interface{}, interface{}, error) {
-	return g.getObjectMetaType()
-}

@@ -453,48 +453,8 @@ func (g *Gateway) handleObjectFieldSpecType(fieldSpec spec.Schema, typePrefix st
 		}
 	}
 
-	// Check if this should be ObjectMeta
-	if g.shouldInferAsObjectMeta(fieldPath) {
-		return g.getObjectMetaType()
-	}
-
-	// It's an empty object, use StringMap as fallback
-	return stringMapScalar, stringMapScalar, nil
-}
-
-// shouldInferAsObjectMeta checks if a field path should be inferred as ObjectMeta
-func (g *Gateway) shouldInferAsObjectMeta(fieldPath []string) bool {
-	if len(fieldPath) == 0 {
-		return false
-	}
-
-	// Check if the last field in the path is "metadata"
-	return fieldPath[len(fieldPath)-1] == "metadata"
-}
-
-// getObjectMetaType returns the ObjectMeta type from the schema definitions
-func (g *Gateway) getObjectMetaType() (graphql.Output, graphql.Input, error) {
-	objectMetaKey := "io.k8s.apimachinery.pkg.apis.meta.v1.ObjectMeta"
-
-	// First check if the ObjectMeta type is already cached (most common case)
-	if existingType, exists := g.typesCache[objectMetaKey]; exists {
-		existingInputType := g.inputTypesCache[objectMetaKey]
-		return existingType, existingInputType, nil
-	}
-
-	// If not cached, try to generate it using the same key as normal $ref processing
-	if g.definitions != nil {
-		if objectMetaSchema, exists := g.definitions[objectMetaKey]; exists {
-			return g.handleObjectFieldSpecType(objectMetaSchema, objectMetaKey, []string{}, make(map[string]bool))
-		}
-	}
-
-	// Log warning when ObjectMeta definition is missing but expected
-	if g.log != nil {
-		g.log.Error().Msg("ObjectMeta definition not found in schema, falling back to StringMap")
-	}
-
-	return stringMapScalar, stringMapScalar, nil
+	// It's an empty object, serialize as JSON string
+	return graphql.String, graphql.String, nil
 }
 
 func (g *Gateway) generateTypeName(typePrefix string, fieldPath []string) string {
