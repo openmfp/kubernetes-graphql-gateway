@@ -446,9 +446,25 @@ func (g *Gateway) handleObjectFieldSpecType(fieldSpec spec.Schema, typePrefix st
 
 		return newType, newInputType, nil
 	} else if fieldSpec.AdditionalProperties != nil && fieldSpec.AdditionalProperties.Schema != nil {
-		// Hagndle map types
+		// Handle map types
 		if len(fieldSpec.AdditionalProperties.Schema.Type) == 1 && fieldSpec.AdditionalProperties.Schema.Type[0] == "string" {
-			// This is a map[string]string
+			// Check if this is a labels or annotations field
+			currentFieldName := ""
+			if len(fieldPath) > 0 {
+				currentFieldName = fieldPath[len(fieldPath)-1]
+			}
+
+			// Check if we're in a metadata context or processing a known ObjectMeta type
+			isInMetadata := len(fieldPath) >= 2 && fieldPath[len(fieldPath)-2] == "metadata"
+			isObjectMetaType := strings.Contains(typePrefix, "ObjectMeta") || strings.Contains(typePrefix, "meta_v1")
+
+			if (isInMetadata || isObjectMetaType) && (currentFieldName == "labels" || currentFieldName == "annotations") {
+				// This is a labels or annotations field
+				// Use List(LabelType) for output (allows querying key/value fields)
+				// Use List(LabelInputType) for input (supports array syntax)
+				return graphql.NewList(LabelType), graphql.NewList(LabelInputType), nil
+			}
+			// This is a regular map[string]string
 			return stringMapScalar, stringMapScalar, nil
 		}
 	}
