@@ -15,28 +15,24 @@ func TestShouldInferAsObjectMeta(t *testing.T) {
 		expected  bool
 	}{
 		{
-			name:      "marketplace_entry_api_export_metadata",
+			name:      "one_level_deep_metadata",
+			fieldPath: []string{"metadata"},
+			expected:  true,
+		},
+		{
+			name:      "two_level_deep_metadata",
+			fieldPath: []string{"spec", "metadata"},
+			expected:  true,
+		},
+		{
+			name:      "three_level_deep_metadata",
 			fieldPath: []string{"spec", "apiExport", "metadata"},
 			expected:  true,
 		},
-		{
-			name:      "marketplace_entry_provider_metadata_metadata",
-			fieldPath: []string{"spec", "providerMetadata", "metadata"},
-			expected:  true,
-		},
-		{
-			name:      "root_metadata_should_not_infer",
-			fieldPath: []string{"metadata"},
-			expected:  false,
-		},
+
 		{
 			name:      "non_metadata_field",
 			fieldPath: []string{"spec", "containers"},
-			expected:  false,
-		},
-		{
-			name:      "metadata_but_wrong_path",
-			fieldPath: []string{"spec", "someOtherField", "metadata"},
 			expected:  false,
 		},
 		{
@@ -45,23 +41,8 @@ func TestShouldInferAsObjectMeta(t *testing.T) {
 			expected:  false,
 		},
 		{
-			name:      "metadata_at_wrong_level",
-			fieldPath: []string{"data", "metadata"},
-			expected:  false,
-		},
-		{
-			name:      "deeply_nested_but_not_allowlisted",
-			fieldPath: []string{"spec", "template", "spec", "metadata"},
-			expected:  false,
-		},
-		{
-			name:      "partial_match_should_not_infer",
-			fieldPath: []string{"spec", "apiExport"},
-			expected:  false,
-		},
-		{
 			name:      "case_sensitive_metadata",
-			fieldPath: []string{"spec", "apiExport", "Metadata"},
+			fieldPath: []string{"Metadata"},
 			expected:  false,
 		},
 	}

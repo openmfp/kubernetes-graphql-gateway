@@ -469,25 +469,7 @@ func (g *Gateway) shouldInferAsObjectMeta(fieldPath []string) bool {
 	}
 
 	// Check if the last field in the path is "metadata"
-	lastField := fieldPath[len(fieldPath)-1]
-	if lastField != "metadata" {
-		return false
-	}
-
-	// Define allowlist of known metadata fields that should be ObjectMeta
-	pathStr := strings.Join(fieldPath, ".")
-	knownMetadataPaths := []string{
-		"spec.apiExport.metadata",
-		"spec.providerMetadata.metadata",
-	}
-
-	for _, knownPath := range knownMetadataPaths {
-		if pathStr == knownPath {
-			return true
-		}
-	}
-
-	return false
+	return fieldPath[len(fieldPath)-1] == "metadata"
 }
 
 // getObjectMetaType returns the ObjectMeta type from the schema definitions
