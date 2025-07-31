@@ -454,7 +454,7 @@ func (g *Gateway) handleObjectFieldSpecType(fieldSpec spec.Schema, typePrefix st
 	}
 
 	// It's an empty object, serialize as JSON string
-	return graphql.String, graphql.String, nil
+	return jsonStringScalar, jsonStringScalar, nil
 }
 
 func (g *Gateway) generateTypeName(typePrefix string, fieldPath []string) string {
