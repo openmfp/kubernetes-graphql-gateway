@@ -14,8 +14,6 @@ import (
 	"github.com/spf13/cobra"
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/openmfp/golang-commons/logger"
-
 	"github.com/openmfp/kubernetes-graphql-gateway/gateway/manager"
 )
 
@@ -24,12 +22,7 @@ var gatewayCmd = &cobra.Command{
 	Short:   "Run the GQL Gateway",
 	Example: "go run main.go gateway",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		log, err := setupLogger(defaultCfg.Log.Level)
-		if err != nil {
-			return fmt.Errorf("failed to setup logger: %w", err)
-		}
-
-		log.Info().Str("LogLevel", log.GetLevel().String()).Msg("Starting server...")
+		log.Info().Str("LogLevel", log.GetLevel().String()).Msg("Starting the Gateway...")
 
 		ctx, _, shutdown := openmfpcontext.StartContext(log, appCfg, 1*time.Second)
 		defer shutdown()
@@ -126,12 +119,4 @@ var gatewayCmd = &cobra.Command{
 		log.Info().Msg("Server shut down successfully")
 		return nil
 	},
-}
-
-// setupLogger initializes the logger with the given log level
-func setupLogger(logLevel string) (*logger.Logger, error) {
-	loggerCfg := logger.DefaultConfig()
-	loggerCfg.Name = "crdGateway"
-	loggerCfg.Level = logLevel
-	return logger.New(loggerCfg)
 }

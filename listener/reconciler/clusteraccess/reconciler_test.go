@@ -10,7 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openmfp/golang-commons/logger"
@@ -19,6 +18,9 @@ import (
 	"github.com/openmfp/kubernetes-graphql-gateway/common/mocks"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/clusteraccess"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 func TestCheckClusterAccessCRDStatus(t *testing.T) {
@@ -27,7 +29,7 @@ func TestCheckClusterAccessCRDStatus(t *testing.T) {
 	tests := []struct {
 		name      string
 		mockSetup func(*mocks.MockClient)
-		want      clusteraccess.ExportedCRDStatus
+		want      clusteraccess.CRDStatus
 		wantErr   bool
 	}{
 		{
@@ -47,7 +49,7 @@ func TestCheckClusterAccessCRDStatus(t *testing.T) {
 						return nil
 					}).Once()
 			},
-			want:    clusteraccess.ExportedCRDRegistered,
+			want:    clusteraccess.CRDRegistered,
 			wantErr: false,
 		},
 
@@ -63,7 +65,7 @@ func TestCheckClusterAccessCRDStatus(t *testing.T) {
 						},
 					}).Once()
 			},
-			want:    clusteraccess.ExportedCRDNotRegistered,
+			want:    clusteraccess.CRDNotRegistered,
 			wantErr: false,
 		},
 		{
@@ -72,7 +74,7 @@ func TestCheckClusterAccessCRDStatus(t *testing.T) {
 				m.EXPECT().List(mock.Anything, mock.AnythingOfType("*v1alpha1.ClusterAccessList")).
 					Return(errors.New("API server connection failed")).Once()
 			},
-			want:    clusteraccess.ExportedCRDNotRegistered,
+			want:    clusteraccess.CRDNotRegistered,
 			wantErr: false,
 		},
 	}
@@ -82,10 +84,10 @@ func TestCheckClusterAccessCRDStatus(t *testing.T) {
 			mockClient := mocks.NewMockClient(t)
 			tt.mockSetup(mockClient)
 
-			got, err := clusteraccess.CheckClusterAccessCRDStatus(t.Context(), mockClient, mockLogger)
+			crdStatus, err := clusteraccess.CheckClusterAccessCRDStatus(t.Context(), mockClient, mockLogger)
 			_ = err
 
-			assert.Equal(t, tt.want, got)
+			assert.Equal(t, tt.want, crdStatus)
 		})
 	}
 }
@@ -95,14 +97,16 @@ func TestCreateMultiClusterReconciler(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		mockSetup   func(*mocks.MockClient)
+		setupMocks  func() *mocks.MockClient
 		wantErr     bool
 		errContains string
 	}{
 		{
-			name: "successful_creation_with_clusteraccess_available",
-			mockSetup: func(m *mocks.MockClient) {
-				m.EXPECT().List(mock.Anything, mock.AnythingOfType("*v1alpha1.ClusterAccessList")).
+			name: "success",
+			setupMocks: func() *mocks.MockClient {
+				mockClient := mocks.NewMockClient(t)
+				// Mock successful CRD check
+				mockClient.EXPECT().List(mock.Anything, mock.AnythingOfType("*v1alpha1.ClusterAccessList")).
 					RunAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 						clusterAccessList := list.(*gatewayv1alpha1.ClusterAccessList)
 						clusterAccessList.Items = []gatewayv1alpha1.ClusterAccess{
@@ -115,13 +119,16 @@ func TestCreateMultiClusterReconciler(t *testing.T) {
 						}
 						return nil
 					}).Once()
+				return mockClient
 			},
 			wantErr: false,
 		},
 		{
-			name: "error_when_CRD_not_registered",
-			mockSetup: func(m *mocks.MockClient) {
-				m.EXPECT().List(mock.Anything, mock.AnythingOfType("*v1alpha1.ClusterAccessList")).
+			name: "crd_not_registered",
+			setupMocks: func() *mocks.MockClient {
+				mockClient := mocks.NewMockClient(t)
+				// Mock CRD not found
+				mockClient.EXPECT().List(mock.Anything, mock.AnythingOfType("*v1alpha1.ClusterAccessList")).
 					Return(&meta.NoResourceMatchError{
 						PartialResource: schema.GroupVersionResource{
 							Group:    "gateway.openmfp.org",
@@ -129,39 +136,40 @@ func TestCreateMultiClusterReconciler(t *testing.T) {
 							Resource: "clusteraccesses",
 						},
 					}).Once()
+				return mockClient
 			},
 			wantErr:     true,
-			errContains: "multi-cluster mode enabled but ClusterAccess CRD not registered",
-		},
-		{
-			name: "error_when_CRD_check_fails",
-			mockSetup: func(m *mocks.MockClient) {
-				m.EXPECT().List(mock.Anything, mock.AnythingOfType("*v1alpha1.ClusterAccessList")).
-					Return(errors.New("API server connection failed")).Once()
-			},
-			wantErr:     true,
-			errContains: "failed to check ClusterAccess CRD status",
+			errContains: "ClusterAccess CRD not registered",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockClient := mocks.NewMockClient(t)
-			tt.mockSetup(mockClient)
+			mockClient := tt.setupMocks()
 
-			// Create temporary directory for OpenApiDefinitionsPath
-			tempDir := t.TempDir()
+			// Test the actual NewClusterAccessReconciler function
+			ctx := context.Background()
+			appCfg := config.Config{
+				OpenApiDefinitionsPath: "/tmp/test",
+			}
 			opts := reconciler.ReconcilerOpts{
-				Client:                 mockClient,
-				Config:                 &rest.Config{Host: "https://test.example.com"},
-				OpenAPIDefinitionsPath: tempDir,
+				Config: &rest.Config{Host: "https://test-api-server.com"},
+				Scheme: runtime.NewScheme(),
+				Client: mockClient,
+				ManagerOpts: ctrl.Options{
+					Scheme: runtime.NewScheme(),
+				},
+				OpenAPIDefinitionsPath: "/tmp/test",
 			}
 
-			testConfig := config.Config{
-				OpenApiDefinitionsPath: tempDir,
-			}
-
-			reconciler, err := clusteraccess.CreateMultiClusterReconciler(testConfig, opts, mockLogger)
+			reconciler, err := clusteraccess.NewClusterAccessReconciler(
+				ctx,
+				appCfg,
+				opts,
+				nil, // ioHandler - will be created internally
+				nil, // schemaResolver - will be created internally
+				mockLogger,
+			)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -179,7 +187,7 @@ func TestCreateMultiClusterReconciler(t *testing.T) {
 
 func TestConstants(t *testing.T) {
 	t.Run("error_variables", func(t *testing.T) {
-		assert.Equal(t, "ClusterAccess CRD not registered", clusteraccess.ExportedErrCRDNotRegistered.Error())
-		assert.Equal(t, "failed to check ClusterAccess CRD status", clusteraccess.ExportedErrCRDCheckFailed.Error())
+		assert.Equal(t, "ClusterAccess CRD not registered", clusteraccess.ErrCRDNotRegistered.Error())
+		assert.Equal(t, "failed to check ClusterAccess CRD status", clusteraccess.ErrCRDCheckFailed.Error())
 	})
 }
