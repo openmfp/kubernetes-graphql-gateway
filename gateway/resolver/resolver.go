@@ -25,10 +25,9 @@ import (
 	"github.com/openmfp/golang-commons/logger"
 )
 
-// convertLabels transforms labels and annotations between map and array formats
-// toArray=true: map[string]string → []Label (for GraphQL output)
-// toArray=false: []Label → map[string]string (for Kubernetes input)
-func convertLabels(obj any, toArray bool) any {
+// convertMapsToArrays transforms labels and annotations from maps to arrays (for GraphQL output)
+// map[string]string → []Label
+func convertMapsToArrays(obj any) any {
 	objMap, ok := obj.(map[string]interface{})
 	if !ok {
 		return obj
@@ -45,69 +44,82 @@ func convertLabels(obj any, toArray bool) any {
 		return obj
 	}
 
-	// Clone the object
-	result := make(map[string]interface{})
-	for k, v := range objMap {
-		result[k] = v
-	}
-
-	// Transform only labels and annotations in metadata
-	newMetadata := make(map[string]interface{})
+	// Transform labels and annotations to arrays (in-place)
 	for k, v := range metadataMap {
 		if (k == "labels" || k == "annotations") && v != nil {
-			newMetadata[k] = transformLabelField(v, toArray)
-		} else {
-			newMetadata[k] = v
+			metadataMap[k] = mapToArray(v)
 		}
 	}
 
-	result["metadata"] = newMetadata
-	return result
+	return obj
 }
 
-// transformLabelField does the actual conversion between formats
-func transformLabelField(value any, toArray bool) any {
-	if toArray {
-		// map[string]string → []Label
-		labelMap, ok := value.(map[string]interface{})
-		if !ok {
-			return value
-		}
+// convertArraysToMaps transforms labels and annotations from arrays to maps (for Kubernetes input)
+// []Label → map[string]string
+func convertArraysToMaps(obj any) any {
+	objMap, ok := obj.(map[string]interface{})
+	if !ok {
+		return obj
+	}
 
-		var labels []map[string]interface{}
-		for k, v := range labelMap {
-			if strValue, ok := v.(string); ok {
-				labels = append(labels, map[string]interface{}{
-					"key":   k,
-					"value": strValue,
-				})
-			}
-		}
-		return labels
-	} else {
-		// []Label → map[string]string
-		labelArray, ok := value.([]interface{})
-		if !ok {
-			return value
-		}
+	// Check if this object has metadata
+	metadata, hasMetadata := objMap["metadata"]
+	if !hasMetadata {
+		return obj
+	}
 
-		labelMap := make(map[string]string)
-		for _, item := range labelArray {
-			if labelObj, ok := item.(map[string]interface{}); ok {
-				if key, keyOk := labelObj["key"].(string); keyOk {
-					if val, valOk := labelObj["value"].(string); valOk {
-						labelMap[key] = val
-					}
+	metadataMap, ok := metadata.(map[string]interface{})
+	if !ok {
+		return obj
+	}
+
+	// Transform labels and annotations to maps (in-place)
+	for k, v := range metadataMap {
+		if (k == "labels" || k == "annotations") && v != nil {
+			metadataMap[k] = arrayToMap(v)
+		}
+	}
+
+	return obj
+}
+
+// mapToArray converts a label map to array format
+func mapToArray(value any) any {
+	labelMap, ok := value.(map[string]interface{})
+	if !ok {
+		return value
+	}
+
+	var labels []map[string]interface{}
+	for k, v := range labelMap {
+		if strValue, ok := v.(string); ok {
+			labels = append(labels, map[string]interface{}{
+				"key":   k,
+				"value": strValue,
+			})
+		}
+	}
+	return labels
+}
+
+// arrayToMap converts a label array to map format
+func arrayToMap(value any) any {
+	labelArray, ok := value.([]interface{})
+	if !ok {
+		return value
+	}
+
+	labelMap := make(map[string]string)
+	for _, item := range labelArray {
+		if labelObj, ok := item.(map[string]interface{}); ok {
+			if key, keyOk := labelObj["key"].(string); keyOk {
+				if val, valOk := labelObj["value"].(string); valOk {
+					labelMap[key] = val
 				}
 			}
 		}
-		return labelMap
 	}
-}
-
-// isLabelField checks if a field is labels or annotations
-func isLabelField(fieldName string) bool {
-	return fieldName == "labels" || fieldName == "annotations"
+	return labelMap
 }
 
 type Provider interface {
@@ -215,7 +227,7 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind, scope v1.ResourceScope)
 		items := make([]map[string]any, len(list.Items))
 		for i, item := range list.Items {
 			// Convert maps back to label arrays for GraphQL response
-			convertedItem := convertLabels(item.Object, true).(map[string]interface{})
+			convertedItem := convertMapsToArrays(item.Object).(map[string]interface{})
 			items[i] = convertedItem
 		}
 
@@ -273,7 +285,7 @@ func (r *Service) GetItem(gvk schema.GroupVersionKind, scope v1.ResourceScope) g
 		}
 
 		// Convert maps back to label arrays for GraphQL response
-		convertedResponse := convertLabels(obj.Object, true)
+		convertedResponse := convertMapsToArrays(obj.Object)
 		return convertedResponse, nil
 	}
 }
@@ -310,7 +322,7 @@ func (r *Service) CreateItem(gvk schema.GroupVersionKind, scope v1.ResourceScope
 		objectInput := p.Args["object"].(map[string]interface{})
 
 		// Convert label arrays back to maps for Kubernetes compatibility
-		convertedInput := convertLabels(objectInput, false).(map[string]interface{})
+		convertedInput := convertArraysToMaps(objectInput).(map[string]interface{})
 
 		obj := &unstructured.Unstructured{
 			Object: convertedInput,
@@ -344,7 +356,7 @@ func (r *Service) CreateItem(gvk schema.GroupVersionKind, scope v1.ResourceScope
 		}
 
 		// Convert maps back to label arrays for GraphQL response
-		convertedResponse := convertLabels(obj.Object, true)
+		convertedResponse := convertMapsToArrays(obj.Object)
 		return convertedResponse, nil
 	}
 }
@@ -365,7 +377,7 @@ func (r *Service) UpdateItem(gvk schema.GroupVersionKind, scope v1.ResourceScope
 
 		objectInput := p.Args["object"].(map[string]interface{})
 		// Convert label arrays back to maps for Kubernetes compatibility
-		convertedInput := convertLabels(objectInput, false).(map[string]interface{})
+		convertedInput := convertArraysToMaps(objectInput)
 		// Marshal the converted input object to JSON to create the patch data
 		patchData, err := json.Marshal(convertedInput)
 		if err != nil {
@@ -409,7 +421,7 @@ func (r *Service) UpdateItem(gvk schema.GroupVersionKind, scope v1.ResourceScope
 		}
 
 		// Convert maps back to label arrays for GraphQL response
-		convertedResponse := convertLabels(existingObj.Object, true)
+		convertedResponse := convertMapsToArrays(existingObj.Object)
 		return convertedResponse, nil
 	}
 }
