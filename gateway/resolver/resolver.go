@@ -25,7 +25,7 @@ import (
 	"github.com/openmfp/golang-commons/logger"
 )
 
-// convertMapsToArrays transforms labels and annotations from maps to arrays (for GraphQL output)
+// convertMapsToArrays transforms label-like fields from maps to arrays (for GraphQL output)
 // map[string]string → []Label
 func convertMapsToArrays(obj any) any {
 	objMap, ok := obj.(map[string]interface{})
@@ -33,28 +33,20 @@ func convertMapsToArrays(obj any) any {
 		return obj
 	}
 
-	// Check if this object has metadata
-	metadata, hasMetadata := objMap["metadata"]
-	if !hasMetadata {
-		return obj
+	// Process metadata fields
+	if metadata := objMap["metadata"]; metadata != nil {
+		objMap["metadata"] = processMetadataToArrays(metadata)
 	}
 
-	metadataMap, ok := metadata.(map[string]interface{})
-	if !ok {
-		return obj
-	}
-
-	// Transform labels and annotations to arrays (in-place)
-	for k, v := range metadataMap {
-		if (k == "labels" || k == "annotations") && v != nil {
-			metadataMap[k] = mapToArray(v)
-		}
+	// Process spec fields
+	if spec := objMap["spec"]; spec != nil {
+		objMap["spec"] = processSpecToArrays(spec)
 	}
 
 	return obj
 }
 
-// convertArraysToMaps transforms labels and annotations from arrays to maps (for Kubernetes input)
+// convertArraysToMaps transforms label-like fields from arrays to maps (for Kubernetes input)
 // []Label → map[string]string
 func convertArraysToMaps(obj any) any {
 	objMap, ok := obj.(map[string]interface{})
@@ -62,25 +54,103 @@ func convertArraysToMaps(obj any) any {
 		return obj
 	}
 
-	// Check if this object has metadata
-	metadata, hasMetadata := objMap["metadata"]
-	if !hasMetadata {
-		return obj
+	// Process metadata fields
+	if metadata := objMap["metadata"]; metadata != nil {
+		objMap["metadata"] = processMetadataToMaps(metadata)
 	}
 
-	metadataMap, ok := metadata.(map[string]interface{})
-	if !ok {
-		return obj
-	}
-
-	// Transform labels and annotations to maps (in-place)
-	for k, v := range metadataMap {
-		if (k == "labels" || k == "annotations") && v != nil {
-			metadataMap[k] = arrayToMap(v)
-		}
+	// Process spec fields
+	if spec := objMap["spec"]; spec != nil {
+		objMap["spec"] = processSpecToMaps(spec)
 	}
 
 	return obj
+}
+
+// processMetadataToArrays handles metadata.labels and metadata.annotations conversion to arrays
+func processMetadataToArrays(metadata any) any {
+	metadataMap, ok := metadata.(map[string]interface{})
+	if !ok {
+		return metadata
+	}
+
+	if labels := metadataMap["labels"]; labels != nil {
+		metadataMap["labels"] = mapToArray(labels)
+	}
+	if annotations := metadataMap["annotations"]; annotations != nil {
+		metadataMap["annotations"] = mapToArray(annotations)
+	}
+
+	return metadataMap
+}
+
+// processMetadataToMaps handles metadata.labels and metadata.annotations conversion to maps
+func processMetadataToMaps(metadata any) any {
+	metadataMap, ok := metadata.(map[string]interface{})
+	if !ok {
+		return metadata
+	}
+
+	if labels := metadataMap["labels"]; labels != nil {
+		metadataMap["labels"] = arrayToMap(labels)
+	}
+	if annotations := metadataMap["annotations"]; annotations != nil {
+		metadataMap["annotations"] = arrayToMap(annotations)
+	}
+
+	return metadataMap
+}
+
+// processSpecToArrays handles spec.nodeSelector and spec.selector.matchLabels conversion to arrays
+func processSpecToArrays(spec any) any {
+	specMap, ok := spec.(map[string]interface{})
+	if !ok {
+		return spec
+	}
+
+	if nodeSelector := specMap["nodeSelector"]; nodeSelector != nil {
+		specMap["nodeSelector"] = mapToArray(nodeSelector)
+	}
+	if selector := specMap["selector"]; selector != nil {
+		specMap["selector"] = processSelector(selector, true)
+	}
+
+	return specMap
+}
+
+// processSpecToMaps handles spec.nodeSelector and spec.selector.matchLabels conversion to maps
+func processSpecToMaps(spec any) any {
+	specMap, ok := spec.(map[string]interface{})
+	if !ok {
+		return spec
+	}
+
+	if nodeSelector := specMap["nodeSelector"]; nodeSelector != nil {
+		specMap["nodeSelector"] = arrayToMap(nodeSelector)
+	}
+	if selector := specMap["selector"]; selector != nil {
+		specMap["selector"] = processSelector(selector, false)
+	}
+
+	return specMap
+}
+
+// processSelector handles selector.matchLabels conversion
+func processSelector(selector any, toArray bool) any {
+	selectorMap, ok := selector.(map[string]interface{})
+	if !ok {
+		return selector
+	}
+
+	if matchLabels := selectorMap["matchLabels"]; matchLabels != nil {
+		if toArray {
+			selectorMap["matchLabels"] = mapToArray(matchLabels)
+		} else {
+			selectorMap["matchLabels"] = arrayToMap(matchLabels)
+		}
+	}
+
+	return selectorMap
 }
 
 // mapToArray converts a label map to array format

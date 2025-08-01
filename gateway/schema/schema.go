@@ -448,18 +448,24 @@ func (g *Gateway) handleObjectFieldSpecType(fieldSpec spec.Schema, typePrefix st
 	} else if fieldSpec.AdditionalProperties != nil && fieldSpec.AdditionalProperties.Schema != nil {
 		// Handle map types
 		if len(fieldSpec.AdditionalProperties.Schema.Type) == 1 && fieldSpec.AdditionalProperties.Schema.Type[0] == "string" {
-			// Check if this is a labels or annotations field
+			// Check if this is a field that should use Label arrays for dot-notation support
 			currentFieldName := ""
 			if len(fieldPath) > 0 {
 				currentFieldName = fieldPath[len(fieldPath)-1]
 			}
 
-			// Check if we're in a metadata context or processing a known ObjectMeta type
+			// Check various contexts where Label arrays should be used
 			isInMetadata := len(fieldPath) >= 2 && fieldPath[len(fieldPath)-2] == "metadata"
 			isObjectMetaType := strings.Contains(typePrefix, "ObjectMeta") || strings.Contains(typePrefix, "meta_v1")
+			isInSelector := len(fieldPath) >= 2 && fieldPath[len(fieldPath)-2] == "selector"
+			isInSpec := len(fieldPath) >= 2 && fieldPath[len(fieldPath)-2] == "spec"
 
-			if (isInMetadata || isObjectMetaType) && (currentFieldName == "labels" || currentFieldName == "annotations") {
-				// This is a labels or annotations field
+			// Identify fields that need Label array treatment
+			isLabelsOrAnnotations := (isInMetadata || isObjectMetaType) && (currentFieldName == "labels" || currentFieldName == "annotations")
+			isNodeSelector := isInSpec && currentFieldName == "nodeSelector"
+			isMatchLabels := isInSelector && currentFieldName == "matchLabels"
+
+			if isLabelsOrAnnotations || isNodeSelector || isMatchLabels {
 				// Use List(LabelType) for output (allows querying key/value fields)
 				// Use List(LabelInputType) for input (supports array syntax)
 				return graphql.NewList(LabelType), graphql.NewList(LabelInputType), nil
