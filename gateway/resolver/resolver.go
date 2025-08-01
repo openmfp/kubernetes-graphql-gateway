@@ -25,79 +25,70 @@ import (
 	"github.com/openmfp/golang-commons/logger"
 )
 
-// convertLabels converts between map[string]string and []Label format
-// toArray=true: converts maps to arrays (for GraphQL output)
-// toArray=false: converts arrays to maps (for Kubernetes input)
+// convertLabels transforms labels and annotations between map and array formats
+// toArray=true: map[string]string → []Label (for GraphQL output)
+// toArray=false: []Label → map[string]string (for Kubernetes input)
 func convertLabels(obj any, toArray bool) any {
-	switch v := obj.(type) {
-	case map[string]interface{}:
-		return convertObject(v, toArray)
-	case []interface{}:
-		result := make([]any, len(v))
-		for i, item := range v {
-			result[i] = convertLabels(item, toArray)
-		}
-		return result
-	default:
+	objMap, ok := obj.(map[string]interface{})
+	if !ok {
 		return obj
 	}
-}
 
-// convertObject handles object conversion with direction control
-func convertObject(objMap map[string]interface{}, toArray bool) map[string]interface{} {
-	result := make(map[string]interface{})
-	for key, value := range objMap {
-		if key == "metadata" {
-			result[key] = convertMetadata(value, toArray)
-		} else {
-			result[key] = convertLabels(value, toArray)
-		}
+	// Check if this object has metadata
+	metadata, hasMetadata := objMap["metadata"]
+	if !hasMetadata {
+		return obj
 	}
-	return result
-}
 
-// convertMetadata handles metadata field conversion
-func convertMetadata(metadataValue any, toArray bool) any {
-	metadata, ok := metadataValue.(map[string]interface{})
+	metadataMap, ok := metadata.(map[string]interface{})
 	if !ok {
-		return convertLabels(metadataValue, toArray)
+		return obj
 	}
 
+	// Clone the object
 	result := make(map[string]interface{})
-	for key, value := range metadata {
-		if isLabelField(key) && value != nil {
-			result[key] = convertLabelField(value, toArray)
+	for k, v := range objMap {
+		result[k] = v
+	}
+
+	// Transform only labels and annotations in metadata
+	newMetadata := make(map[string]interface{})
+	for k, v := range metadataMap {
+		if (k == "labels" || k == "annotations") && v != nil {
+			newMetadata[k] = transformLabelField(v, toArray)
 		} else {
-			result[key] = convertLabels(value, toArray)
+			newMetadata[k] = v
 		}
 	}
+
+	result["metadata"] = newMetadata
 	return result
 }
 
-// convertLabelField converts between label map and array formats
-func convertLabelField(value any, toArray bool) any {
+// transformLabelField does the actual conversion between formats
+func transformLabelField(value any, toArray bool) any {
 	if toArray {
-		// Convert map to array for GraphQL output
+		// map[string]string → []Label
 		labelMap, ok := value.(map[string]interface{})
 		if !ok {
-			return convertLabels(value, toArray)
+			return value
 		}
 
-		var labelArray []map[string]interface{}
+		var labels []map[string]interface{}
 		for k, v := range labelMap {
 			if strValue, ok := v.(string); ok {
-				labelArray = append(labelArray, map[string]interface{}{
+				labels = append(labels, map[string]interface{}{
 					"key":   k,
 					"value": strValue,
 				})
 			}
 		}
-		return labelArray
+		return labels
 	} else {
-		// Convert array to map for Kubernetes input
+		// []Label → map[string]string
 		labelArray, ok := value.([]interface{})
 		if !ok {
-			return convertLabels(value, toArray)
+			return value
 		}
 
 		labelMap := make(map[string]string)
