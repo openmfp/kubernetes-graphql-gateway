@@ -112,5 +112,3 @@ mutation createPodWithLabels($labels: StringMapInput) {
   ]
 }
 ```
-
-➡️ **[See complete dotted keys documentation](dotted-keys.md)** for detailed examples covering all supported fields.
