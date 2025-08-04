@@ -72,3 +72,50 @@ var jsonStringScalar = graphql.NewScalar(graphql.ScalarConfig{
 		return nil
 	},
 })
+
+var stringMapInput = graphql.NewScalar(graphql.ScalarConfig{
+	Name:        "StringMapInput",
+	Description: "Input type for a map from strings to strings.",
+	Serialize: func(value interface{}) interface{} {
+		return value
+	},
+	ParseValue: func(value interface{}) interface{} {
+		switch val := value.(type) {
+		case map[string]interface{}, map[string]string:
+			return val
+		default:
+			return nil // to tell GraphQL that the value is invalid
+		}
+	},
+	ParseLiteral: func(valueAST ast.Value) any {
+		switch value := valueAST.(type) {
+		case *ast.ListValue:
+			result := map[string]string{}
+			for _, item := range value.Values {
+				obj, ok := item.(*ast.ObjectValue)
+				if !ok {
+					return nil
+				}
+
+				for _, field := range obj.Fields {
+					switch field.Name.Value {
+					case "key":
+						if key, ok := field.Value.GetValue().(string); ok {
+							result[key] = ""
+						}
+					case "value":
+						if val, ok := field.Value.GetValue().(string); ok {
+							for key := range result {
+								result[key] = val
+							}
+						}
+					}
+				}
+			}
+
+			return result
+		default:
+			return nil // to tell GraphQL that the value is invalid
+		}
+	},
+})
