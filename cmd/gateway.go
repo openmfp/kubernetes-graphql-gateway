@@ -8,6 +8,7 @@ import (
 	"time"
 
 	openmfpcontext "github.com/openmfp/golang-commons/context"
+	"github.com/openmfp/golang-commons/logger"
 	"github.com/openmfp/golang-commons/sentry"
 	"github.com/openmfp/golang-commons/traces"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -22,16 +23,7 @@ var gatewayCmd = &cobra.Command{
 	Short:   "Run the GQL Gateway",
 	Example: "go run main.go gateway",
 	RunE: func(_ *cobra.Command, _ []string) error {
-<<<<<<< HEAD
 		log.Info().Str("LogLevel", log.GetLevel().String()).Msg("Starting the Gateway...")
-=======
-		log, err := setupLogger(defaultCfg.Log.Level)
-		if err != nil {
-			return fmt.Errorf("failed to setup logger: %w", err)
-		}
-
-		log.Info().Str("LogLevel", log.GetLevel().String()).Msg("Starting gateway server...")
->>>>>>> abca747347f25bca427d236c5ce7a0d86e8c70c7
 
 		ctx, _, shutdown := openmfpcontext.StartContext(log, appCfg, 1*time.Second)
 		defer shutdown()
