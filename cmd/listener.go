@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"crypto/tls"
-	"os"
 
 	kcpapis "github.com/kcp-dev/kcp/sdk/apis/apis/v1alpha1"
 	kcpcore "github.com/kcp-dev/kcp/sdk/apis/core/v1alpha1"
@@ -94,8 +93,7 @@ var listenCmd = &cobra.Command{
 			Scheme: scheme,
 		})
 		if err != nil {
-			log.Error().Err(err).Msg("failed to create client from config")
-			os.Exit(1)
+			log.Fatal().Err(err).Msg("failed to create client from config")
 		}
 
 		reconcilerOpts := reconciler.ReconcilerOpts{
@@ -111,16 +109,14 @@ var listenCmd = &cobra.Command{
 		if appCfg.EnableKcp {
 			kcpReconciler, err := kcp.NewKCPReconciler(appCfg, reconcilerOpts, log)
 			if err != nil {
-				log.Error().Err(err).Msg("unable to create KCP reconciler")
-				os.Exit(1)
+				log.Fatal().Err(err).Msg("unable to create KCP reconciler")
 			}
 
 			// Start virtual workspace watching if path is configured
 			if appCfg.Listener.VirtualWorkspacesConfigPath != "" {
 				go func() {
 					if err := kcpReconciler.StartVirtualWorkspaceWatching(ctx, appCfg.Listener.VirtualWorkspacesConfigPath); err != nil {
-						log.Error().Err(err).Msg("failed to start virtual workspace watching")
-						os.Exit(1)
+						log.Fatal().Err(err).Msg("failed to start virtual workspace watching")
 					}
 				}()
 			}
@@ -129,20 +125,18 @@ var listenCmd = &cobra.Command{
 		} else {
 			ioHandler, err := workspacefile.NewIOHandler(appCfg.OpenApiDefinitionsPath)
 			if err != nil {
-				log.Error().Err(err).Msg("unable to create IO handler")
-				os.Exit(1)
+				log.Fatal().Err(err).Msg("unable to create IO handler")
 			}
 
 			reconcilerInstance, err = clusteraccess.NewClusterAccessReconciler(ctx, appCfg, reconcilerOpts, ioHandler, apischema.NewResolver(log), log)
 			if err != nil {
-				log.Error().Err(err).Msg("unable to create cluster access reconciler")
-				os.Exit(1)
+				log.Fatal().Err(err).Msg("unable to create cluster access reconciler")
 			}
 		}
 
 		// Setup reconciler with its own manager and start everything
 		if err := startManagerWithReconciler(ctx, reconcilerInstance); err != nil {
-			os.Exit(1)
+			log.Fatal().Err(err).Msg("failed to start manager with reconciler")
 		}
 	},
 }

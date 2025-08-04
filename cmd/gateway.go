@@ -22,27 +22,26 @@ var gatewayCmd = &cobra.Command{
 	Use:     "gateway",
 	Short:   "Run the GQL Gateway",
 	Example: "go run main.go gateway",
-	RunE: func(_ *cobra.Command, _ []string) error {
+	Run: func(_ *cobra.Command, _ []string) {
 		log.Info().Str("LogLevel", log.GetLevel().String()).Msg("Starting the Gateway...")
 
 		ctx, _, shutdown := openmfpcontext.StartContext(log, appCfg, 1*time.Second)
 		defer shutdown()
 
 		if err := initializeSentry(ctx, log); err != nil {
-			return err
+			log.Fatal().Err(err).Msg("Failed to initialize Sentry")
 		}
 
 		ctrl.SetLogger(log.Logr())
 
 		gatewayInstance, err := manager.NewGateway(ctx, log, appCfg)
 		if err != nil {
-			log.Error().Err(err).Msg("Error creating gateway")
-			return fmt.Errorf("failed to create gateway: %w", err)
+			log.Fatal().Err(err).Msg("Failed to create gateway")
 		}
 
 		tracingShutdown, err := initializeTracing(ctx, log)
 		if err != nil {
-			return err
+			log.Fatal().Err(err).Msg("Failed to initialize tracing")
 		}
 		defer func() {
 			if err := tracingShutdown(ctx); err != nil {
@@ -50,7 +49,9 @@ var gatewayCmd = &cobra.Command{
 			}
 		}()
 
-		return runServers(ctx, log, gatewayInstance)
+		if err := runServers(ctx, log, gatewayInstance); err != nil {
+			log.Fatal().Err(err).Msg("Failed to run servers")
+		}
 	},
 }
 
@@ -65,7 +66,6 @@ func initializeSentry(ctx context.Context, log *logger.Logger) error {
 	)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Sentry init failed")
-		return err
 	}
 
 	defer openmfpcontext.Recover(log)
@@ -77,7 +77,6 @@ func initializeTracing(ctx context.Context, log *logger.Logger) (func(ctx contex
 		shutdown, err := traces.InitProvider(ctx, defaultCfg.Tracing.Collector)
 		if err != nil {
 			log.Fatal().Err(err).Msg("unable to start gRPC-Sidecar TracerProvider")
-			return nil, err
 		}
 		return shutdown, nil
 	}
@@ -85,7 +84,6 @@ func initializeTracing(ctx context.Context, log *logger.Logger) (func(ctx contex
 	shutdown, err := traces.InitLocalProvider(ctx, defaultCfg.Tracing.Collector, false)
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to start local TracerProvider")
-		return nil, err
 	}
 	return shutdown, nil
 }

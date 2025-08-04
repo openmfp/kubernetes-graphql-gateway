@@ -40,17 +40,12 @@ func NewClusterAccessReconciler(
 	schemaResolver apischema.Resolver,
 	log *logger.Logger,
 ) (reconciler.CustomReconciler, error) {
-	// Create dependencies if not provided
-	var err error
+	// Validate required dependencies
 	if ioHandler == nil {
-		ioHandler, err = workspacefile.NewIOHandler(appCfg.OpenApiDefinitionsPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create IO handler: %w", err)
-		}
+		return nil, fmt.Errorf("ioHandler is required")
 	}
-
 	if schemaResolver == nil {
-		schemaResolver = apischema.NewResolver(log)
+		return nil, fmt.Errorf("schemaResolver is required")
 	}
 
 	// Check if ClusterAccess CRD is registered

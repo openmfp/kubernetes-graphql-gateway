@@ -16,6 +16,8 @@ import (
 	gatewayv1alpha1 "github.com/openmfp/kubernetes-graphql-gateway/common/apis/v1alpha1"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/mocks"
+	apischema_mocks "github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema/mocks"
+	workspacefile_mocks "github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/workspacefile/mocks"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler"
 	"github.com/openmfp/kubernetes-graphql-gateway/listener/reconciler/clusteraccess"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -92,7 +94,7 @@ func TestCheckClusterAccessCRDStatus(t *testing.T) {
 	}
 }
 
-func TestCreateMultiClusterReconciler(t *testing.T) {
+func TestNewClusterAccessReconciler(t *testing.T) {
 	mockLogger, _ := logger.New(logger.DefaultConfig())
 
 	tests := []struct {
@@ -102,40 +104,20 @@ func TestCreateMultiClusterReconciler(t *testing.T) {
 		errContains string
 	}{
 		{
-			name: "success",
+			name: "success_with_registered_crd",
 			setupMocks: func() *mocks.MockClient {
-				mockClient := mocks.NewMockClient(t)
-				// Mock successful CRD check
-				mockClient.EXPECT().List(mock.Anything, mock.AnythingOfType("*v1alpha1.ClusterAccessList")).
-					RunAndReturn(func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
-						clusterAccessList := list.(*gatewayv1alpha1.ClusterAccessList)
-						clusterAccessList.Items = []gatewayv1alpha1.ClusterAccess{
-							{
-								ObjectMeta: metav1.ObjectMeta{Name: "test-cluster"},
-								Spec: gatewayv1alpha1.ClusterAccessSpec{
-									Host: "https://test.example.com",
-								},
-							},
-						}
-						return nil
-					}).Once()
+				mockClient := &mocks.MockClient{}
+				mockClient.On("List", mock.Anything, mock.AnythingOfType("*v1alpha1.ClusterAccessList")).Return(nil)
 				return mockClient
 			},
 			wantErr: false,
 		},
 		{
-			name: "crd_not_registered",
+			name: "error_crd_not_registered",
 			setupMocks: func() *mocks.MockClient {
-				mockClient := mocks.NewMockClient(t)
-				// Mock CRD not found
-				mockClient.EXPECT().List(mock.Anything, mock.AnythingOfType("*v1alpha1.ClusterAccessList")).
-					Return(&meta.NoResourceMatchError{
-						PartialResource: schema.GroupVersionResource{
-							Group:    "gateway.openmfp.org",
-							Version:  "v1alpha1",
-							Resource: "clusteraccesses",
-						},
-					}).Once()
+				mockClient := &mocks.MockClient{}
+				noMatchErr := &meta.NoResourceMatchError{PartialResource: schema.GroupVersionResource{}}
+				mockClient.On("List", mock.Anything, mock.AnythingOfType("*v1alpha1.ClusterAccessList")).Return(noMatchErr)
 				return mockClient
 			},
 			wantErr:     true,
@@ -162,12 +144,16 @@ func TestCreateMultiClusterReconciler(t *testing.T) {
 				OpenAPIDefinitionsPath: "/tmp/test",
 			}
 
+			// Create required dependencies using mocks
+			mockIOHandler := &workspacefile_mocks.MockIOHandler{}
+			mockSchemaResolver := &apischema_mocks.MockResolver{}
+
 			reconciler, err := clusteraccess.NewClusterAccessReconciler(
 				ctx,
 				appCfg,
 				opts,
-				nil, // ioHandler - will be created internally
-				nil, // schemaResolver - will be created internally
+				mockIOHandler,
+				mockSchemaResolver,
 				mockLogger,
 			)
 
@@ -183,6 +169,57 @@ func TestCreateMultiClusterReconciler(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewClusterAccessReconciler_NilDependencyValidation(t *testing.T) {
+	mockLogger, _ := logger.New(logger.DefaultConfig())
+	ctx := context.Background()
+	appCfg := config.Config{
+		OpenApiDefinitionsPath: "/tmp/test",
+	}
+	opts := reconciler.ReconcilerOpts{
+		Config: &rest.Config{Host: "https://test-api-server.com"},
+		Scheme: runtime.NewScheme(),
+		Client: &mocks.MockClient{},
+		ManagerOpts: ctrl.Options{
+			Scheme: runtime.NewScheme(),
+		},
+		OpenAPIDefinitionsPath: "/tmp/test",
+	}
+
+	t.Run("nil_ioHandler", func(t *testing.T) {
+		mockSchemaResolver := &apischema_mocks.MockResolver{}
+
+		reconciler, err := clusteraccess.NewClusterAccessReconciler(
+			ctx,
+			appCfg,
+			opts,
+			nil, // nil ioHandler
+			mockSchemaResolver,
+			mockLogger,
+		)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "ioHandler is required")
+		assert.Nil(t, reconciler)
+	})
+
+	t.Run("nil_schemaResolver", func(t *testing.T) {
+		mockIOHandler := &workspacefile_mocks.MockIOHandler{}
+
+		reconciler, err := clusteraccess.NewClusterAccessReconciler(
+			ctx,
+			appCfg,
+			opts,
+			mockIOHandler,
+			nil, // nil schemaResolver
+			mockLogger,
+		)
+
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "schemaResolver is required")
+		assert.Nil(t, reconciler)
+	})
 }
 
 func TestConstants(t *testing.T) {
