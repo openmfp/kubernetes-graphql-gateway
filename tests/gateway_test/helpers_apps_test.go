@@ -18,11 +18,6 @@ type deploymentMetadata struct {
 	Annotations interface{} `json:"annotations,omitempty"` // Can be map[string]interface{} for scalar approach
 }
 
-type label struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
 type deploymentSpec struct {
 	Replicas int                `json:"replicas"`
 	Selector deploymentSelector `json:"selector"`

@@ -103,7 +103,7 @@ var stringMapInput = graphql.NewScalar(graphql.ScalarConfig{
 	ParseLiteral: func(valueAST ast.Value) any {
 		switch value := valueAST.(type) {
 		case *ast.ListValue:
-			result := map[string]string{}
+			result := make(map[string]string)
 			for _, item := range value.Values {
 				obj, ok := item.(*ast.ObjectValue)
 				if !ok {
