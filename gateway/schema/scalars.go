@@ -80,6 +80,21 @@ var stringMapInput = graphql.NewScalar(graphql.ScalarConfig{
 		return value
 	},
 	ParseValue: func(value interface{}) interface{} {
+		// Handle array of {key, value} objects from GraphQL variables
+		if arr, ok := value.([]interface{}); ok {
+			result := make(map[string]string)
+			for _, item := range arr {
+				if obj, ok := item.(map[string]interface{}); ok {
+					if key, keyOk := obj["key"].(string); keyOk {
+						if val, valOk := obj["value"].(string); valOk {
+							result[key] = val
+						}
+					}
+				}
+			}
+			return result
+		}
+		// Also handle direct maps for backwards compatibility
 		switch val := value.(type) {
 		case map[string]interface{}, map[string]string:
 			return val
@@ -90,29 +105,35 @@ var stringMapInput = graphql.NewScalar(graphql.ScalarConfig{
 	ParseLiteral: func(valueAST ast.Value) any {
 		switch value := valueAST.(type) {
 		case *ast.ListValue:
-			result := map[string]string{}
+			result := make(map[string]string)
 			for _, item := range value.Values {
 				obj, ok := item.(*ast.ObjectValue)
 				if !ok {
-					return nil
+					continue
 				}
+
+				var key, val string
+				var hasKey, hasValue bool
 
 				for _, field := range obj.Fields {
 					switch field.Name.Value {
 					case "key":
-						if key, ok := field.Value.GetValue().(string); ok {
-							result[key] = ""
+						if keyStr, ok := field.Value.GetValue().(string); ok {
+							key = keyStr
+							hasKey = true
 						}
 					case "value":
-						if val, ok := field.Value.GetValue().(string); ok {
-							for key := range result {
-								result[key] = val
-							}
+						if valStr, ok := field.Value.GetValue().(string); ok {
+							val = valStr
+							hasValue = true
 						}
 					}
 				}
-			}
 
+				if hasKey && hasValue {
+					result[key] = val
+				}
+			}
 			return result
 		default:
 			return nil // to tell GraphQL that the value is invalid
