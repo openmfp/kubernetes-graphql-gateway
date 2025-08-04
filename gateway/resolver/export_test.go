@@ -25,3 +25,12 @@ func GetBoolArg(args map[string]interface{}, key string, required bool) (bool, e
 func CompareUnstructured(a, b unstructured.Unstructured, fieldPath string) int {
 	return compareUnstructured(a, b, fieldPath)
 }
+
+// Export conversion functions for testing
+func GraphqlToKubernetes(obj any) any {
+	return graphqlToKubernetes(obj)
+}
+
+func KubernetesToGraphQL(obj any) any {
+	return kubernetesToGraphQL(obj)
+}

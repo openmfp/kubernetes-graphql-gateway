@@ -413,48 +413,181 @@ func (g *Gateway) convertSwaggerTypeToGraphQL(schema spec.Schema, typePrefix str
 }
 
 func (g *Gateway) handleObjectFieldSpecType(fieldSpec spec.Schema, typePrefix string, fieldPath []string, processingTypes map[string]bool) (graphql.Output, graphql.Input, error) {
+	// Handle object types with nested properties
 	if len(fieldSpec.Properties) > 0 {
-		typeName := g.generateTypeName(typePrefix, fieldPath)
-
-		// Check if type already generated
-		if existingType, exists := g.typesCache[typeName]; exists {
-			return existingType, g.inputTypesCache[typeName], nil
-		}
-
-		// Store placeholder to prevent recursion
-		g.typesCache[typeName] = nil
-		g.inputTypesCache[typeName] = nil
-
-		nestedFields, nestedInputFields, err := g.generateGraphQLFields(&fieldSpec, typeName, fieldPath, processingTypes)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		newType := graphql.NewObject(graphql.ObjectConfig{
-			Name:   sanitizeFieldName(typeName),
-			Fields: nestedFields,
-		})
-
-		newInputType := graphql.NewInputObject(graphql.InputObjectConfig{
-			Name:   sanitizeFieldName(typeName) + "Input",
-			Fields: nestedInputFields,
-		})
-
-		// Store the generated types
-		g.typesCache[typeName] = newType
-		g.inputTypesCache[typeName] = newInputType
-
-		return newType, newInputType, nil
-	} else if fieldSpec.AdditionalProperties != nil && fieldSpec.AdditionalProperties.Schema != nil {
-		// Hagndle map types
-		if len(fieldSpec.AdditionalProperties.Schema.Type) == 1 && fieldSpec.AdditionalProperties.Schema.Type[0] == "string" {
-			// This is a map[string]string
-			return stringMapScalar, stringMapScalar, nil
-		}
+		return g.handleObjectWithProperties(fieldSpec, typePrefix, fieldPath, processingTypes)
 	}
 
-	// It's an empty object, serialize as JSON string
+	// Handle map types (map[string]string)
+	if g.isStringMapType(fieldSpec) {
+		return g.handleMapType(fieldPath, typePrefix)
+	}
+
+	// Fallback: empty object as JSON string
 	return jsonStringScalar, jsonStringScalar, nil
+}
+
+// handleObjectWithProperties creates GraphQL types for objects with nested properties
+func (g *Gateway) handleObjectWithProperties(fieldSpec spec.Schema, typePrefix string, fieldPath []string, processingTypes map[string]bool) (graphql.Output, graphql.Input, error) {
+	typeName := g.generateTypeName(typePrefix, fieldPath)
+
+	// Check if type already generated
+	if existingType, exists := g.typesCache[typeName]; exists {
+		return existingType, g.inputTypesCache[typeName], nil
+	}
+
+	// Store placeholder to prevent recursion
+	g.typesCache[typeName] = nil
+	g.inputTypesCache[typeName] = nil
+
+	nestedFields, nestedInputFields, err := g.generateGraphQLFields(&fieldSpec, typeName, fieldPath, processingTypes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	newType := graphql.NewObject(graphql.ObjectConfig{
+		Name:   sanitizeFieldName(typeName),
+		Fields: nestedFields,
+	})
+
+	newInputType := graphql.NewInputObject(graphql.InputObjectConfig{
+		Name:   sanitizeFieldName(typeName) + "Input",
+		Fields: nestedInputFields,
+	})
+
+	// Store the generated types
+	g.typesCache[typeName] = newType
+	g.inputTypesCache[typeName] = newInputType
+
+	return newType, newInputType, nil
+}
+
+// handleMapType determines the appropriate GraphQL type for map[string]string fields
+func (g *Gateway) handleMapType(fieldPath []string, typePrefix string) (graphql.Output, graphql.Input, error) {
+	if g.shouldUseLabelArrays(fieldPath, typePrefix) {
+		// Use Label arrays for fields that can have dotted keys
+		return graphql.NewList(LabelType), graphql.NewList(LabelInputType), nil
+	}
+
+	// Use regular string map scalar for normal map[string]string fields
+	return stringMapScalar, stringMapScalar, nil
+}
+
+// isStringMapType checks if the field spec represents a map[string]string
+func (g *Gateway) isStringMapType(fieldSpec spec.Schema) bool {
+	if fieldSpec.AdditionalProperties == nil {
+		return false
+	}
+
+	if fieldSpec.AdditionalProperties.Schema == nil {
+		return false
+	}
+
+	if len(fieldSpec.AdditionalProperties.Schema.Type) != 1 {
+		return false
+	}
+
+	return fieldSpec.AdditionalProperties.Schema.Type[0] == "string"
+}
+
+// shouldUseLabelArrays determines if a field needs Label array treatment for dotted keys
+func (g *Gateway) shouldUseLabelArrays(fieldPath []string, typePrefix string) bool {
+	if len(fieldPath) == 0 {
+		return false
+	}
+
+	fieldName := fieldPath[len(fieldPath)-1]
+
+	if g.isLabelsField(fieldPath, typePrefix, fieldName) {
+		return true
+	}
+
+	if g.isAnnotationsField(fieldPath, typePrefix, fieldName) {
+		return true
+	}
+
+	if g.isNodeSelectorField(fieldPath, fieldName) {
+		return true
+	}
+
+	if g.isMatchLabelsField(fieldPath, fieldName) {
+		return true
+	}
+
+	return false
+}
+
+// isLabelsField checks if this is a metadata.labels field
+func (g *Gateway) isLabelsField(fieldPath []string, typePrefix string, fieldName string) bool {
+	if fieldName != "labels" {
+		return false
+	}
+
+	return g.isInMetadataContext(fieldPath, typePrefix)
+}
+
+// isAnnotationsField checks if this is a metadata.annotations field
+func (g *Gateway) isAnnotationsField(fieldPath []string, typePrefix string, fieldName string) bool {
+	if fieldName != "annotations" {
+		return false
+	}
+
+	return g.isInMetadataContext(fieldPath, typePrefix)
+}
+
+// isNodeSelectorField checks if this is a spec.nodeSelector field
+func (g *Gateway) isNodeSelectorField(fieldPath []string, fieldName string) bool {
+	if fieldName != "nodeSelector" {
+		return false
+	}
+
+	return g.isInSpecContext(fieldPath)
+}
+
+// isMatchLabelsField checks if this is a selector.matchLabels field
+func (g *Gateway) isMatchLabelsField(fieldPath []string, fieldName string) bool {
+	if fieldName != "matchLabels" {
+		return false
+	}
+
+	return g.isInSelectorContext(fieldPath)
+}
+
+// isInMetadataContext checks if the field is within a metadata context
+func (g *Gateway) isInMetadataContext(fieldPath []string, typePrefix string) bool {
+	// Check if we're directly in a metadata field
+	if len(fieldPath) >= 2 && fieldPath[len(fieldPath)-2] == "metadata" {
+		return true
+	}
+
+	// Check if this is an ObjectMeta type
+	if strings.Contains(typePrefix, "ObjectMeta") {
+		return true
+	}
+
+	if strings.Contains(typePrefix, "meta_v1") {
+		return true
+	}
+
+	return false
+}
+
+// isInSpecContext checks if the field is within a spec context
+func (g *Gateway) isInSpecContext(fieldPath []string) bool {
+	if len(fieldPath) < 2 {
+		return false
+	}
+
+	return fieldPath[len(fieldPath)-2] == "spec"
+}
+
+// isInSelectorContext checks if the field is within a selector context
+func (g *Gateway) isInSelectorContext(fieldPath []string) bool {
+	if len(fieldPath) < 2 {
+		return false
+	}
+
+	return fieldPath[len(fieldPath)-2] == "selector"
 }
 
 func (g *Gateway) generateTypeName(typePrefix string, fieldPath []string) string {
@@ -478,9 +611,9 @@ func (g *Gateway) getGroupVersionKind(resourceKey string) (*schema.GroupVersionK
 		return nil, errors.New("x-kubernetes-group-version-kind extension not found")
 	}
 	// xkGvk should be an array of maps
-	if gvkList, ok := xkGvk.([]interface{}); ok && len(gvkList) > 0 {
+	if gvkList, ok := xkGvk.([]any); ok && len(gvkList) > 0 {
 		// Use the first item in the list
-		if gvkMap, ok := gvkList[0].(map[string]interface{}); ok {
+		if gvkMap, ok := gvkList[0].(map[string]any); ok {
 			group, _ := gvkMap["group"].(string)
 			version, _ := gvkMap["version"].(string)
 			kind, _ := gvkMap["kind"].(string)
@@ -516,7 +649,7 @@ func (g *Gateway) storeCategory(
 		return fmt.Errorf("%s extension not found", common.CategoriesExtensionKey)
 	}
 
-	categoriesRawArray, ok := categoriesRaw.([]interface{})
+	categoriesRawArray, ok := categoriesRaw.([]any)
 	if !ok {
 		return fmt.Errorf("%s extension is not an array", common.CategoriesExtensionKey)
 	}

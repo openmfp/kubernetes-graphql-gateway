@@ -129,7 +129,9 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind, scope v1.ResourceScope)
 
 		items := make([]map[string]any, len(list.Items))
 		for i, item := range list.Items {
-			items[i] = item.Object
+			// Convert maps back to label arrays for GraphQL response
+			convertedItem := kubernetesToGraphQL(item.Object).(map[string]any)
+			items[i] = convertedItem
 		}
 
 		return items, nil
@@ -185,7 +187,9 @@ func (r *Service) GetItem(gvk schema.GroupVersionKind, scope v1.ResourceScope) g
 			return nil, err
 		}
 
-		return obj.Object, nil
+		// Convert maps back to label arrays for GraphQL response
+		convertedResponse := kubernetesToGraphQL(obj.Object)
+		return convertedResponse, nil
 	}
 }
 
@@ -218,10 +222,13 @@ func (r *Service) CreateItem(gvk schema.GroupVersionKind, scope v1.ResourceScope
 
 		log := r.log.With().Str("operation", "create").Str("kind", gvk.Kind).Logger()
 
-		objectInput := p.Args["object"].(map[string]interface{})
+		objectInput := p.Args["object"].(map[string]any)
+
+		// Convert label arrays back to maps for Kubernetes compatibility
+		convertedInput := graphqlToKubernetes(objectInput).(map[string]any)
 
 		obj := &unstructured.Unstructured{
-			Object: objectInput,
+			Object: convertedInput,
 		}
 		obj.SetGroupVersionKind(gvk)
 
@@ -251,7 +258,9 @@ func (r *Service) CreateItem(gvk schema.GroupVersionKind, scope v1.ResourceScope
 			return nil, err
 		}
 
-		return obj.Object, nil
+		// Convert maps back to label arrays for GraphQL response
+		convertedResponse := kubernetesToGraphQL(obj.Object)
+		return convertedResponse, nil
 	}
 }
 
@@ -269,9 +278,11 @@ func (r *Service) UpdateItem(gvk schema.GroupVersionKind, scope v1.ResourceScope
 			return nil, err
 		}
 
-		objectInput := p.Args["object"].(map[string]interface{})
-		// Marshal the input object to JSON to create the patch data
-		patchData, err := json.Marshal(objectInput)
+		objectInput := p.Args["object"].(map[string]any)
+		// Convert label arrays back to maps for Kubernetes compatibility
+		convertedInput := graphqlToKubernetes(objectInput)
+		// Marshal the converted input object to JSON to create the patch data
+		patchData, err := json.Marshal(convertedInput)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal object input: %v", err)
 		}
@@ -312,7 +323,9 @@ func (r *Service) UpdateItem(gvk schema.GroupVersionKind, scope v1.ResourceScope
 			return nil, err
 		}
 
-		return existingObj.Object, nil
+		// Convert maps back to label arrays for GraphQL response
+		convertedResponse := kubernetesToGraphQL(existingObj.Object)
+		return convertedResponse, nil
 	}
 }
 

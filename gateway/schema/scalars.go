@@ -72,3 +72,41 @@ var jsonStringScalar = graphql.NewScalar(graphql.ScalarConfig{
 		return nil
 	},
 })
+
+// Label represents a single key-value label pair
+type Label struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// LabelType defines the GraphQL object type for a single label
+var LabelType = graphql.NewObject(graphql.ObjectConfig{
+	Name:        "Label",
+	Description: "A key-value label pair that supports keys with dots and special characters",
+	Fields: graphql.Fields{
+		"key": &graphql.Field{
+			Type:        graphql.NewNonNull(graphql.String),
+			Description: "The label key (can contain dots and special characters)",
+		},
+		"value": &graphql.Field{
+			Type:        graphql.NewNonNull(graphql.String),
+			Description: "The label value",
+		},
+	},
+})
+
+// LabelInputType defines the GraphQL input type for a single label
+var LabelInputType = graphql.NewInputObject(graphql.InputObjectConfig{
+	Name:        "LabelInput",
+	Description: "Input type for a key-value label pair",
+	Fields: graphql.InputObjectConfigFieldMap{
+		"key": &graphql.InputObjectFieldConfig{
+			Type:        graphql.NewNonNull(graphql.String),
+			Description: "The label key (can contain dots and special characters)",
+		},
+		"value": &graphql.InputObjectFieldConfig{
+			Type:        graphql.NewNonNull(graphql.String),
+			Description: "The label value",
+		},
+	},
+})

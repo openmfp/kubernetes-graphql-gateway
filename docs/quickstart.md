@@ -59,6 +59,10 @@ You may checkout the following copy & paste examples to get started:
 - Subscribe to events using [Subscriptions](./subscriptions.md).
 - There are also [Custom Queries](./custom_queries.md) that go beyond what.
 
+## Working with Dotted Keys (Labels, Annotations, NodeSelector, MatchLabels)
+
+Kubernetes uses dotted keys extensively in various fields (e.g., `app.kubernetes.io/name`, `kubernetes.io/arch`), but GraphQL doesn't support dots in field names. Learn how to work with these fields using our special Label array format:
+- [Dotted Keys Guide](./dotted-keys.md) - Query and create `metadata.labels`, `metadata.annotations`, `spec.nodeSelector`, and `spec.selector.matchLabels` with dotted keys.
 
 ## Authorization with Remote Kuberenetes Clusters
 
