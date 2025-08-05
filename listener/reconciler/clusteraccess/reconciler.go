@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -82,8 +81,6 @@ func CheckClusterAccessCRDStatus(ctx context.Context, k8sClient client.Client, l
 
 // ClusterAccessReconciler handles reconciliation for ClusterAccess resources
 type ClusterAccessReconciler struct {
-	client.Client
-	Scheme           *runtime.Scheme
 	restCfg          *rest.Config
 	ioHandler        workspacefile.IOHandler
 	schemaResolver   apischema.Resolver
