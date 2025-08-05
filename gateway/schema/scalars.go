@@ -98,6 +98,14 @@ var stringMapScalar = graphql.NewScalar(graphql.ScalarConfig{
 			}
 
 			return result
+		case *ast.ObjectValue:
+			result := map[string]string{}
+			for _, field := range value.Fields {
+				if strValue, ok := field.Value.GetValue().(string); ok {
+					result[field.Name.Value] = strValue
+				}
+			}
+			return result
 		default:
 			return nil // to tell GraphQL that the value is invalid
 		}
