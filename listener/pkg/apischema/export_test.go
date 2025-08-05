@@ -9,6 +9,7 @@ import (
 	"k8s.io/kube-openapi/pkg/validation/spec"
 
 	"github.com/openmfp/golang-commons/logger"
+	"github.com/openmfp/golang-commons/logger/testlogger"
 )
 
 func GetCRDGroupKindVersions(spec apiextensionsv1.CustomResourceDefinitionSpec) *GroupKindVersions {
@@ -20,12 +21,7 @@ func IsCRDKindIncluded(gkv *GroupKindVersions, apiList *metav1.APIResourceList) 
 }
 
 func ErrorIfCRDNotInPreferredApiGroups(gkv *GroupKindVersions, lists []*metav1.APIResourceList) ([]string, error) {
-	log, err := logger.New(logger.DefaultConfig())
-	if err != nil {
-		return nil, err
-	}
-
-	crdResolver := NewCRDResolver(nil, nil, log)
+	crdResolver := NewCRDResolver(nil, nil, testlogger.New().Logger)
 	return crdResolver.errorIfCRDNotInPreferredApiGroups(gkv, lists)
 }
 

@@ -4,12 +4,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/openmfp/golang-commons/logger"
+	"github.com/openmfp/golang-commons/logger/testlogger"
 	"github.com/openmfp/kubernetes-graphql-gateway/common"
 	apischema "github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
 	apischemaMocks "github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema/mocks"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -136,10 +135,7 @@ func TestNewSchemaBuilder(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			log, err := logger.New(logger.DefaultConfig())
-			require.NoError(t, err)
-
-			b := apischema.NewSchemaBuilder(tc.client, []string{"v1"}, log)
+			b := apischema.NewSchemaBuilder(tc.client, []string{"v1"}, testlogger.New().Logger)
 			if tc.wantErr != nil {
 				assert.NotNil(t, b.GetError(), "expected error, got nil")
 				assert.Equal(t, 0, len(b.GetSchemas()), "expected 0 schemas on error")
@@ -196,12 +192,9 @@ func TestWithCRDCategories(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			log, err := logger.New(logger.DefaultConfig())
-			require.NoError(t, err)
-
 			mock := apischemaMocks.NewMockClient(t)
 			mock.EXPECT().Paths().Return(map[string]openapi.GroupVersion{}, nil)
-			b := apischema.NewSchemaBuilder(mock, nil, log)
+			b := apischema.NewSchemaBuilder(mock, nil, testlogger.New().Logger)
 			b.SetSchemas(map[string]*spec.Schema{
 				tc.key: {VendorExtensible: spec.VendorExtensible{Extensions: map[string]interface{}{}}},
 			})
@@ -251,12 +244,9 @@ func TestWithApiResourceCategories(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			log, err := logger.New(logger.DefaultConfig())
-			require.NoError(t, err)
-
 			mock := apischemaMocks.NewMockClient(t)
 			mock.EXPECT().Paths().Return(map[string]openapi.GroupVersion{}, nil)
-			b := apischema.NewSchemaBuilder(mock, nil, log)
+			b := apischema.NewSchemaBuilder(mock, nil, testlogger.New().Logger)
 			b.SetSchemas(map[string]*spec.Schema{
 				tc.key: {VendorExtensible: spec.VendorExtensible{Extensions: map[string]interface{}{}}},
 			})
@@ -277,9 +267,6 @@ func TestWithApiResourceCategories(t *testing.T) {
 
 // TestWithScope tests the WithScope method for the SchemaBuilder struct.
 func TestWithScope(t *testing.T) {
-	log, err := logger.New(logger.DefaultConfig())
-	require.NoError(t, err)
-
 	gvk := schema.GroupVersionKind{Group: "g", Version: "v1", Kind: "K"}
 
 	// Create schema with GVK extension
@@ -295,7 +282,7 @@ func TestWithScope(t *testing.T) {
 
 	mock := apischemaMocks.NewMockClient(t)
 	mock.EXPECT().Paths().Return(map[string]openapi.GroupVersion{}, nil)
-	b := apischema.NewSchemaBuilder(mock, nil, log)
+	b := apischema.NewSchemaBuilder(mock, nil, testlogger.New().Logger)
 	b.SetSchemas(map[string]*spec.Schema{
 		"g.v1.K": s,
 	})

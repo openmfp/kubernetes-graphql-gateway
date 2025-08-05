@@ -4,11 +4,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/openapi"
 
-	"github.com/openmfp/golang-commons/logger"
+	"github.com/openmfp/golang-commons/logger/testlogger"
 	apischemaMocks "github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema/mocks"
 )
 
@@ -18,9 +17,7 @@ var _ Resolver = (*ResolverProvider)(nil)
 // TestNewResolverNotNil checks if NewResolver() returns a non-nil *ResolverProvider
 // instance. This is a runtime check to ensure that the function behaves as expected.
 func TestNewResolverNotNil(t *testing.T) {
-	log, err := logger.New(logger.DefaultConfig())
-	require.NoError(t, err)
-	r := NewResolver(log)
+	r := NewResolver(testlogger.New().Logger)
 	assert.NotNil(t, r, "NewResolver() should return non-nil *ResolverProvider")
 }
 
@@ -65,9 +62,7 @@ func TestResolverProvider_Resolve(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			log, err := logger.New(logger.DefaultConfig())
-			require.NoError(t, err)
-			resolver := NewResolver(log)
+			resolver := NewResolver(testlogger.New().Logger)
 			dc := apischemaMocks.NewMockDiscoveryInterface(t)
 			rm := apischemaMocks.NewMockRESTMapper(t)
 

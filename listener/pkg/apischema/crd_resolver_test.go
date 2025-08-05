@@ -9,11 +9,10 @@ import (
 	"k8s.io/client-go/openapi"
 	"k8s.io/kube-openapi/pkg/validation/spec"
 
-	"github.com/openmfp/golang-commons/logger"
+	"github.com/openmfp/golang-commons/logger/testlogger"
 	apischema "github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
 	apischemaMocks "github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema/mocks"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // TestGetCRDGroupKindVersions tests the getCRDGroupKindVersions function. It checks if the
@@ -300,9 +299,6 @@ func TestResolveSchema(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			log, err := logger.New(logger.DefaultConfig())
-			require.NoError(t, err)
-
 			dc := apischemaMocks.NewMockDiscoveryInterface(t)
 			rm := apischemaMocks.NewMockRESTMapper(t)
 
@@ -322,7 +318,7 @@ func TestResolveSchema(t *testing.T) {
 				dc.EXPECT().OpenAPIV3().Return(openAPIClient)
 			}
 
-			got, err := apischema.ResolveSchema(dc, rm, log)
+			got, err := apischema.ResolveSchema(dc, rm, testlogger.New().Logger)
 			if tc.wantErr != nil {
 				assert.ErrorIs(t, err, tc.wantErr)
 				return

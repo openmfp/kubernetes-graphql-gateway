@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/openmfp/golang-commons/logger"
+	"github.com/openmfp/golang-commons/logger/testlogger"
 	"github.com/openmfp/kubernetes-graphql-gateway/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,11 +36,9 @@ func TestNewConfigWatcher(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			log, err := logger.New(logger.DefaultConfig())
-			require.NoError(t, err)
 			virtualWSManager := &MockVirtualWorkspaceConfigManager{}
 
-			watcher, err := NewConfigWatcher(virtualWSManager, log)
+			watcher, err := NewConfigWatcher(virtualWSManager, testlogger.New().Logger)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -49,7 +47,7 @@ func TestNewConfigWatcher(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, watcher)
 				assert.Equal(t, virtualWSManager, watcher.virtualWSManager)
-				assert.Equal(t, log, watcher.log)
+				assert.Equal(t, testlogger.New().Logger, watcher.log)
 				assert.NotNil(t, watcher.fileWatcher)
 			}
 		})
@@ -87,13 +85,11 @@ func TestConfigWatcher_OnFileChanged(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			log, err := logger.New(logger.DefaultConfig())
-			require.NoError(t, err)
 			virtualWSManager := &MockVirtualWorkspaceConfigManager{
 				LoadConfigFunc: tt.loadConfigFunc,
 			}
 
-			watcher, err := NewConfigWatcher(virtualWSManager, log)
+			watcher, err := NewConfigWatcher(virtualWSManager, testlogger.New().Logger)
 			require.NoError(t, err)
 
 			// Track change handler calls
@@ -120,11 +116,9 @@ func TestConfigWatcher_OnFileChanged(t *testing.T) {
 }
 
 func TestConfigWatcher_OnFileDeleted(t *testing.T) {
-	log, err := logger.New(logger.DefaultConfig())
-	require.NoError(t, err)
 	virtualWSManager := &MockVirtualWorkspaceConfigManager{}
 
-	watcher, err := NewConfigWatcher(virtualWSManager, log)
+	watcher, err := NewConfigWatcher(virtualWSManager, testlogger.New().Logger)
 	require.NoError(t, err)
 
 	// Should not panic or error
@@ -175,13 +169,11 @@ func TestConfigWatcher_LoadAndNotify(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			log, err := logger.New(logger.DefaultConfig())
-			require.NoError(t, err)
 			virtualWSManager := &MockVirtualWorkspaceConfigManager{
 				LoadConfigFunc: tt.loadConfigFunc,
 			}
 
-			watcher, err := NewConfigWatcher(virtualWSManager, log)
+			watcher, err := NewConfigWatcher(virtualWSManager, testlogger.New().Logger)
 			require.NoError(t, err)
 
 			// Track change handler calls
@@ -217,15 +209,13 @@ func TestConfigWatcher_LoadAndNotify(t *testing.T) {
 }
 
 func TestConfigWatcher_Watch_EmptyPath(t *testing.T) {
-	log, err := logger.New(logger.DefaultConfig())
-	require.NoError(t, err)
 	virtualWSManager := &MockVirtualWorkspaceConfigManager{
 		LoadConfigFunc: func(configPath string) (*VirtualWorkspacesConfig, error) {
 			return &VirtualWorkspacesConfig{}, nil
 		},
 	}
 
-	watcher, err := NewConfigWatcher(virtualWSManager, log)
+	watcher, err := NewConfigWatcher(virtualWSManager, testlogger.New().Logger)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(t.Context(), common.ShortTimeout)

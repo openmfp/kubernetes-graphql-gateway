@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/client-go/discovery"
 
-	"github.com/openmfp/golang-commons/logger"
+	"github.com/openmfp/golang-commons/logger/testlogger"
 	"github.com/openmfp/kubernetes-graphql-gateway/common/config"
 )
 
@@ -558,9 +558,7 @@ func TestNewVirtualWorkspaceReconciler(t *testing.T) {
 	appCfg := config.Config{}
 	manager := NewVirtualWorkspaceManager(appCfg)
 
-	log, err := logger.New(logger.DefaultConfig())
-	require.NoError(t, err)
-	reconciler := NewVirtualWorkspaceReconciler(manager, nil, nil, log)
+	reconciler := NewVirtualWorkspaceReconciler(manager, nil, nil, testlogger.New().Logger)
 
 	assert.NotNil(t, reconciler)
 	assert.Equal(t, manager, reconciler.virtualWSManager)
@@ -633,15 +631,13 @@ func TestVirtualWorkspaceReconciler_ReconcileConfig_Simple(t *testing.T) {
 				},
 			}
 
-			log, err := logger.New(logger.DefaultConfig())
-			require.NoError(t, err)
-			reconciler := NewVirtualWorkspaceReconciler(manager, ioHandler, apiResolver, log)
+			reconciler := NewVirtualWorkspaceReconciler(manager, ioHandler, apiResolver, testlogger.New().Logger)
 			reconciler.currentWorkspaces = tt.initialWorkspaces
 
 			// For this simplified test, we'll mock the individual methods to avoid network calls
 			// This tests the reconciliation logic without testing the full discovery/REST mapper setup
 
-			err = reconciler.ReconcileConfig(context.Background(), tt.newConfig)
+			err := reconciler.ReconcileConfig(context.Background(), tt.newConfig)
 
 			// Since discovery client creation may fail, we don't assert NoError
 			// but we can still verify the workspace tracking logic
@@ -728,11 +724,9 @@ func TestVirtualWorkspaceReconciler_ProcessVirtualWorkspace(t *testing.T) {
 				},
 			}
 
-			log, err := logger.New(logger.DefaultConfig())
-			require.NoError(t, err)
-			reconciler := NewVirtualWorkspaceReconciler(manager, ioHandler, apiResolver, log)
+			reconciler := NewVirtualWorkspaceReconciler(manager, ioHandler, apiResolver, testlogger.New().Logger)
 
-			err = reconciler.processVirtualWorkspace(context.Background(), tt.workspace)
+			err := reconciler.processVirtualWorkspace(context.Background(), tt.workspace)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -790,12 +784,10 @@ func TestVirtualWorkspaceReconciler_RemoveVirtualWorkspace(t *testing.T) {
 				},
 			}
 
-			log, err := logger.New(logger.DefaultConfig())
-			require.NoError(t, err)
-			reconciler := NewVirtualWorkspaceReconciler(manager, nil, nil, log)
+			reconciler := NewVirtualWorkspaceReconciler(manager, nil, nil, testlogger.New().Logger)
 			reconciler.ioHandler = ioHandler
 
-			err = reconciler.removeVirtualWorkspace(tt.workspaceName)
+			err := reconciler.removeVirtualWorkspace(tt.workspaceName)
 
 			if tt.expectError {
 				assert.Error(t, err)
