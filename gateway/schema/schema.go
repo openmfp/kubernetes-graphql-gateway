@@ -449,7 +449,7 @@ func (g *Gateway) handleObjectFieldSpecType(fieldSpec spec.Schema, typePrefix st
 		// Hagndle map types
 		if len(fieldSpec.AdditionalProperties.Schema.Type) == 1 && fieldSpec.AdditionalProperties.Schema.Type[0] == "string" {
 			// This is a map[string]string
-			return stringMapScalar, stringMapInput, nil
+			return stringMapScalar, stringMapScalar, nil
 		}
 	}
 
