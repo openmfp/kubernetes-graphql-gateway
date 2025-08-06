@@ -30,6 +30,7 @@ type Provider interface {
 	CustomQueriesProvider
 	CommonResolver() graphql.FieldResolveFn
 	SanitizeGroupName(string) string
+	GetRelationshipResolver() *RelationshipResolver
 }
 
 type CrudProvider interface {
@@ -50,15 +51,17 @@ type CustomQueriesProvider interface {
 type Service struct {
 	log *logger.Logger
 	// groupNames stores relation between sanitized group names and original group names that are used in the Kubernetes API
-	groupNames    map[string]string // map[sanitizedGroupName]originalGroupName
-	runtimeClient client.WithWatch
+	groupNames           map[string]string // map[sanitizedGroupName]originalGroupName
+	runtimeClient        client.WithWatch
+	relationshipResolver *RelationshipResolver
 }
 
 func New(log *logger.Logger, runtimeClient client.WithWatch) *Service {
 	return &Service{
-		log:           log,
-		groupNames:    make(map[string]string),
-		runtimeClient: runtimeClient,
+		log:                  log,
+		groupNames:           make(map[string]string),
+		runtimeClient:        runtimeClient,
+		relationshipResolver: NewRelationshipResolver(log),
 	}
 }
 
@@ -395,6 +398,10 @@ func (r *Service) getOriginalGroupName(groupName string) string {
 	}
 
 	return groupName
+}
+
+func (r *Service) GetRelationshipResolver() *RelationshipResolver {
+	return r.relationshipResolver
 }
 
 func compareUnstructured(a, b unstructured.Unstructured, fieldPath string) int {

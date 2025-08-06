@@ -34,6 +34,8 @@ type Gateway struct {
 	inputTypesCache map[string]*graphql.InputObject
 	// Prevents naming conflict in case of the same Kind name in different groups/versions
 	typeNameRegistry map[string]string // map[Kind]GroupVersion
+	// enhancedRefTypesCache stores enhanced reference types to prevent duplicate creation
+	enhancedRefTypesCache map[string]*graphql.Object
 
 	// categoryRegistry stores resources by category for typeByCategory query
 	typeByCategory map[string][]resolver.TypeByCategory
@@ -41,13 +43,14 @@ type Gateway struct {
 
 func New(log *logger.Logger, definitions spec.Definitions, resolverProvider resolver.Provider) (*Gateway, error) {
 	g := &Gateway{
-		log:              log,
-		resolver:         resolverProvider,
-		definitions:      definitions,
-		typesCache:       make(map[string]*graphql.Object),
-		inputTypesCache:  make(map[string]*graphql.InputObject),
-		typeNameRegistry: make(map[string]string),
-		typeByCategory:   make(map[string][]resolver.TypeByCategory),
+		log:                   log,
+		resolver:              resolverProvider,
+		definitions:           definitions,
+		typesCache:            make(map[string]*graphql.Object),
+		inputTypesCache:       make(map[string]*graphql.InputObject),
+		typeNameRegistry:      make(map[string]string),
+		enhancedRefTypesCache: make(map[string]*graphql.Object),
+		typeByCategory:        make(map[string][]resolver.TypeByCategory),
 	}
 
 	err := g.generateGraphqlSchema()
@@ -318,10 +321,31 @@ func (g *Gateway) generateGraphQLFields(resourceScheme *spec.Schema, typePrefix 
 	fields := graphql.Fields{}
 	inputFields := graphql.InputObjectConfigFieldMap{}
 
+	// Extract GVK for relationship resolution
+	// Only try to get GVK for main resource types, not nested types
+	var currentGVK *schema.GroupVersionKind
+	if len(fieldPath) == 0 {
+		// This is a main resource type, try to get its GVK
+		currentGVK, _ = g.getGroupVersionKind(typePrefix)
+		if currentGVK == nil {
+			// Fallback: try to infer GVK from well-known type names
+			currentGVK = g.getGVKForTypeName(typePrefix)
+		}
+	}
+
+	// Collect relationship fields for the relations field
+	var relationshipFields []string
+
 	for fieldName, fieldSpec := range resourceScheme.Properties {
 		sanitizedFieldName := sanitizeFieldName(fieldName)
 		currentFieldPath := append(fieldPath, fieldName)
 
+		// Check if this is a relationship field and collect it
+		if g.isRelationshipField(fieldName, fieldSpec) {
+			relationshipFields = append(relationshipFields, fieldName)
+		}
+
+		// Regular field processing for ALL fields (including relationship fields)
 		fieldType, inputFieldType, err := g.convertSwaggerTypeToGraphQL(fieldSpec, typePrefix, currentFieldPath, processingTypes)
 		if err != nil {
 			return nil, nil, err
@@ -333,6 +357,27 @@ func (g *Gateway) generateGraphQLFields(resourceScheme *spec.Schema, typePrefix 
 
 		inputFields[sanitizedFieldName] = &graphql.InputObjectFieldConfig{
 			Type: inputFieldType,
+		}
+	}
+
+	// Add individual relationship fields if we have them
+	if len(relationshipFields) == 0 || currentGVK == nil {
+		return fields, inputFields, nil
+	}
+
+	relationshipResolver := g.resolver.GetRelationshipResolver()
+	if relationshipResolver == nil {
+		return fields, inputFields, nil
+	}
+
+	for _, fieldName := range relationshipFields {
+		targetKind := g.extractTargetKind(fieldName)
+		relationFieldName := strings.ToLower(string(targetKind[0])) + targetKind[1:] + "Relation"
+
+		relationFieldType := g.createEnhancedRefType(targetKind)
+		fields[relationFieldName] = &graphql.Field{
+			Type:    relationFieldType,
+			Resolve: relationshipResolver.CreateSingleRelationResolver(*currentGVK, fieldName),
 		}
 	}
 
@@ -574,4 +619,76 @@ func sanitizeFieldName(name string) string {
 	}
 
 	return name
+}
+
+// isRelationshipField checks if a field is a relationship field
+func (g *Gateway) isRelationshipField(fieldName string, fieldSpec spec.Schema) bool {
+	isRelationship := resolver.IsRelationshipField(fieldName)
+	return isRelationship
+}
+
+// extractTargetKind extracts the target kind from a relationship field name
+func (g *Gateway) extractTargetKind(fieldName string) string {
+	return resolver.ExtractTargetKind(fieldName)
+}
+
+// createEnhancedRefType creates a GraphQL type for enhanced references
+func (g *Gateway) createEnhancedRefType(targetKind string) graphql.Output {
+	typeName := targetKind + "Relation"
+
+	// Check cache first
+	if existingType, exists := g.enhancedRefTypesCache[typeName]; exists {
+		return existingType
+	}
+
+	refType := graphql.NewObject(graphql.ObjectConfig{
+		Name: typeName,
+		Fields: graphql.Fields{
+			"kind": &graphql.Field{
+				Type:        graphql.String,
+				Description: "Kind of the referenced resource",
+			},
+			"groupVersion": &graphql.Field{
+				Type:        graphql.String,
+				Description: "GroupVersion of the referenced resource",
+			},
+			"name": &graphql.Field{
+				Type:        graphql.NewNonNull(graphql.String),
+				Description: "Name of the referenced resource",
+			},
+			"namespace": &graphql.Field{
+				Type:        graphql.String,
+				Description: "Namespace of the referenced resource",
+			},
+		},
+	})
+
+	// Cache the type
+	g.enhancedRefTypesCache[typeName] = refType
+	return refType
+}
+
+// getGVKForTypeName gets the GroupVersionKind for a type name by looking up in existing definitions
+func (g *Gateway) getGVKForTypeName(typeName string) *schema.GroupVersionKind {
+	// Try to find the type in our definitions by looking for a matching kind
+	for resourceKey := range g.definitions {
+		if gvk, err := g.getGroupVersionKind(resourceKey); err == nil && gvk.Kind == typeName {
+			return gvk
+		}
+	}
+
+	// Fallback: check if we have this in our type registry
+	if groupVersion, exists := g.typeNameRegistry[typeName]; exists {
+		// Parse the group/version string
+		parts := strings.Split(groupVersion, "/")
+		if len(parts) == 2 {
+			return &schema.GroupVersionKind{
+				Group:   parts[0],
+				Version: parts[1],
+				Kind:    typeName,
+			}
+		}
+	}
+
+	return nil
 }
