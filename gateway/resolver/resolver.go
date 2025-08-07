@@ -30,6 +30,8 @@ type Provider interface {
 	CustomQueriesProvider
 	CommonResolver() graphql.FieldResolveFn
 	SanitizeGroupName(string) string
+	RuntimeClient() client.WithWatch
+	RelationResolver(fieldName string) graphql.FieldResolveFn
 }
 
 type CrudProvider interface {
@@ -50,16 +52,22 @@ type CustomQueriesProvider interface {
 type Service struct {
 	log *logger.Logger
 	// groupNames stores relation between sanitized group names and original group names that are used in the Kubernetes API
-	groupNames    map[string]string // map[sanitizedGroupName]originalGroupName
-	runtimeClient client.WithWatch
+	groupNames       map[string]string // map[sanitizedGroupName]originalGroupName
+	runtimeClient    client.WithWatch
+	relationResolver *RelationResolver
 }
 
 func New(log *logger.Logger, runtimeClient client.WithWatch) *Service {
-	return &Service{
+	s := &Service{
 		log:           log,
 		groupNames:    make(map[string]string),
 		runtimeClient: runtimeClient,
 	}
+
+	// Initialize the relation resolver
+	s.relationResolver = NewRelationResolver(s)
+
+	return s
 }
 
 // ListItems returns a GraphQL CommonResolver function that lists Kubernetes resources of the given GroupVersionKind.
@@ -455,4 +463,14 @@ func compareNumbers[T int64 | float64](a, b T) int {
 	default:
 		return 0
 	}
+}
+
+// RuntimeClient returns the runtime client for use in relationship resolution
+func (r *Service) RuntimeClient() client.WithWatch {
+	return r.runtimeClient
+}
+
+// RelationResolver creates a GraphQL resolver for relation fields
+func (r *Service) RelationResolver(fieldName string) graphql.FieldResolveFn {
+	return r.relationResolver.CreateResolver(fieldName)
 }
