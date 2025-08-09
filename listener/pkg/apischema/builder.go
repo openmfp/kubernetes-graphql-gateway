@@ -30,18 +30,29 @@ var (
 	ErrCRDNoVersions        = errors.New("CRD has no versions defined")
 	ErrMarshalGVK           = errors.New("failed to marshal GVK extension")
 	ErrUnmarshalGVK         = errors.New("failed to unmarshal GVK extension")
+	ErrBuildKindRegistry    = errors.New("failed to build kind registry")
 )
 
 type SchemaBuilder struct {
-	schemas map[string]*spec.Schema
-	err     *multierror.Error
-	log     *logger.Logger
+	schemas      map[string]*spec.Schema
+	err          *multierror.Error
+	log          *logger.Logger
+	kindRegistry map[string][]ResourceInfo
+}
+
+// ResourceInfo holds information about a resource for relationship resolution
+type ResourceInfo struct {
+	Group     string
+	Version   string
+	Kind      string
+	SchemaKey string
 }
 
 func NewSchemaBuilder(oc openapi.Client, preferredApiGroups []string, log *logger.Logger) *SchemaBuilder {
 	b := &SchemaBuilder{
-		schemas: make(map[string]*spec.Schema),
-		log:     log,
+		schemas:      make(map[string]*spec.Schema),
+		kindRegistry: make(map[string][]ResourceInfo),
+		log:          log,
 	}
 
 	apiv3Paths, err := oc.Paths()
@@ -171,6 +182,128 @@ func (b *SchemaBuilder) WithApiResourceCategories(list []*metav1.APIResourceList
 	}
 
 	return b
+}
+
+// WithRelationships adds relationship fields to schemas that have *Ref fields
+func (b *SchemaBuilder) WithRelationships() *SchemaBuilder {
+	// Build kind registry first
+	b.buildKindRegistry()
+
+	// Expand relationships in all schemas
+	b.log.Info().Int("kindRegistrySize", len(b.kindRegistry)).Msg("Starting relationship expansion")
+	for schemaKey, schema := range b.schemas {
+		b.log.Debug().Str("schemaKey", schemaKey).Msg("Processing schema for relationships")
+		b.expandRelationships(schema)
+	}
+
+	return b
+}
+
+// buildKindRegistry builds a map of kind names to available resource types
+func (b *SchemaBuilder) buildKindRegistry() {
+	for schemaKey, schema := range b.schemas {
+		// Extract GVK from schema
+		if schema.VendorExtensible.Extensions == nil {
+			continue
+		}
+
+		gvksVal, ok := schema.VendorExtensible.Extensions[common.GVKExtensionKey]
+		if !ok {
+			continue
+		}
+
+		jsonBytes, err := json.Marshal(gvksVal)
+		if err != nil {
+			b.log.Debug().Err(err).Str("schemaKey", schemaKey).Msg("failed to marshal GVK")
+			continue
+		}
+
+		var gvks []*GroupVersionKind
+		if err := json.Unmarshal(jsonBytes, &gvks); err != nil {
+			b.log.Debug().Err(err).Str("schemaKey", schemaKey).Msg("failed to unmarshal GVK")
+			continue
+		}
+
+		if len(gvks) != 1 {
+			continue
+		}
+
+		gvk := gvks[0]
+
+		// Add to kind registry
+		resourceInfo := ResourceInfo{
+			Group:     gvk.Group,
+			Version:   gvk.Version,
+			Kind:      gvk.Kind,
+			SchemaKey: schemaKey,
+		}
+
+		// Index by lowercase kind name for consistent lookup
+		b.kindRegistry[strings.ToLower(gvk.Kind)] = append(b.kindRegistry[strings.ToLower(gvk.Kind)], resourceInfo)
+	}
+
+	b.log.Debug().Int("kindCount", len(b.kindRegistry)).Msg("built kind registry for relationships")
+}
+
+// expandRelationships detects fields ending with 'Ref' and adds corresponding relationship fields
+func (b *SchemaBuilder) expandRelationships(schema *spec.Schema) {
+	if schema.Properties == nil {
+		return
+	}
+
+	// Create a copy of properties to avoid modifying while iterating
+	originalProps := make(map[string]spec.Schema)
+	for k, v := range schema.Properties {
+		originalProps[k] = v
+	}
+
+	for propName := range originalProps {
+		if strings.HasSuffix(propName, "Ref") && propName != "Ref" {
+			// Extract the base kind (e.g., "role" from "roleRef")
+			baseKind := strings.TrimSuffix(propName, "Ref")
+			b.log.Debug().Str("propName", propName).Str("baseKind", baseKind).Msg("Found Ref field")
+
+			// Find the first matching resource type for this kind
+			lookupKey := strings.ToLower(baseKind)
+			b.log.Debug().Str("lookupKey", lookupKey).Msg("Looking up in kind registry")
+			if resourceTypes, exists := b.kindRegistry[lookupKey]; exists && len(resourceTypes) > 0 {
+				b.log.Debug().Str("lookupKey", lookupKey).Int("resourceCount", len(resourceTypes)).Msg("Found matching resources")
+				// Use the first matching resource type
+				targetResource := resourceTypes[0]
+
+				// Generate field name (e.g., "role" for "roleRef")
+				fieldName := strings.ToLower(baseKind)
+
+				// Add the relationship field
+				if _, exists := schema.Properties[fieldName]; !exists {
+					// Create a reference to the target schema
+					refSchema := spec.Schema{
+						SchemaProps: spec.SchemaProps{
+							Ref: spec.MustCreateRef(fmt.Sprintf("#/definitions/%s.%s.%s",
+								targetResource.Group, targetResource.Version, targetResource.Kind)),
+						},
+					}
+					schema.Properties[fieldName] = refSchema
+
+					b.log.Info().
+						Str("sourceField", propName).
+						Str("targetField", fieldName).
+						Str("targetKind", targetResource.Kind).
+						Str("targetGroup", targetResource.Group).
+						Msg("Added relationship field")
+				}
+			} else {
+				b.log.Debug().Str("lookupKey", lookupKey).Msg("No matching resources found in kind registry")
+			}
+		}
+	}
+
+	// Recursively process nested objects
+	for _, prop := range schema.Properties {
+		if prop.Type.Contains("object") && prop.Properties != nil {
+			b.expandRelationships(&prop)
+		}
+	}
 }
 
 func (b *SchemaBuilder) Complete() ([]byte, error) {

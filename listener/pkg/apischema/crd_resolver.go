@@ -77,6 +77,7 @@ func (cr *CRDResolver) ResolveApiSchema(crd *apiextensionsv1.CustomResourceDefin
 	result, err := NewSchemaBuilder(cr.OpenAPIV3(), preferredApiGroups, cr.log).
 		WithScope(cr.RESTMapper).
 		WithCRDCategories(crd).
+		WithRelationships().
 		Complete()
 
 	if err != nil {
@@ -207,6 +208,7 @@ func (cr *CRDResolver) resolveSchema(dc discovery.DiscoveryInterface, rm meta.RE
 	result, err := NewSchemaBuilder(dc.OpenAPIV3(), preferredApiGroups, cr.log).
 		WithScope(rm).
 		WithApiResourceCategories(apiResList).
+		WithRelationships().
 		Complete()
 
 	if err != nil {
