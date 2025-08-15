@@ -29,7 +29,6 @@ type Provider interface {
 	CustomQueriesProvider
 	CommonResolver() graphql.FieldResolveFn
 	SanitizeGroupName(string) string
-	RuntimeClient() client.WithWatch
 	RelationResolver(fieldName string, gvk schema.GroupVersionKind) graphql.FieldResolveFn
 }
 
@@ -94,15 +93,6 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind, scope v1.ResourceScope)
 		list.SetGroupVersionKind(schema.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind + "List"})
 
 		var opts []client.ListOption
-		if isResourceNamespaceScoped(scope) {
-			namespace, err := getStringArg(p.Args, NamespaceArg, false)
-			if err != nil {
-				return nil, err
-			}
-			if namespace != "" {
-				opts = append(opts, client.InNamespace(namespace))
-			}
-		}
 
 		if val, ok := p.Args[LabelSelectorArg].(string); ok && val != "" {
 			selector, err := labels.Parse(val)
@@ -111,6 +101,16 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind, scope v1.ResourceScope)
 				return nil, err
 			}
 			opts = append(opts, client.MatchingLabelsSelector{Selector: selector})
+		}
+
+		if isResourceNamespaceScoped(scope) {
+			namespace, err := getStringArg(p.Args, NamespaceArg, false)
+			if err != nil {
+				return nil, err
+			}
+			if namespace != "" {
+				opts = append(opts, client.InNamespace(namespace))
+			}
 		}
 
 		if err = r.runtimeClient.List(ctx, list, opts...); err != nil {
@@ -461,11 +461,6 @@ func compareNumbers[T int64 | float64](a, b T) int {
 	default:
 		return 0
 	}
-}
-
-// RuntimeClient returns the runtime client for use in relationship resolution
-func (r *Service) RuntimeClient() client.WithWatch {
-	return r.runtimeClient
 }
 
 // RelationResolver creates a GraphQL resolver for relation fields

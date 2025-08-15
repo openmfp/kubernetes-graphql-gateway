@@ -254,7 +254,40 @@ func (b *SchemaBuilder) buildKindRegistry() {
 		}
 
 		// Index by lowercase kind name for consistent lookup
-		b.kindRegistry[strings.ToLower(gvk.Kind)] = append(b.kindRegistry[strings.ToLower(gvk.Kind)], resourceInfo)
+		key := strings.ToLower(gvk.Kind)
+		b.kindRegistry[key] = append(b.kindRegistry[key], resourceInfo)
+	}
+
+	// Ensure deterministic order for picks: sort each slice by Group, Version, Kind, SchemaKey
+	for kindKey, infos := range b.kindRegistry {
+		slices.SortFunc(infos, func(a, b ResourceInfo) int {
+			if a.Group != b.Group {
+				if a.Group < b.Group {
+					return -1
+				}
+				return 1
+			}
+			if a.Version != b.Version {
+				if a.Version < b.Version {
+					return -1
+				}
+				return 1
+			}
+			if a.Kind != b.Kind {
+				if a.Kind < b.Kind {
+					return -1
+				}
+				return 1
+			}
+			if a.SchemaKey < b.SchemaKey {
+				return -1
+			}
+			if a.SchemaKey > b.SchemaKey {
+				return 1
+			}
+			return 0
+		})
+		b.kindRegistry[kindKey] = infos
 	}
 
 	b.log.Debug().Int("kindCount", len(b.kindRegistry)).Msg("built kind registry for relationships")
@@ -266,51 +299,34 @@ func (b *SchemaBuilder) expandRelationships(schema *spec.Schema) {
 		return
 	}
 
-	// Create a copy of properties to avoid modifying while iterating
-	originalProps := make(map[string]spec.Schema)
-	for k, v := range schema.Properties {
-		originalProps[k] = v
-	}
-
-	for propName := range originalProps {
-		if strings.HasSuffix(propName, "Ref") && propName != "Ref" {
-			// Extract the base kind (e.g., "role" from "roleRef")
-			baseKind := strings.TrimSuffix(propName, "Ref")
-			b.log.Debug().Str("propName", propName).Str("baseKind", baseKind).Msg("Found Ref field")
-
-			// Find the first matching resource type for this kind
-			lookupKey := strings.ToLower(baseKind)
-			b.log.Debug().Str("lookupKey", lookupKey).Msg("Looking up in kind registry")
-			if resourceTypes, exists := b.kindRegistry[lookupKey]; exists && len(resourceTypes) > 0 {
-				b.log.Debug().Str("lookupKey", lookupKey).Int("resourceCount", len(resourceTypes)).Msg("Found matching resources")
-				// Use the first matching resource type
-				targetResource := resourceTypes[0]
-
-				// Generate field name (e.g., "role" for "roleRef")
-				fieldName := strings.ToLower(baseKind)
-
-				// Add the relationship field
-				if _, exists := schema.Properties[fieldName]; !exists {
-					// Create a reference to the target schema
-					refSchema := spec.Schema{
-						SchemaProps: spec.SchemaProps{
-							Ref: spec.MustCreateRef(fmt.Sprintf("#/definitions/%s.%s.%s",
-								targetResource.Group, targetResource.Version, targetResource.Kind)),
-						},
-					}
-					schema.Properties[fieldName] = refSchema
-
-					b.log.Info().
-						Str("sourceField", propName).
-						Str("targetField", fieldName).
-						Str("targetKind", targetResource.Kind).
-						Str("targetGroup", targetResource.Group).
-						Msg("Added relationship field")
-				}
-			} else {
-				b.log.Debug().Str("lookupKey", lookupKey).Msg("No matching resources found in kind registry")
-			}
+	for propName := range schema.Properties {
+		if !isRefProperty(propName) {
+			continue
 		}
+
+		baseKind := strings.TrimSuffix(propName, "Ref")
+		lookupKey := strings.ToLower(baseKind)
+
+		resourceTypes, exists := b.kindRegistry[lookupKey]
+		if !exists || len(resourceTypes) == 0 {
+			continue
+		}
+
+		fieldName := strings.ToLower(baseKind)
+		if _, exists := schema.Properties[fieldName]; exists {
+			continue
+		}
+
+		target := resourceTypes[0]
+		ref := spec.MustCreateRef(fmt.Sprintf("#/definitions/%s.%s.%s", target.Group, target.Version, target.Kind))
+		schema.Properties[fieldName] = spec.Schema{SchemaProps: spec.SchemaProps{Ref: ref}}
+
+		b.log.Info().
+			Str("sourceField", propName).
+			Str("targetField", fieldName).
+			Str("targetKind", target.Kind).
+			Str("targetGroup", target.Group).
+			Msg("Added relationship field")
 	}
 
 	// Recursively process nested objects and write back modifications
@@ -320,6 +336,16 @@ func (b *SchemaBuilder) expandRelationships(schema *spec.Schema) {
 			schema.Properties[key] = prop
 		}
 	}
+}
+
+func isRefProperty(name string) bool {
+	if !strings.HasSuffix(name, "Ref") {
+		return false
+	}
+	if name == "Ref" {
+		return false
+	}
+	return true
 }
 
 func (b *SchemaBuilder) Complete() ([]byte, error) {
