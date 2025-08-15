@@ -50,22 +50,16 @@ type CustomQueriesProvider interface {
 type Service struct {
 	log *logger.Logger
 	// groupNames stores relation between sanitized group names and original group names that are used in the Kubernetes API
-	groupNames       map[string]string // map[sanitizedGroupName]originalGroupName
-	runtimeClient    client.WithWatch
-	relationResolver *RelationResolver
+	groupNames    map[string]string // map[sanitizedGroupName]originalGroupName
+	runtimeClient client.WithWatch
 }
 
 func New(log *logger.Logger, runtimeClient client.WithWatch) *Service {
-	s := &Service{
+	return &Service{
 		log:           log,
 		groupNames:    make(map[string]string),
 		runtimeClient: runtimeClient,
 	}
-
-	// Initialize the relation resolver
-	s.relationResolver = NewRelationResolver(s)
-
-	return s
 }
 
 // ListItems returns a GraphQL CommonResolver function that lists Kubernetes resources of the given GroupVersionKind.
@@ -461,9 +455,4 @@ func compareNumbers[T int64 | float64](a, b T) int {
 	default:
 		return 0
 	}
-}
-
-// RelationResolver creates a GraphQL resolver for relation fields
-func (r *Service) RelationResolver(fieldName string, gvk schema.GroupVersionKind) graphql.FieldResolveFn {
-	return r.relationResolver.CreateResolver(fieldName, gvk)
 }

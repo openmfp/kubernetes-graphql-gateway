@@ -6,39 +6,11 @@ import (
 	"github.com/graphql-go/graphql"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-// RelationResolver handles runtime resolution of relation fields
-type RelationResolver struct {
-	service *Service
-}
-
-// NewRelationResolver creates a new relation resolver
-func NewRelationResolver(service *Service) *RelationResolver {
-	return &RelationResolver{
-		service: service,
-	}
-}
-
-// CreateResolver creates a GraphQL resolver for relation fields
-func (rr *RelationResolver) CreateResolver(fieldName string, targetGVK schema.GroupVersionKind) graphql.FieldResolveFn {
-	return func(p graphql.ResolveParams) (interface{}, error) {
-		parentObj, ok := p.Source.(map[string]any)
-		if !ok {
-			return nil, nil
-		}
-
-		refInfo := rr.extractReferenceInfo(parentObj, fieldName)
-		if refInfo.name == "" {
-			return nil, nil
-		}
-
-		return rr.resolveReference(p.Context, refInfo, targetGVK)
-	}
-}
 
 // referenceInfo holds extracted reference details
 type referenceInfo struct {
@@ -48,8 +20,25 @@ type referenceInfo struct {
 	apiGroup  string
 }
 
+// RelationResolver creates a GraphQL resolver for relation fields
+func (r *Service) RelationResolver(fieldName string, gvk schema.GroupVersionKind) graphql.FieldResolveFn {
+	return func(p graphql.ResolveParams) (interface{}, error) {
+		parentObj, ok := p.Source.(map[string]any)
+		if !ok {
+			return nil, nil
+		}
+
+		refInfo := r.extractReferenceInfo(parentObj, fieldName)
+		if refInfo.name == "" {
+			return nil, nil
+		}
+
+		return r.resolveReference(p.Context, refInfo, gvk)
+	}
+}
+
 // extractReferenceInfo extracts reference details from a *Ref object
-func (rr *RelationResolver) extractReferenceInfo(parentObj map[string]any, fieldName string) referenceInfo {
+func (r *Service) extractReferenceInfo(parentObj map[string]any, fieldName string) referenceInfo {
 	name, _ := parentObj["name"].(string)
 	if name == "" {
 		return referenceInfo{}
@@ -73,7 +62,7 @@ func (rr *RelationResolver) extractReferenceInfo(parentObj map[string]any, field
 }
 
 // resolveReference fetches a referenced Kubernetes resource using provided target GVK
-func (rr *RelationResolver) resolveReference(ctx context.Context, ref referenceInfo, targetGVK schema.GroupVersionKind) (interface{}, error) {
+func (r *Service) resolveReference(ctx context.Context, ref referenceInfo, targetGVK schema.GroupVersionKind) (interface{}, error) {
 	gvk := targetGVK
 
 	// Allow overrides from the reference object if specified
@@ -85,7 +74,7 @@ func (rr *RelationResolver) resolveReference(ctx context.Context, ref referenceI
 	}
 
 	// Convert sanitized group to original before calling the client
-	gvk.Group = rr.service.getOriginalGroupName(gvk.Group)
+	gvk.Group = r.getOriginalGroupName(gvk.Group)
 
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk)
@@ -95,9 +84,28 @@ func (rr *RelationResolver) resolveReference(ctx context.Context, ref referenceI
 		key.Namespace = ref.namespace
 	}
 
-	if err := rr.service.runtimeClient.Get(ctx, key, obj); err == nil {
-		return obj.Object, nil
+	err := r.runtimeClient.Get(ctx, key, obj)
+	if err != nil {
+		// For "not found" errors, return nil to allow graceful degradation
+		// This handles cases where referenced resources are deleted or don't exist
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
+
+		// For other errors (network, permission, etc.), log and return the actual error
+		// This ensures proper error propagation for debugging and monitoring
+		r.log.Error().
+			Err(err).
+			Str("operation", "resolve_relation").
+			Str("group", gvk.Group).
+			Str("version", gvk.Version).
+			Str("kind", gvk.Kind).
+			Str("name", ref.name).
+			Str("namespace", ref.namespace).
+			Msg("Unable to resolve referenced object")
+		return nil, err
 	}
 
-	return nil, nil
+	// Happy path: resource found successfully
+	return obj.Object, nil
 }
