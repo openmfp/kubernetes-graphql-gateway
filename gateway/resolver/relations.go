@@ -24,7 +24,7 @@ func NewRelationResolver(service *Service) *RelationResolver {
 }
 
 // CreateResolver creates a GraphQL resolver for relation fields
-func (rr *RelationResolver) CreateResolver(fieldName string) graphql.FieldResolveFn {
+func (rr *RelationResolver) CreateResolver(fieldName string, targetGVK schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		parentObj, ok := p.Source.(map[string]interface{})
 		if !ok {
@@ -36,7 +36,7 @@ func (rr *RelationResolver) CreateResolver(fieldName string) graphql.FieldResolv
 			return nil, nil
 		}
 
-		return rr.resolveReference(p.Context, refInfo.name, refInfo.namespace, refInfo.kind, refInfo.apiGroup)
+		return rr.resolveReference(p.Context, refInfo, targetGVK)
 	}
 }
 
@@ -72,49 +72,32 @@ func (rr *RelationResolver) extractReferenceInfo(parentObj map[string]interface{
 	}
 }
 
-// resolveReference fetches a referenced Kubernetes resource
-func (rr *RelationResolver) resolveReference(ctx context.Context, name, namespace, kind, apiGroup string) (interface{}, error) {
-	versions := []string{"v1", "v1beta1", "v1alpha1"}
+// resolveReference fetches a referenced Kubernetes resource using provided target GVK
+func (rr *RelationResolver) resolveReference(ctx context.Context, ref referenceInfo, targetGVK schema.GroupVersionKind) (interface{}, error) {
+	gvk := targetGVK
 
-	for _, version := range versions {
-		if obj := rr.tryFetchResource(ctx, name, namespace, kind, apiGroup, version); obj != nil {
-			return obj, nil
-		}
+	// Allow overrides from the reference object if specified
+	if ref.apiGroup != "" {
+		gvk.Group = ref.apiGroup
+	}
+	if ref.kind != "" {
+		gvk.Kind = ref.kind
 	}
 
-	return nil, nil
-}
-
-// tryFetchResource attempts to fetch a Kubernetes resource with the given parameters
-func (rr *RelationResolver) tryFetchResource(ctx context.Context, name, namespace, kind, apiGroup, version string) map[string]interface{} {
-	gvk := schema.GroupVersionKind{
-		Group:   apiGroup,
-		Version: version,
-		Kind:    kind,
-	}
+	// Convert sanitized group to original before calling the client
+	gvk.Group = rr.service.getOriginalGroupName(gvk.Group)
 
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk)
 
-	key := client.ObjectKey{Name: name}
-	if namespace != "" {
-		key.Namespace = namespace
+	key := client.ObjectKey{Name: ref.name}
+	if ref.namespace != "" {
+		key.Namespace = ref.namespace
 	}
 
 	if err := rr.service.runtimeClient.Get(ctx, key, obj); err == nil {
-		return obj.Object
+		return obj.Object, nil
 	}
 
-	return nil
-}
-
-// GetSupportedVersions returns the list of API versions to try for resource resolution
-func (rr *RelationResolver) GetSupportedVersions() []string {
-	return []string{"v1", "v1beta1", "v1alpha1"}
-}
-
-// SetSupportedVersions allows customizing the API versions to try (for future extensibility)
-func (rr *RelationResolver) SetSupportedVersions(versions []string) {
-	// Future: Store in resolver state for customization
-	// For now, this is a placeholder for extensibility
+	return nil, nil
 }

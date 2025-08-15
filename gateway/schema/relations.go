@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-openapi/spec"
 	"github.com/graphql-go/graphql"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 // RelationEnhancer handles schema enhancement for relation fields
@@ -87,35 +88,47 @@ func (re *RelationEnhancer) copyOriginalFields(originalFieldDefs graphql.FieldDe
 
 // addRelationField adds a single relation field to the enhanced fields
 func (re *RelationEnhancer) addRelationField(enhancedFields graphql.Fields, baseName string) {
-	targetType := re.findRelationTargetType(baseName)
-	if targetType == nil {
+	targetType, targetGVK, ok := re.findRelationTarget(baseName)
+	if !ok {
 		return
 	}
 
 	sanitizedBaseName := sanitizeFieldName(baseName)
 	enhancedFields[sanitizedBaseName] = &graphql.Field{
 		Type:    targetType,
-		Resolve: re.gateway.resolver.RelationResolver(baseName),
+		Resolve: re.gateway.resolver.RelationResolver(baseName, *targetGVK),
 	}
 }
 
-// findRelationTargetType finds the GraphQL type for a relation target
-func (re *RelationEnhancer) findRelationTargetType(baseName string) graphql.Output {
+// findRelationTarget locates the GraphQL output type and its GVK for a relation target
+func (re *RelationEnhancer) findRelationTarget(baseName string) (graphql.Output, *schema.GroupVersionKind, bool) {
 	targetKind := cases.Title(language.English).String(baseName)
 
 	for defKey, defSchema := range re.gateway.definitions {
 		if re.matchesTargetKind(defSchema, targetKind) {
+			// Resolve or build the GraphQL type
+			var fieldType graphql.Output
 			if existingType, exists := re.gateway.typesCache[defKey]; exists {
-				return existingType
+				fieldType = existingType
+			} else {
+				ft, _, err := re.gateway.convertSwaggerTypeToGraphQL(defSchema, defKey, []string{}, make(map[string]bool))
+				if err != nil {
+					continue
+				}
+				fieldType = ft
 			}
 
-			if fieldType, _, err := re.gateway.convertSwaggerTypeToGraphQL(defSchema, defKey, []string{}, make(map[string]bool)); err == nil {
-				return fieldType
+			// Extract GVK from the schema definition
+			gvk, err := re.gateway.getGroupVersionKind(defKey)
+			if err != nil || gvk == nil {
+				continue
 			}
+
+			return fieldType, gvk, true
 		}
 	}
 
-	return graphql.String
+	return nil, nil, false
 }
 
 // matchesTargetKind checks if a schema definition matches the target kind
