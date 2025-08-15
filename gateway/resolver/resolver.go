@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/graphql-go/graphql"
-	pkgErrors "github.com/pkg/errors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -30,6 +29,7 @@ type Provider interface {
 	CustomQueriesProvider
 	CommonResolver() graphql.FieldResolveFn
 	SanitizeGroupName(string) string
+	RelationResolver(fieldName string, gvk schema.GroupVersionKind) graphql.FieldResolveFn
 }
 
 type CrudProvider interface {
@@ -82,16 +82,16 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind, scope v1.ResourceScope)
 			log = r.log
 		}
 
-		// Create an unstructured list to hold the results
+		// Create a list of unstructured objects to hold the results
 		list := &unstructured.UnstructuredList{}
-		list.SetGroupVersionKind(gvk)
+		list.SetGroupVersionKind(schema.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind + "List"})
 
 		var opts []client.ListOption
-		// Handle label selector argument
-		if labelSelector, ok := p.Args[LabelSelectorArg].(string); ok && labelSelector != "" {
-			selector, err := labels.Parse(labelSelector)
+
+		if val, ok := p.Args[LabelSelectorArg].(string); ok && val != "" {
+			selector, err := labels.Parse(val)
 			if err != nil {
-				log.Error().Err(err).Str(LabelSelectorArg, labelSelector).Msg("Unable to parse given label selector")
+				log.Error().Err(err).Str(LabelSelectorArg, val).Msg("Unable to parse given label selector")
 				return nil, err
 			}
 			opts = append(opts, client.MatchingLabelsSelector{Selector: selector})
@@ -108,8 +108,8 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind, scope v1.ResourceScope)
 		}
 
 		if err = r.runtimeClient.List(ctx, list, opts...); err != nil {
-			log.Error().Err(err).Msg("Unable to list objects")
-			return nil, pkgErrors.Wrap(err, "unable to list objects")
+			log.Error().Err(err).Str("scope", string(scope)).Msg("Unable to list objects")
+			return nil, err
 		}
 
 		sortBy, err := getStringArg(p.Args, SortByArg, false)
@@ -117,15 +117,15 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind, scope v1.ResourceScope)
 			return nil, err
 		}
 
-		err = validateSortBy(list.Items, sortBy)
-		if err != nil {
-			log.Error().Err(err).Str(SortByArg, sortBy).Msg("Invalid sortBy field path")
-			return nil, err
+		if sortBy != "" {
+			if err := validateSortBy(list.Items, sortBy); err != nil {
+				log.Error().Err(err).Str(SortByArg, sortBy).Msg("Invalid sortBy field path")
+				return nil, err
+			}
+			sort.Slice(list.Items, func(i, j int) bool {
+				return compareUnstructured(list.Items[i], list.Items[j], sortBy) < 0
+			})
 		}
-
-		sort.Slice(list.Items, func(i, j int) bool {
-			return compareUnstructured(list.Items[i], list.Items[j], sortBy) < 0
-		})
 
 		items := make([]map[string]any, len(list.Items))
 		for i, item := range list.Items {
