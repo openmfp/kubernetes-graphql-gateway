@@ -261,31 +261,16 @@ func (b *SchemaBuilder) buildKindRegistry() {
 	// Ensure deterministic order for picks: sort each slice by Group, Version, Kind, SchemaKey
 	for kindKey, infos := range b.kindRegistry {
 		slices.SortFunc(infos, func(a, b ResourceInfo) int {
-			if a.Group != b.Group {
-				if a.Group < b.Group {
-					return -1
-				}
-				return 1
+			if cmp := strings.Compare(a.Group, b.Group); cmp != 0 {
+				return cmp
 			}
-			if a.Version != b.Version {
-				if a.Version < b.Version {
-					return -1
-				}
-				return 1
+			if cmp := strings.Compare(a.Version, b.Version); cmp != 0 {
+				return cmp
 			}
-			if a.Kind != b.Kind {
-				if a.Kind < b.Kind {
-					return -1
-				}
-				return 1
+			if cmp := strings.Compare(a.Kind, b.Kind); cmp != 0 {
+				return cmp
 			}
-			if a.SchemaKey < b.SchemaKey {
-				return -1
-			}
-			if a.SchemaKey > b.SchemaKey {
-				return 1
-			}
-			return 0
+			return strings.Compare(a.SchemaKey, b.SchemaKey)
 		})
 		b.kindRegistry[kindKey] = infos
 	}
