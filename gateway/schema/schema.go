@@ -29,7 +29,6 @@ type Gateway struct {
 	typesCache         map[string]*graphql.Object
 	inputTypesCache    map[string]*graphql.InputObject
 	enhancedTypesCache map[string]*graphql.Object // Cache for enhanced *Ref types
-	relationEnhancer   *RelationEnhancer
 	// Prevents naming conflict in case of the same Kind name in different groups/versions
 	typeNameRegistry map[string]string // map[Kind]GroupVersion
 
@@ -48,9 +47,6 @@ func New(log *logger.Logger, definitions spec.Definitions, resolverProvider reso
 		typeNameRegistry:   make(map[string]string),
 		typeByCategory:     make(map[string][]resolver.TypeByCategory),
 	}
-
-	// Initialize the relation enhancer after gateway is created
-	g.relationEnhancer = NewRelationEnhancer(g)
 
 	err := g.generateGraphqlSchema()
 
@@ -339,7 +335,7 @@ func (g *Gateway) generateGraphQLFields(resourceScheme *spec.Schema, typePrefix 
 	}
 
 	// Add relation fields for any *Ref fields in this schema
-	g.relationEnhancer.AddRelationFields(fields, resourceScheme.Properties)
+	g.addRelationFields(fields, resourceScheme.Properties)
 
 	return fields, inputFields, nil
 }
