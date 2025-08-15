@@ -26,7 +26,7 @@ func NewRelationResolver(service *Service) *RelationResolver {
 // CreateResolver creates a GraphQL resolver for relation fields
 func (rr *RelationResolver) CreateResolver(fieldName string, targetGVK schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		parentObj, ok := p.Source.(map[string]interface{})
+		parentObj, ok := p.Source.(map[string]any)
 		if !ok {
 			return nil, nil
 		}
@@ -49,7 +49,7 @@ type referenceInfo struct {
 }
 
 // extractReferenceInfo extracts reference details from a *Ref object
-func (rr *RelationResolver) extractReferenceInfo(parentObj map[string]interface{}, fieldName string) referenceInfo {
+func (rr *RelationResolver) extractReferenceInfo(parentObj map[string]any, fieldName string) referenceInfo {
 	name, _ := parentObj["name"].(string)
 	if name == "" {
 		return referenceInfo{}
