@@ -34,10 +34,11 @@ var (
 )
 
 type SchemaBuilder struct {
-	schemas      map[string]*spec.Schema
-	err          *multierror.Error
-	log          *logger.Logger
-	kindRegistry map[string][]ResourceInfo
+	schemas           map[string]*spec.Schema
+	err               *multierror.Error
+	log               *logger.Logger
+	kindRegistry      map[string][]ResourceInfo
+	preferredVersions map[string]string // map[group/kind]preferredVersion
 }
 
 // ResourceInfo holds information about a resource for relationship resolution
@@ -50,9 +51,10 @@ type ResourceInfo struct {
 
 func NewSchemaBuilder(oc openapi.Client, preferredApiGroups []string, log *logger.Logger) *SchemaBuilder {
 	b := &SchemaBuilder{
-		schemas:      make(map[string]*spec.Schema),
-		kindRegistry: make(map[string][]ResourceInfo),
-		log:          log,
+		schemas:           make(map[string]*spec.Schema),
+		kindRegistry:      make(map[string][]ResourceInfo),
+		preferredVersions: make(map[string]string),
+		log:               log,
 	}
 
 	apiv3Paths, err := oc.Paths()
@@ -199,6 +201,33 @@ func (b *SchemaBuilder) WithApiResourceCategories(list []*metav1.APIResourceList
 	return b
 }
 
+// WithPreferredVersions populates preferred version information from API discovery
+func (b *SchemaBuilder) WithPreferredVersions(apiResLists []*metav1.APIResourceList) *SchemaBuilder {
+	for _, apiResList := range apiResLists {
+		gv, err := runtimeSchema.ParseGroupVersion(apiResList.GroupVersion)
+		if err != nil {
+			b.log.Debug().Err(err).Str("groupVersion", apiResList.GroupVersion).Msg("failed to parse group version")
+			continue
+		}
+
+		for _, resource := range apiResList.APIResources {
+			// Create a key for group/kind to track preferred version
+			key := fmt.Sprintf("%s/%s", gv.Group, resource.Kind)
+
+			// Store this version as preferred for this group/kind
+			// ServerPreferredResources returns the preferred version for each group
+			b.preferredVersions[key] = gv.Version
+
+			b.log.Debug().
+				Str("group", gv.Group).
+				Str("kind", resource.Kind).
+				Str("preferredVersion", gv.Version).
+				Msg("registered preferred version")
+		}
+	}
+	return b
+}
+
 // WithRelationships adds relationship fields to schemas that have *Ref fields
 func (b *SchemaBuilder) WithRelationships() *SchemaBuilder {
 	// Build kind registry first
@@ -258,24 +287,90 @@ func (b *SchemaBuilder) buildKindRegistry() {
 		b.kindRegistry[key] = append(b.kindRegistry[key], resourceInfo)
 	}
 
-	// Ensure deterministic order for picks: sort each slice by Group, Version, Kind, SchemaKey
+	// Sort by preferred version first, then by stability and group priority
 	for kindKey, infos := range b.kindRegistry {
-		slices.SortFunc(infos, func(a, b ResourceInfo) int {
-			if cmp := strings.Compare(a.Group, b.Group); cmp != 0 {
+		slices.SortFunc(infos, func(a, bInfo ResourceInfo) int {
+			// 1. Prioritize resources with preferred versions
+			aKey := fmt.Sprintf("%s/%s", a.Group, a.Kind)
+			bKey := fmt.Sprintf("%s/%s", bInfo.Group, bInfo.Kind)
+
+			aPreferred := b.preferredVersions[aKey] == a.Version
+			bPreferred := b.preferredVersions[bKey] == bInfo.Version
+
+			if aPreferred && !bPreferred {
+				return -1 // a is preferred, comes first
+			}
+			if !aPreferred && bPreferred {
+				return 1 // b is preferred, comes first
+			}
+
+			// 2. If both or neither are preferred, prioritize by group (core comes first)
+			if cmp := b.compareGroups(a.Group, bInfo.Group); cmp != 0 {
 				return cmp
 			}
-			if cmp := strings.Compare(a.Version, b.Version); cmp != 0 {
+
+			// 3. Then by version stability (v1 > v1beta1 > v1alpha1)
+			if cmp := b.compareVersionStability(a.Version, bInfo.Version); cmp != 0 {
 				return cmp
 			}
-			if cmp := strings.Compare(a.Kind, b.Kind); cmp != 0 {
-				return cmp
-			}
-			return strings.Compare(a.SchemaKey, b.SchemaKey)
+
+			// 4. Finally by schema key for deterministic ordering
+			return strings.Compare(a.SchemaKey, bInfo.SchemaKey)
 		})
 		b.kindRegistry[kindKey] = infos
 	}
 
 	b.log.Debug().Int("kindCount", len(b.kindRegistry)).Msg("built kind registry for relationships")
+}
+
+// compareGroups prioritizes core Kubernetes groups over custom groups
+func (b *SchemaBuilder) compareGroups(groupA, groupB string) int {
+	// Core group (empty string) comes first
+	if groupA == "" && groupB != "" {
+		return -1
+	}
+	if groupA != "" && groupB == "" {
+		return 1
+	}
+
+	// k8s.io groups come before custom groups
+	aIsK8s := strings.Contains(groupA, "k8s.io")
+	bIsK8s := strings.Contains(groupB, "k8s.io")
+
+	if aIsK8s && !bIsK8s {
+		return -1
+	}
+	if !aIsK8s && bIsK8s {
+		return 1
+	}
+
+	// Otherwise alphabetical
+	return strings.Compare(groupA, groupB)
+}
+
+// compareVersionStability prioritizes stable versions over beta/alpha
+func (b *SchemaBuilder) compareVersionStability(versionA, versionB string) int {
+	aStability := b.getVersionStability(versionA)
+	bStability := b.getVersionStability(versionB)
+
+	// Lower number = more stable (stable=0, beta=1, alpha=2)
+	if aStability != bStability {
+		return aStability - bStability
+	}
+
+	// Same stability level, compare alphabetically
+	return strings.Compare(versionA, versionB)
+}
+
+// getVersionStability returns stability priority (lower = more stable)
+func (b *SchemaBuilder) getVersionStability(version string) int {
+	if strings.Contains(version, "alpha") {
+		return 2 // least stable
+	}
+	if strings.Contains(version, "beta") {
+		return 1 // somewhat stable
+	}
+	return 0 // most stable (v1, v2, etc.)
 }
 
 // expandRelationships detects fields ending with 'Ref' and adds corresponding relationship fields
