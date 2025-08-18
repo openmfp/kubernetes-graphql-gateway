@@ -37,8 +37,8 @@ type SchemaBuilder struct {
 	schemas           map[string]*spec.Schema
 	err               *multierror.Error
 	log               *logger.Logger
-	kindRegistry      map[string][]ResourceInfo
-	preferredVersions map[string]string // map[group/kind]preferredVersion
+	kindRegistry      map[GroupVersionKind]ResourceInfo // Changed: Use GVK as key for precise lookup
+	preferredVersions map[string]string                 // map[group/kind]preferredVersion
 }
 
 // ResourceInfo holds information about a resource for relationship resolution
@@ -52,7 +52,7 @@ type ResourceInfo struct {
 func NewSchemaBuilder(oc openapi.Client, preferredApiGroups []string, log *logger.Logger) *SchemaBuilder {
 	b := &SchemaBuilder{
 		schemas:           make(map[string]*spec.Schema),
-		kindRegistry:      make(map[string][]ResourceInfo),
+		kindRegistry:      make(map[GroupVersionKind]ResourceInfo),
 		preferredVersions: make(map[string]string),
 		log:               log,
 	}
@@ -274,7 +274,7 @@ func (b *SchemaBuilder) buildKindRegistry() {
 
 		gvk := gvks[0]
 
-		// Add to kind registry
+		// Add to kind registry with precise GVK key
 		resourceInfo := ResourceInfo{
 			Group:     gvk.Group,
 			Version:   gvk.Version,
@@ -282,45 +282,70 @@ func (b *SchemaBuilder) buildKindRegistry() {
 			SchemaKey: schemaKey,
 		}
 
-		// Index by lowercase kind name for consistent lookup
-		key := strings.ToLower(gvk.Kind)
-		b.kindRegistry[key] = append(b.kindRegistry[key], resourceInfo)
+		// Index by full GroupVersionKind for precise lookup (no collisions)
+		gvkKey := GroupVersionKind{
+			Group:   gvk.Group,
+			Version: gvk.Version,
+			Kind:    gvk.Kind,
+		}
+		b.kindRegistry[gvkKey] = resourceInfo
 	}
 
-	// Sort by preferred version first, then by stability and group priority
-	for kindKey, infos := range b.kindRegistry {
-		slices.SortFunc(infos, func(a, bInfo ResourceInfo) int {
-			// 1. Prioritize resources with preferred versions
-			aKey := fmt.Sprintf("%s/%s", a.Group, a.Kind)
-			bKey := fmt.Sprintf("%s/%s", bInfo.Group, bInfo.Kind)
+	// No sorting needed - each GVK is now uniquely indexed
+	b.log.Debug().Int("gvkCount", len(b.kindRegistry)).Msg("built kind registry for relationships")
+}
 
-			aPreferred := b.preferredVersions[aKey] == a.Version
-			bPreferred := b.preferredVersions[bKey] == bInfo.Version
+// findBestResourceForKind finds the best matching resource for a given kind name
+// using preferred version logic and group prioritization
+func (b *SchemaBuilder) findBestResourceForKind(kindName string) *ResourceInfo {
+	// Collect all resources with matching kind name
+	candidates := make([]ResourceInfo, 0)
 
-			if aPreferred && !bPreferred {
-				return -1 // a is preferred, comes first
-			}
-			if !aPreferred && bPreferred {
-				return 1 // b is preferred, comes first
-			}
-
-			// 2. If both or neither are preferred, prioritize by group (core comes first)
-			if cmp := b.compareGroups(a.Group, bInfo.Group); cmp != 0 {
-				return cmp
-			}
-
-			// 3. Then by version stability (v1 > v1beta1 > v1alpha1)
-			if cmp := b.compareVersionStability(a.Version, bInfo.Version); cmp != 0 {
-				return cmp
-			}
-
-			// 4. Finally by schema key for deterministic ordering
-			return strings.Compare(a.SchemaKey, bInfo.SchemaKey)
-		})
-		b.kindRegistry[kindKey] = infos
+	for gvk, resourceInfo := range b.kindRegistry {
+		if strings.EqualFold(gvk.Kind, kindName) {
+			candidates = append(candidates, resourceInfo)
+		}
 	}
 
-	b.log.Debug().Int("kindCount", len(b.kindRegistry)).Msg("built kind registry for relationships")
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	if len(candidates) == 1 {
+		return &candidates[0]
+	}
+
+	// Sort candidates using preferred version logic
+	slices.SortFunc(candidates, func(a, bRes ResourceInfo) int {
+		// 1. Prioritize resources with preferred versions
+		aKey := fmt.Sprintf("%s/%s", a.Group, a.Kind)
+		bKey := fmt.Sprintf("%s/%s", bRes.Group, bRes.Kind)
+
+		aPreferred := b.preferredVersions[aKey] == a.Version
+		bPreferred := b.preferredVersions[bKey] == bRes.Version
+
+		if aPreferred && !bPreferred {
+			return -1 // a is preferred, comes first
+		}
+		if !aPreferred && bPreferred {
+			return 1 // b is preferred, comes first
+		}
+
+		// 2. If both or neither are preferred, prioritize by group (core comes first)
+		if cmp := b.compareGroups(a.Group, bRes.Group); cmp != 0 {
+			return cmp
+		}
+
+		// 3. Then by version stability (v1 > v1beta1 > v1alpha1)
+		if cmp := b.compareVersionStability(a.Version, bRes.Version); cmp != 0 {
+			return cmp
+		}
+
+		// 4. Finally by schema key for deterministic ordering
+		return strings.Compare(a.SchemaKey, bRes.SchemaKey)
+	})
+
+	return &candidates[0]
 }
 
 // compareGroups prioritizes core Kubernetes groups over custom groups
@@ -385,10 +410,10 @@ func (b *SchemaBuilder) expandRelationships(schema *spec.Schema) {
 		}
 
 		baseKind := strings.TrimSuffix(propName, "Ref")
-		lookupKey := strings.ToLower(baseKind)
 
-		resourceTypes, exists := b.kindRegistry[lookupKey]
-		if !exists || len(resourceTypes) == 0 {
+		// Find the best resource for this kind name using preferred version logic
+		target := b.findBestResourceForKind(baseKind)
+		if target == nil {
 			continue
 		}
 
@@ -396,8 +421,6 @@ func (b *SchemaBuilder) expandRelationships(schema *spec.Schema) {
 		if _, exists := schema.Properties[fieldName]; exists {
 			continue
 		}
-
-		target := resourceTypes[0]
 		ref := spec.MustCreateRef(fmt.Sprintf("#/definitions/%s.%s.%s", target.Group, target.Version, target.Kind))
 		schema.Properties[fieldName] = spec.Schema{SchemaProps: spec.SchemaProps{Ref: ref}}
 
