@@ -292,7 +292,50 @@ func (b *SchemaBuilder) buildKindRegistry() {
 	}
 
 	// No sorting needed - each GVK is now uniquely indexed
+	// Check for kinds with multiple resources but no preferred versions
+	b.warnAboutMissingPreferredVersions()
+
 	b.log.Debug().Int("gvkCount", len(b.kindRegistry)).Msg("built kind registry for relationships")
+}
+
+// warnAboutMissingPreferredVersions checks for kinds with multiple resources but no preferred versions
+func (b *SchemaBuilder) warnAboutMissingPreferredVersions() {
+	// Group resources by kind name to find potential conflicts
+	kindGroups := make(map[string][]ResourceInfo)
+
+	for _, resourceInfo := range b.kindRegistry {
+		kindKey := strings.ToLower(resourceInfo.Kind)
+		kindGroups[kindKey] = append(kindGroups[kindKey], resourceInfo)
+	}
+
+	// Check each kind that has multiple resources
+	for kindName, resources := range kindGroups {
+		if len(resources) <= 1 {
+			continue // No conflict possible
+		}
+
+		// Check if any of the resources has a preferred version
+		hasPreferred := false
+		for _, resource := range resources {
+			key := fmt.Sprintf("%s/%s", resource.Group, resource.Kind)
+			if b.preferredVersions[key] == resource.Version {
+				hasPreferred = true
+				break
+			}
+		}
+
+		// Warn if no preferred version found
+		if !hasPreferred {
+			groups := make([]string, 0, len(resources))
+			for _, resource := range resources {
+				groups = append(groups, fmt.Sprintf("%s/%s", resource.Group, resource.Version))
+			}
+			b.log.Warn().
+				Str("kind", kindName).
+				Strs("availableResources", groups).
+				Msg("Multiple resources found for kind with no preferred version - using fallback resolution. Consider setting preferred versions for better API governance.")
+		}
+	}
 }
 
 // findBestResourceForKind finds the best matching resource for a given kind name

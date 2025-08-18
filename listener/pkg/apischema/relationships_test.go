@@ -7,6 +7,7 @@ import (
 	apischema "github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema"
 	apimocks "github.com/openmfp/kubernetes-graphql-gateway/listener/pkg/apischema/mocks"
 	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/openapi"
 	"k8s.io/kube-openapi/pkg/validation/spec"
 )
@@ -81,4 +82,48 @@ func Test_build_kind_registry_lowercases_keys_and_picks_first(t *testing.T) {
 	assert.True(t, ok, "expected relationship field 'thing'")
 	// ensure it referenced the first group
 	assert.Contains(t, added.Ref.String(), "#/definitions/a.example.v1.Thing")
+}
+
+func Test_preferred_version_takes_priority_over_fallback(t *testing.T) {
+	mock := apimocks.NewMockClient(t)
+	mock.EXPECT().Paths().Return(map[string]openapi.GroupVersion{}, nil)
+	b := apischema.NewSchemaBuilder(mock, nil, testlogger.New().Logger)
+
+	// Multiple schemas with same Kind - a.example would win alphabetically,
+	// but we'll set z.last as preferred to verify it takes priority
+	childA := schemaWithGVK("a.example", "v1", "Child")
+	childB := schemaWithGVK("b.example", "v1", "Child")
+	childZ := schemaWithGVK("z.last", "v1", "Child") // would be last alphabetically
+
+	b.SetSchemas(map[string]*spec.Schema{
+		"a.example.v1.Child": childA,
+		"b.example.v1.Child": childB,
+		"z.last.v1.Child":    childZ,
+	})
+
+	// Set z.last as preferred (even though it would be last alphabetically)
+	b.WithPreferredVersions([]*metav1.APIResourceList{
+		{
+			GroupVersion: "z.last/v1",
+			APIResources: []metav1.APIResource{
+				{Kind: "Child"},
+			},
+		},
+	})
+
+	b.WithRelationships()
+
+	// Add a parent schema that references childRef
+	parentSchema := &spec.Schema{SchemaProps: spec.SchemaProps{Properties: map[string]spec.Schema{
+		"childRef": {SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"object"}}},
+	}}}
+	b.GetSchemas()["x.v1.Parent"] = parentSchema
+
+	b.WithRelationships()
+	added, ok := b.GetSchemas()["x.v1.Parent"].Properties["child"]
+	assert.True(t, ok, "expected relationship field 'child'")
+
+	// Should reference z.last because it's the preferred version, not a.example (alphabetical first)
+	assert.Contains(t, added.Ref.String(), "#/definitions/z.last.v1.Child",
+		"expected preferred version z.last to be chosen over alphabetically first a.example")
 }
