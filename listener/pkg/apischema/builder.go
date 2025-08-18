@@ -39,6 +39,8 @@ type SchemaBuilder struct {
 	log               *logger.Logger
 	kindRegistry      map[GroupVersionKind]ResourceInfo // Changed: Use GVK as key for precise lookup
 	preferredVersions map[string]string                 // map[group/kind]preferredVersion
+	maxRelationDepth  int                               // maximum allowed relationship nesting depth (1 = single level)
+	relationDepths    map[string]int                    // tracks the minimum depth at which each schema is referenced
 }
 
 // ResourceInfo holds information about a resource for relationship resolution
@@ -54,6 +56,8 @@ func NewSchemaBuilder(oc openapi.Client, preferredApiGroups []string, log *logge
 		schemas:           make(map[string]*spec.Schema),
 		kindRegistry:      make(map[GroupVersionKind]ResourceInfo),
 		preferredVersions: make(map[string]string),
+		maxRelationDepth:  1, // Default to 1-level depth for now
+		relationDepths:    make(map[string]int),
 		log:               log,
 	}
 
@@ -72,6 +76,19 @@ func NewSchemaBuilder(oc openapi.Client, preferredApiGroups []string, log *logge
 		maps.Copy(b.schemas, schema)
 	}
 
+	return b
+}
+
+// WithMaxRelationDepth sets the maximum allowed relationship nesting depth
+// depth=1: A->B (single level)
+// depth=2: A->B->C (two levels)
+// depth=3: A->B->C->D (three levels)
+func (b *SchemaBuilder) WithMaxRelationDepth(depth int) *SchemaBuilder {
+	if depth < 1 {
+		depth = 1 // Minimum depth is 1
+	}
+	b.maxRelationDepth = depth
+	b.log.Info().Int("maxRelationDepth", depth).Msg("Set maximum relationship nesting depth")
 	return b
 }
 
@@ -221,14 +238,62 @@ func (b *SchemaBuilder) WithRelationships() *SchemaBuilder {
 	// Build kind registry first
 	b.buildKindRegistry()
 
-	// Expand relationships in all schemas
-	b.log.Info().Int("kindRegistrySize", len(b.kindRegistry)).Msg("Starting relationship expansion")
-	for schemaKey, schema := range b.schemas {
-		b.log.Debug().Str("schemaKey", schemaKey).Msg("Processing schema for relationships")
-		b.expandRelationships(schema)
+	// For depth=1: use simple relation target tracking (working approach)
+	// For depth>1: use iterative expansion (scalable approach)
+	if b.maxRelationDepth == 1 {
+		b.expandWithSimpleDepthControl()
+	} else {
+		b.expandWithConfigurableDepthControl()
 	}
 
 	return b
+}
+
+// expandWithSimpleDepthControl implements the working 1-level depth control
+func (b *SchemaBuilder) expandWithSimpleDepthControl() {
+	// First pass: identify relation targets
+	relationTargets := make(map[string]bool)
+	for _, schema := range b.schemas {
+		if schema.Properties == nil {
+			continue
+		}
+		for propName := range schema.Properties {
+			if !isRefProperty(propName) {
+				continue
+			}
+			baseKind := strings.TrimSuffix(propName, "Ref")
+			target := b.findBestResourceForKind(baseKind)
+			if target != nil {
+				relationTargets[target.SchemaKey] = true
+			}
+		}
+	}
+
+	b.log.Info().
+		Int("kindRegistrySize", len(b.kindRegistry)).
+		Int("relationTargets", len(relationTargets)).
+		Msg("Starting 1-level relationship expansion")
+
+	// Second pass: expand only non-targets
+	for schemaKey, schema := range b.schemas {
+		if relationTargets[schemaKey] {
+			b.log.Debug().Str("schemaKey", schemaKey).Msg("Skipping relation target (1-level depth control)")
+			continue
+		}
+		b.expandRelationshipsSimple(schema, schemaKey)
+	}
+}
+
+// expandWithConfigurableDepthControl implements scalable depth control for depth > 1
+func (b *SchemaBuilder) expandWithConfigurableDepthControl() {
+	b.log.Info().
+		Int("kindRegistrySize", len(b.kindRegistry)).
+		Int("maxRelationDepth", b.maxRelationDepth).
+		Msg("Starting configurable relationship expansion")
+
+	// TODO: Implement proper multi-level depth control
+	// For now, fall back to simple approach
+	b.expandWithSimpleDepthControl()
 }
 
 // buildKindRegistry builds a map of kind names to available resource types
@@ -285,6 +350,9 @@ func (b *SchemaBuilder) buildKindRegistry() {
 
 	b.log.Debug().Int("gvkCount", len(b.kindRegistry)).Msg("built kind registry for relationships")
 }
+
+// TODO: Implement proper multi-level depth calculation when needed
+// For now, focusing on the working 1-level depth control
 
 // warnAboutMissingPreferredVersions checks for kinds with multiple resources but no preferred versions
 func (b *SchemaBuilder) warnAboutMissingPreferredVersions() {
@@ -429,8 +497,8 @@ func (b *SchemaBuilder) getVersionStability(version string) int {
 	return 0 // most stable (v1, v2, etc.)
 }
 
-// expandRelationships detects fields ending with 'Ref' and adds corresponding relationship fields
-func (b *SchemaBuilder) expandRelationships(schema *spec.Schema) {
+// expandRelationshipsSimple adds relationship fields for the simple 1-level depth control
+func (b *SchemaBuilder) expandRelationshipsSimple(schema *spec.Schema, schemaKey string) {
 	if schema.Properties == nil {
 		return
 	}
@@ -452,7 +520,15 @@ func (b *SchemaBuilder) expandRelationships(schema *spec.Schema) {
 		if _, exists := schema.Properties[fieldName]; exists {
 			continue
 		}
-		ref := spec.MustCreateRef(fmt.Sprintf("#/definitions/%s.%s.%s", target.Group, target.Version, target.Kind))
+
+		// Create proper reference - handle empty group (core) properly
+		var refPath string
+		if target.Group == "" {
+			refPath = fmt.Sprintf("#/definitions/%s.%s", target.Version, target.Kind)
+		} else {
+			refPath = fmt.Sprintf("#/definitions/%s.%s.%s", target.Group, target.Version, target.Kind)
+		}
+		ref := spec.MustCreateRef(refPath)
 		schema.Properties[fieldName] = spec.Schema{SchemaProps: spec.SchemaProps{Ref: ref}}
 
 		b.log.Info().
@@ -460,15 +536,9 @@ func (b *SchemaBuilder) expandRelationships(schema *spec.Schema) {
 			Str("targetField", fieldName).
 			Str("targetKind", target.Kind).
 			Str("targetGroup", target.Group).
+			Str("refPath", refPath).
+			Str("sourceSchema", schemaKey).
 			Msg("Added relationship field")
-	}
-
-	// Recursively process nested objects and write back modifications
-	for key, prop := range schema.Properties {
-		if prop.Type.Contains("object") && prop.Properties != nil {
-			b.expandRelationships(&prop)
-			schema.Properties[key] = prop
-		}
 	}
 }
 
