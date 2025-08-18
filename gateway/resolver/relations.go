@@ -2,8 +2,10 @@ package resolver
 
 import (
 	"context"
+	"strings"
 
 	"github.com/graphql-go/graphql"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -21,8 +23,30 @@ type referenceInfo struct {
 }
 
 // RelationResolver creates a GraphQL resolver for relation fields
+// Relationships are only enabled for GetItem queries to prevent N+1 problems in ListItems and Subscriptions
 func (r *Service) RelationResolver(fieldName string, gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
+		// Try context first, fallback to GraphQL info analysis
+		operation := r.getOperationFromContext(p.Context)
+		if operation == "unknown" {
+			operation = r.detectOperationFromGraphQLInfo(p)
+		}
+
+		r.log.Debug().
+			Str("fieldName", fieldName).
+			Str("operation", operation).
+			Str("graphqlField", p.Info.FieldName).
+			Msg("RelationResolver called")
+
+		// Check if relationships are allowed in this query context
+		if !r.isRelationResolutionAllowedForOperation(operation) {
+			r.log.Debug().
+				Str("fieldName", fieldName).
+				Str("operation", operation).
+				Msg("Relationship resolution disabled for this operation type")
+			return nil, nil
+		}
+
 		parentObj, ok := p.Source.(map[string]any)
 		if !ok {
 			return nil, nil
@@ -108,4 +132,92 @@ func (r *Service) resolveReference(ctx context.Context, ref referenceInfo, targe
 
 	// Happy path: resource found successfully
 	return obj.Object, nil
+}
+
+// isRelationResolutionAllowed checks if relationship resolution should be enabled for this operation
+// Only allows relationships in GetItem operations to prevent N+1 problems
+func (r *Service) isRelationResolutionAllowed(ctx context.Context) bool {
+	operation := r.getOperationFromContext(ctx)
+	return r.isRelationResolutionAllowedForOperation(operation)
+}
+
+// isRelationResolutionAllowedForOperation checks if relationship resolution should be enabled for the given operation type
+func (r *Service) isRelationResolutionAllowedForOperation(operation string) bool {
+	// Only allow relationships for GetItem and GetItemAsYAML operations
+	switch operation {
+	case "GetItem", "GetItemAsYAML":
+		return true
+	case "ListItems", "SubscribeItem", "SubscribeItems":
+		return false
+	default:
+		// For unknown operations, be conservative and disable relationships
+		r.log.Debug().Str("operation", operation).Msg("Unknown operation type, disabling relationships")
+		return false
+	}
+}
+
+// Context key for tracking operation type
+type operationContextKey string
+
+const OperationTypeKey operationContextKey = "operation_type"
+
+// getOperationFromContext extracts the operation name from the context
+func (r *Service) getOperationFromContext(ctx context.Context) string {
+	// Try to get operation from context value first
+	if op, ok := ctx.Value(OperationTypeKey).(string); ok {
+		return op
+	}
+
+	// Fallback: try to extract from trace span name
+	span := trace.SpanFromContext(ctx)
+	if span == nil {
+		return "unknown"
+	}
+
+	// This is a workaround - we'll need to get the span name somehow
+	// For now, assume unknown and rely on context values
+	return "unknown"
+}
+
+// detectOperationFromGraphQLInfo analyzes GraphQL field path to determine operation type
+// This looks at the parent field context to determine if we're in a list, single item, or subscription
+func (r *Service) detectOperationFromGraphQLInfo(p graphql.ResolveParams) string {
+	if p.Info.Path == nil {
+		return "unknown"
+	}
+
+	// Walk up the path to find the parent resolver context
+	path := p.Info.Path
+	for path.Prev != nil {
+		path = path.Prev
+
+		// Check if we find a parent field that indicates the operation type
+		if fieldName, ok := path.Key.(string); ok {
+			fieldLower := strings.ToLower(fieldName)
+
+			// Check for subscription patterns
+			if strings.Contains(fieldLower, "subscription") {
+				r.log.Debug().
+					Str("parentField", fieldName).
+					Msg("Detected subscription context from parent field")
+				return "SubscribeItems"
+			}
+
+			// Check for list patterns (plural without args, or explicitly plural fields)
+			if strings.HasSuffix(fieldName, "s") && !strings.HasSuffix(fieldName, "Status") {
+				// This looks like a plural field, likely a list operation
+				r.log.Debug().
+					Str("parentField", fieldName).
+					Msg("Detected list context from parent field")
+				return "ListItems"
+			}
+		}
+	}
+
+	// If we can't determine from parent context, assume it's a single item operation
+	// This is the safe default that allows relationships
+	r.log.Debug().
+		Str("currentField", p.Info.FieldName).
+		Msg("Could not determine operation from path, defaulting to GetItem")
+	return "GetItem"
 }

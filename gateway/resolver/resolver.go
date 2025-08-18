@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -67,6 +68,11 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind, scope v1.ResourceScope)
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		ctx, span := otel.Tracer("").Start(p.Context, "ListItems", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
+
+		// Add operation type to context to disable relationship resolution
+		ctx = context.WithValue(ctx, operationContextKey("operation_type"), "ListItems")
+		// Update p.Context so field resolvers inherit the operation type
+		p.Context = ctx
 
 		gvk.Group = r.getOriginalGroupName(gvk.Group)
 
@@ -142,6 +148,11 @@ func (r *Service) GetItem(gvk schema.GroupVersionKind, scope v1.ResourceScope) g
 		ctx, span := otel.Tracer("").Start(p.Context, "GetItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
+		// Add operation type to context to enable relationship resolution
+		ctx = context.WithValue(ctx, operationContextKey("operation_type"), "GetItem")
+		// Update p.Context so field resolvers inherit the operation type
+		p.Context = ctx
+
 		gvk.Group = r.getOriginalGroupName(gvk.Group)
 
 		log, err := r.log.ChildLoggerWithAttributes(
@@ -194,6 +205,9 @@ func (r *Service) GetItemAsYAML(gvk schema.GroupVersionKind, scope v1.ResourceSc
 		var span trace.Span
 		p.Context, span = otel.Tracer("").Start(p.Context, "GetItemAsYAML", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
+
+		// Add operation type to context to enable relationship resolution
+		p.Context = context.WithValue(p.Context, operationContextKey("operation_type"), "GetItemAsYAML")
 
 		out, err := r.GetItem(gvk, scope)(p)
 		if err != nil {
