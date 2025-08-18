@@ -125,15 +125,9 @@ func (b *SchemaBuilder) WithScope(rm meta.RESTMapper) *SchemaBuilder {
 		}
 
 		if namespaced {
-			if schema.VendorExtensible.Extensions == nil {
-				schema.VendorExtensible.Extensions = map[string]any{}
-			}
-			schema.VendorExtensible.Extensions[common.ScopeExtensionKey] = apiextensionsv1.NamespaceScoped
+			schema.VendorExtensible.AddExtension(common.ScopeExtensionKey, apiextensionsv1.NamespaceScoped)
 		} else {
-			if schema.VendorExtensible.Extensions == nil {
-				schema.VendorExtensible.Extensions = map[string]any{}
-			}
-			schema.VendorExtensible.Extensions[common.ScopeExtensionKey] = apiextensionsv1.ClusterScoped
+			schema.VendorExtensible.AddExtension(common.ScopeExtensionKey, apiextensionsv1.ClusterScoped)
 		}
 	}
 	return b
@@ -161,10 +155,7 @@ func (b *SchemaBuilder) WithCRDCategories(crd *apiextensionsv1.CustomResourceDef
 			b.log.Debug().Str("resource", resourceKey).Msg("no categories provided for CRD kind")
 			continue
 		}
-		if resourceSchema.VendorExtensible.Extensions == nil {
-			resourceSchema.VendorExtensible.Extensions = map[string]any{}
-		}
-		resourceSchema.VendorExtensible.Extensions[common.CategoriesExtensionKey] = crd.Spec.Names.Categories
+		resourceSchema.VendorExtensible.AddExtension(common.CategoriesExtensionKey, crd.Spec.Names.Categories)
 		b.schemas[resourceKey] = resourceSchema
 	}
 	return b
@@ -191,10 +182,7 @@ func (b *SchemaBuilder) WithApiResourceCategories(list []*metav1.APIResourceList
 			if !ok {
 				continue
 			}
-			if resourceSchema.VendorExtensible.Extensions == nil {
-				resourceSchema.VendorExtensible.Extensions = map[string]any{}
-			}
-			resourceSchema.VendorExtensible.Extensions[common.CategoriesExtensionKey] = apiResource.Categories
+			resourceSchema.VendorExtensible.AddExtension(common.CategoriesExtensionKey, apiResource.Categories)
 			b.schemas[resourceKey] = resourceSchema
 		}
 	}
