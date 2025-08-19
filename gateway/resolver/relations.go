@@ -85,31 +85,29 @@ func (r *Service) extractReferenceInfo(parentObj map[string]any, fieldName strin
 	}
 }
 
-// resolveReference fetches a referenced Kubernetes resource using provided target GVK
+// resolveReference fetches a referenced Kubernetes resource using strict conflict resolution
 func (r *Service) resolveReference(ctx context.Context, ref referenceInfo, targetGVK schema.GroupVersionKind) (interface{}, error) {
-	gvk := targetGVK
-
-	// Allow overrides from the reference object if specified
+	// Use provided reference info to override GVK if specified
+	finalGVK := targetGVK
 	if ref.apiGroup != "" {
-		gvk.Group = ref.apiGroup
+		finalGVK.Group = ref.apiGroup
 	}
 	if ref.kind != "" {
-		gvk.Kind = ref.kind
+		finalGVK.Kind = ref.kind
 	}
 
 	// Convert sanitized group to original before calling the client
-	gvk.Group = r.getOriginalGroupName(gvk.Group)
+	finalGVK.Group = r.getOriginalGroupName(finalGVK.Group)
 
 	obj := &unstructured.Unstructured{}
-	obj.SetGroupVersionKind(gvk)
+	obj.SetGroupVersionKind(finalGVK)
 
 	key := client.ObjectKey{Name: ref.name}
 	if ref.namespace != "" {
 		key.Namespace = ref.namespace
 	}
 
-	err := r.runtimeClient.Get(ctx, key, obj)
-	if err != nil {
+	if err := r.runtimeClient.Get(ctx, key, obj); err != nil {
 		// For "not found" errors, return nil to allow graceful degradation
 		// This handles cases where referenced resources are deleted or don't exist
 		if apierrors.IsNotFound(err) {
@@ -121,9 +119,9 @@ func (r *Service) resolveReference(ctx context.Context, ref referenceInfo, targe
 		r.log.Error().
 			Err(err).
 			Str("operation", "resolve_relation").
-			Str("group", gvk.Group).
-			Str("version", gvk.Version).
-			Str("kind", gvk.Kind).
+			Str("group", finalGVK.Group).
+			Str("version", finalGVK.Version).
+			Str("kind", finalGVK.Kind).
 			Str("name", ref.name).
 			Str("namespace", ref.namespace).
 			Msg("Unable to resolve referenced object")
@@ -132,13 +130,6 @@ func (r *Service) resolveReference(ctx context.Context, ref referenceInfo, targe
 
 	// Happy path: resource found successfully
 	return obj.Object, nil
-}
-
-// isRelationResolutionAllowed checks if relationship resolution should be enabled for this operation
-// Only allows relationships in GetItem operations to prevent N+1 problems
-func (r *Service) isRelationResolutionAllowed(ctx context.Context) bool {
-	operation := r.getOperationFromContext(ctx)
-	return r.isRelationResolutionAllowedForOperation(operation)
 }
 
 // isRelationResolutionAllowedForOperation checks if relationship resolution should be enabled for the given operation type
