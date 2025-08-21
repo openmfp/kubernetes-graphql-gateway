@@ -25,11 +25,8 @@ type referenceInfo struct {
 // Relationships are only enabled for GetItem queries to prevent N+1 problems in ListItems and Subscriptions
 func (r *Service) RelationResolver(fieldName string, gvk schema.GroupVersionKind) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		// Try context first, fallback to GraphQL info analysis
-		operation := r.getOperationFromContext(p.Context)
-		if operation == "unknown" {
-			operation = r.detectOperationFromGraphQLInfo(p)
-		}
+		// Determine operation type from GraphQL path analysis
+		operation := r.detectOperationFromGraphQLInfo(p)
 
 		r.log.Debug().
 			Str("fieldName", fieldName).
@@ -135,31 +132,15 @@ func (r *Service) resolveReference(ctx context.Context, ref referenceInfo, targe
 func (r *Service) isRelationResolutionAllowedForOperation(operation string) bool {
 	// Only allow relationships for GetItem and GetItemAsYAML operations
 	switch operation {
-	case "GetItem", "GetItemAsYAML":
+	case GET_ITEM, GET_ITEM_AS_YAML:
 		return true
-	case "ListItems", "SubscribeItem", "SubscribeItems":
+	case LIST_ITEMS, SUBSCRIBE_ITEM, SUBSCRIBE_ITEMS:
 		return false
 	default:
 		// For unknown operations, be conservative and disable relationships
 		r.log.Debug().Str("operation", operation).Msg("Unknown operation type, disabling relationships")
 		return false
 	}
-}
-
-// Context key for tracking operation type
-type operationContextKey string
-
-const OperationTypeKey operationContextKey = "operation_type"
-
-// getOperationFromContext extracts the operation name from the context
-func (r *Service) getOperationFromContext(ctx context.Context) string {
-	// Try to get operation from context value first
-	if op, ok := ctx.Value(OperationTypeKey).(string); ok {
-		return op
-	}
-
-	// No reliable way to extract operation type from context alone
-	return "unknown"
 }
 
 // detectOperationFromGraphQLInfo analyzes GraphQL field path to determine operation type
@@ -183,7 +164,23 @@ func (r *Service) detectOperationFromGraphQLInfo(p graphql.ResolveParams) string
 				r.log.Debug().
 					Str("parentField", fieldName).
 					Msg("Detected subscription context from parent field")
-				return "SubscribeItems"
+				return SUBSCRIBE_ITEMS
+			}
+
+			// Check for mutation patterns
+			if strings.HasPrefix(fieldLower, "create") {
+				return CREATE_ITEM
+			}
+			if strings.HasPrefix(fieldLower, "update") {
+				return UPDATE_ITEM
+			}
+			if strings.HasPrefix(fieldLower, "delete") {
+				return DELETE_ITEM
+			}
+
+			// Check for YAML patterns
+			if strings.HasSuffix(fieldLower, "yaml") {
+				return GET_ITEM_AS_YAML
 			}
 
 			// Check for list patterns (plural without args, or explicitly plural fields)
@@ -192,15 +189,15 @@ func (r *Service) detectOperationFromGraphQLInfo(p graphql.ResolveParams) string
 				r.log.Debug().
 					Str("parentField", fieldName).
 					Msg("Detected list context from parent field")
-				return "ListItems"
+				return LIST_ITEMS
 			}
 		}
 	}
 
 	// If we can't determine from parent context, assume it's a single item operation
-	// This is the safe default that allows relationships
+	// This is the safe default that allows relationships for queries
 	r.log.Debug().
 		Str("currentField", p.Info.FieldName).
-		Msg("Could not determine operation from path, defaulting to GetItem")
-	return "GetItem"
+		Msg("Could not determine operation type from GraphQL path, defaulting to GetItem (enables relations)")
+	return GET_ITEM
 }

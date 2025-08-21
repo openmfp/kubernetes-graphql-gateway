@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,6 +22,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/openmfp/golang-commons/logger"
+)
+
+const (
+	LIST_ITEMS       = "ListItems"
+	GET_ITEM         = "GetItem"
+	GET_ITEM_AS_YAML = "GetItemAsYAML"
+	CREATE_ITEM      = "CreateItem"
+	UPDATE_ITEM      = "UpdateItem"
+	DELETE_ITEM      = "DeleteItem"
+	SUBSCRIBE_ITEM   = "SubscribeItem"
+	SUBSCRIBE_ITEMS  = "SubscribeItems"
 )
 
 type Provider interface {
@@ -66,13 +76,8 @@ func New(log *logger.Logger, runtimeClient client.WithWatch) *Service {
 // ListItems returns a GraphQL CommonResolver function that lists Kubernetes resources of the given GroupVersionKind.
 func (r *Service) ListItems(gvk schema.GroupVersionKind, scope v1.ResourceScope) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
-		ctx, span := otel.Tracer("").Start(p.Context, "ListItems", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
+		ctx, span := otel.Tracer("").Start(p.Context, LIST_ITEMS, trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
-
-		// Add operation type to context to disable relationship resolution
-		ctx = context.WithValue(ctx, operationContextKey("operation_type"), "ListItems")
-		// Update p.Context so field resolvers inherit the operation type
-		p.Context = ctx
 
 		gvk.Group = r.getOriginalGroupName(gvk.Group)
 
@@ -94,10 +99,11 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind, scope v1.ResourceScope)
 
 		var opts []client.ListOption
 
-		if val, ok := p.Args[LabelSelectorArg].(string); ok && val != "" {
-			selector, err := labels.Parse(val)
+		// Handle label selector argument
+		if labelSelector, ok := p.Args[LabelSelectorArg].(string); ok && labelSelector != "" {
+			selector, err := labels.Parse(labelSelector)
 			if err != nil {
-				log.Error().Err(err).Str(LabelSelectorArg, val).Msg("Unable to parse given label selector")
+				log.Error().Err(err).Str(LabelSelectorArg, labelSelector).Msg("Unable to parse given label selector")
 				return nil, err
 			}
 			opts = append(opts, client.MatchingLabelsSelector{Selector: selector})
@@ -147,11 +153,6 @@ func (r *Service) GetItem(gvk schema.GroupVersionKind, scope v1.ResourceScope) g
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		ctx, span := otel.Tracer("").Start(p.Context, "GetItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
-
-		// Add operation type to context to enable relationship resolution
-		ctx = context.WithValue(ctx, operationContextKey("operation_type"), "GetItem")
-		// Update p.Context so field resolvers inherit the operation type
-		p.Context = ctx
 
 		gvk.Group = r.getOriginalGroupName(gvk.Group)
 
@@ -205,9 +206,6 @@ func (r *Service) GetItemAsYAML(gvk schema.GroupVersionKind, scope v1.ResourceSc
 		var span trace.Span
 		p.Context, span = otel.Tracer("").Start(p.Context, "GetItemAsYAML", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
-
-		// Add operation type to context to enable relationship resolution
-		p.Context = context.WithValue(p.Context, operationContextKey("operation_type"), "GetItemAsYAML")
 
 		out, err := r.GetItem(gvk, scope)(p)
 		if err != nil {

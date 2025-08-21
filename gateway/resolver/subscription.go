@@ -1,7 +1,6 @@
 package resolver
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"sort"
@@ -34,9 +33,6 @@ func (r *Service) SubscribeItem(gvk schema.GroupVersionKind, scope v1.ResourceSc
 		_, span := otel.Tracer("").Start(p.Context, "SubscribeItem", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
 
-		// Add operation type to context to disable relationship resolution
-		p.Context = context.WithValue(p.Context, operationContextKey("operation_type"), "SubscribeItem")
-
 		resultChannel := make(chan interface{})
 		go r.runWatch(p, gvk, resultChannel, true, scope)
 
@@ -48,9 +44,6 @@ func (r *Service) SubscribeItems(gvk schema.GroupVersionKind, scope v1.ResourceS
 	return func(p graphql.ResolveParams) (interface{}, error) {
 		_, span := otel.Tracer("").Start(p.Context, "SubscribeItems", trace.WithAttributes(attribute.String("kind", gvk.Kind)))
 		defer span.End()
-
-		// Add operation type to context to disable relationship resolution
-		p.Context = context.WithValue(p.Context, operationContextKey("operation_type"), "SubscribeItems")
 
 		resultChannel := make(chan interface{})
 		go r.runWatch(p, gvk, resultChannel, false, scope)
@@ -362,8 +355,6 @@ func CreateSubscriptionResolver(isSingle bool) graphql.FieldResolveFn {
 			return nil, err
 		}
 
-		// Note: The context already contains operation type from SubscribeItem/SubscribeItems
-		// This will propagate to relationship resolvers, disabling them for subscriptions
 		return source, nil
 	}
 }

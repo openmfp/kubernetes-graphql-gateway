@@ -238,13 +238,9 @@ func (b *SchemaBuilder) WithRelationships() *SchemaBuilder {
 	// Build kind registry first
 	b.buildKindRegistry()
 
-	// For depth=1: use simple relation target tracking (working approach)
-	// For depth>1: use iterative expansion (scalable approach)
-	if b.maxRelationDepth == 1 {
-		b.expandWithSimpleDepthControl()
-	} else {
-		b.expandWithConfigurableDepthControl()
-	}
+	// Currently only supports depth=1 relation expansion
+	// TODO: Implement configurable depth control for depth > 1 when needed
+	b.expandWithSimpleDepthControl()
 
 	return b
 }
@@ -286,18 +282,6 @@ func (b *SchemaBuilder) expandWithSimpleDepthControl() {
 	}
 }
 
-// expandWithConfigurableDepthControl implements scalable depth control for depth > 1
-func (b *SchemaBuilder) expandWithConfigurableDepthControl() {
-	b.log.Info().
-		Int("kindRegistrySize", len(b.kindRegistry)).
-		Int("maxRelationDepth", b.maxRelationDepth).
-		Msg("Starting configurable relationship expansion")
-
-	// TODO: Implement proper multi-level depth control
-	// For now, fall back to simple approach
-	b.expandWithSimpleDepthControl()
-}
-
 // buildKindRegistry builds a map of kind names to available resource types
 func (b *SchemaBuilder) buildKindRegistry() {
 	for schemaKey, schema := range b.schemas {
@@ -313,12 +297,14 @@ func (b *SchemaBuilder) buildKindRegistry() {
 
 		jsonBytes, err := json.Marshal(gvksVal)
 		if err != nil {
+			b.err = multierror.Append(b.err, errors.Join(ErrBuildKindRegistry, err))
 			b.log.Debug().Err(err).Str("schemaKey", schemaKey).Msg("failed to marshal GVK")
 			continue
 		}
 
 		var gvks []*GroupVersionKind
 		if err := json.Unmarshal(jsonBytes, &gvks); err != nil {
+			b.err = multierror.Append(b.err, errors.Join(ErrBuildKindRegistry, err))
 			b.log.Debug().Err(err).Str("schemaKey", schemaKey).Msg("failed to unmarshal GVK")
 			continue
 		}
@@ -450,7 +436,10 @@ func (b *SchemaBuilder) findBestResourceForKind(kindName string) *ResourceInfo {
 	best := b.selectByKubectlPriority(candidates)
 
 	// Log warning about the conflict for observability
-	groups := b.formatCandidateGroups(candidates)
+	groups := make([]string, len(candidates))
+	for i, candidate := range candidates {
+		groups[i] = b.formatGroupVersion(candidate)
+	}
 	b.log.Warn().
 		Str("kind", kindName).
 		Str("selectedGroup", b.formatGroupVersion(best)).
@@ -552,19 +541,6 @@ func (b *SchemaBuilder) addRelationshipField(schema *spec.Schema, schemaKey, pro
 		Str("refPath", refPath).
 		Str("sourceSchema", schemaKey).
 		Msg("Added relationship field")
-}
-
-// formatCandidateGroups formats candidate groups for error messages
-func (b *SchemaBuilder) formatCandidateGroups(candidates []ResourceInfo) []string {
-	groups := make([]string, len(candidates))
-	for i, candidate := range candidates {
-		if candidate.Group == "" {
-			groups[i] = fmt.Sprintf("core/%s", candidate.Version)
-		} else {
-			groups[i] = fmt.Sprintf("%s/%s", candidate.Group, candidate.Version)
-		}
-	}
-	return groups
 }
 
 func isRefProperty(name string) bool {
