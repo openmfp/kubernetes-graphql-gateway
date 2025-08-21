@@ -663,9 +663,9 @@ func TestVirtualWorkspaceReconciler_ProcessVirtualWorkspace(t *testing.T) {
 				Name: "test-ws",
 				URL:  "https://example.com",
 			},
-			expectError:        true, // Expected due to kubeconfig dependency in metadata injection
-			expectedWriteCalls: 0,    // Won't reach write due to metadata injection failure
-			errorShouldContain: "failed to inject KCP cluster metadata",
+			expectError:        false, // Metadata injection uses default kubeconfig location
+			expectedWriteCalls: 1,     // Should successfully write the schema
+			errorShouldContain: "",
 		},
 		{
 			name: "io_write_error",
@@ -674,9 +674,9 @@ func TestVirtualWorkspaceReconciler_ProcessVirtualWorkspace(t *testing.T) {
 				URL:  "https://example.com",
 			},
 			ioWriteError:       errors.New("write failed"),
-			expectError:        true, // Expected due to kubeconfig dependency in metadata injection
-			expectedWriteCalls: 0,    // Won't reach write due to metadata injection failure
-			errorShouldContain: "failed to inject KCP cluster metadata",
+			expectError:        true, // Expected due to IO write failure
+			expectedWriteCalls: 1,    // Will attempt to write but fail
+			errorShouldContain: "failed to write schema file",
 		},
 		{
 			name: "api_resolve_error",
