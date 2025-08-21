@@ -39,8 +39,6 @@ type SchemaBuilder struct {
 	log               *logger.Logger
 	kindRegistry      map[GroupVersionKind]ResourceInfo // Changed: Use GVK as key for precise lookup
 	preferredVersions map[string]string                 // map[group/kind]preferredVersion
-	maxRelationDepth  int                               // maximum allowed relationship nesting depth (1 = single level)
-	relationDepths    map[string]int                    // tracks the minimum depth at which each schema is referenced
 }
 
 // ResourceInfo holds information about a resource for relationship resolution
@@ -56,8 +54,6 @@ func NewSchemaBuilder(oc openapi.Client, preferredApiGroups []string, log *logge
 		schemas:           make(map[string]*spec.Schema),
 		kindRegistry:      make(map[GroupVersionKind]ResourceInfo),
 		preferredVersions: make(map[string]string),
-		maxRelationDepth:  1, // Default to 1-level depth for now
-		relationDepths:    make(map[string]int),
 		log:               log,
 	}
 
@@ -76,19 +72,6 @@ func NewSchemaBuilder(oc openapi.Client, preferredApiGroups []string, log *logge
 		maps.Copy(b.schemas, schema)
 	}
 
-	return b
-}
-
-// WithMaxRelationDepth sets the maximum allowed relationship nesting depth
-// depth=1: A->B (single level)
-// depth=2: A->B->C (two levels)
-// depth=3: A->B->C->D (three levels)
-func (b *SchemaBuilder) WithMaxRelationDepth(depth int) *SchemaBuilder {
-	if depth < 1 {
-		depth = 1 // Minimum depth is 1
-	}
-	b.maxRelationDepth = depth
-	b.log.Info().Int("maxRelationDepth", depth).Msg("Set maximum relationship nesting depth")
 	return b
 }
 
@@ -235,12 +218,12 @@ func (b *SchemaBuilder) WithPreferredVersions(apiResLists []*metav1.APIResourceL
 }
 
 // WithRelationships adds relationship fields to schemas that have *Ref fields
+// Uses 1-level depth control to prevent circular references and N+1 problems
 func (b *SchemaBuilder) WithRelationships() *SchemaBuilder {
 	// Build kind registry first
 	b.buildKindRegistry()
 
-	// Currently only supports depth=1 relation expansion
-	// TODO: Implement configurable depth control for depth > 1 when needed
+	// Expand relationships with 1-level depth control
 	b.expandWithSimpleDepthControl()
 
 	return b
@@ -340,9 +323,6 @@ func (b *SchemaBuilder) buildKindRegistry() {
 
 	b.log.Debug().Int("gvkCount", len(b.kindRegistry)).Msg("built kind registry for relationships")
 }
-
-// TODO: Implement proper multi-level depth calculation when needed
-// For now, focusing on the working 1-level depth control
 
 // warnAboutMissingPreferredVersions checks for kinds with multiple resources but no preferred versions
 func (b *SchemaBuilder) warnAboutMissingPreferredVersions() {

@@ -178,27 +178,6 @@ func Test_depth_control_prevents_deep_nesting(t *testing.T) {
 	assert.Equal(t, originalServiceProps, currentServiceProps, "Service should not have relationship fields added")
 }
 
-func Test_configurable_depth_control_api(t *testing.T) {
-	mock := apimocks.NewMockClient(t)
-	mock.EXPECT().Paths().Return(map[string]openapi.GroupVersion{}, nil)
-	b := apischema.NewSchemaBuilder(mock, nil, testlogger.New().Logger)
-
-	// Test that WithMaxRelationDepth API works
-	b.WithMaxRelationDepth(2)
-
-	// Create simple schemas to verify the builder accepts the API
-	rootSchema := schemaWithGVK("example.com", "v1", "Root")
-	b.SetSchemas(map[string]*spec.Schema{
-		"example.com.v1.Root": rootSchema,
-	})
-
-	// Should not panic or error
-	b.WithRelationships()
-
-	// For now, even with depth=2, it falls back to depth=1 behavior (as per TODO)
-	// This test verifies the API works and doesn't break anything
-}
-
 func Test_single_level_prevents_circular_relationships(t *testing.T) {
 	mock := apimocks.NewMockClient(t)
 	mock.EXPECT().Paths().Return(map[string]openapi.GroupVersion{}, nil)
