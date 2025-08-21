@@ -155,24 +155,25 @@ func (b *SchemaBuilder) WithCRDCategories(crd *apiextensionsv1.CustomResourceDef
 		return b
 	}
 
-	gkv, err := getCRDGroupVersionKind(crd.Spec)
+	categories := crd.Spec.Names.Categories
+	if len(categories) == 0 {
+		return b
+	}
+
+	gvk, err := getCRDGroupVersionKind(crd.Spec)
 	if err != nil {
-		b.err = multierror.Append(b.err, ErrGetCRDGVK)
+		b.err = multierror.Append(b.err, errors.Join(ErrGetCRDGVK, err))
 		return b
 	}
 
 	for _, v := range crd.Spec.Versions {
-		resourceKey := getOpenAPISchemaKey(metav1.GroupVersionKind{Group: gkv.Group, Version: v.Name, Kind: gkv.Kind})
+		resourceKey := getOpenAPISchemaKey(metav1.GroupVersionKind{Group: gvk.Group, Version: v.Name, Kind: gvk.Kind})
 		resourceSchema, ok := b.schemas[resourceKey]
 		if !ok {
 			continue
 		}
 
-		if len(crd.Spec.Names.Categories) == 0 {
-			b.log.Debug().Str("resource", resourceKey).Msg("no categories provided for CRD kind")
-			continue
-		}
-		resourceSchema.VendorExtensible.AddExtension(common.CategoriesExtensionKey, crd.Spec.Names.Categories)
+		resourceSchema.VendorExtensible.AddExtension(common.CategoriesExtensionKey, categories)
 		b.schemas[resourceKey] = resourceSchema
 	}
 	return b
