@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/graphql-go/graphql"
-	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -159,14 +158,7 @@ func (r *Service) getOperationFromContext(ctx context.Context) string {
 		return op
 	}
 
-	// Fallback: try to extract from trace span name
-	span := trace.SpanFromContext(ctx)
-	if span == nil {
-		return "unknown"
-	}
-
-	// This is a workaround - we'll need to get the span name somehow
-	// For now, assume unknown and rely on context values
+	// No reliable way to extract operation type from context alone
 	return "unknown"
 }
 
