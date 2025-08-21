@@ -345,13 +345,6 @@ func (b *SchemaBuilder) buildKindRegistry() {
 		}
 		b.kindRegistry[gvkKey] = resourceInfo
 
-		// DEBUG: Log each resource added to kind registry
-		b.log.Info().
-			Str("group", gvk.Group).
-			Str("version", gvk.Version).
-			Str("kind", gvk.Kind).
-			Str("schemaKey", schemaKey).
-			Msg("DEBUG: Added resource to kind registry")
 	}
 
 	// No sorting needed - each GVK is now uniquely indexed
@@ -417,26 +410,17 @@ func (b *SchemaBuilder) expandRelationshipsSimple(schema *spec.Schema, schemaKey
 
 		baseKind := strings.TrimSuffix(propName, "Ref")
 
-		// Check for conflicts and potentially add relationship field
+		// Add relationship field using kubectl-style priority resolution
 		b.processReferenceField(schema, schemaKey, propName, baseKind)
 	}
 }
 
-// processReferenceField handles individual reference field processing with conflict detection
+// processReferenceField handles individual reference field processing with kubectl-style priority resolution
 func (b *SchemaBuilder) processReferenceField(schema *spec.Schema, schemaKey, propName, baseKind string) {
-	// Find all candidates for this kind
-	candidates := b.findAllCandidatesForKind(baseKind)
+	// Find best resource using kubectl-style priority
+	bestResource := b.findBestResourceForKind(baseKind)
 
-	// DEBUG: Log what candidates we found
-	b.log.Info().
-		Str("baseKind", baseKind).
-		Str("sourceField", propName).
-		Str("sourceSchema", schemaKey).
-		Int("candidateCount", len(candidates)).
-		Msg("DEBUG: Processing reference field")
-
-	switch len(candidates) {
-	case 0:
+	if bestResource == nil {
 		// No candidates found - skip relationship field generation
 		b.log.Debug().
 			Str("kind", baseKind).
@@ -444,16 +428,36 @@ func (b *SchemaBuilder) processReferenceField(schema *spec.Schema, schemaKey, pr
 			Str("sourceSchema", schemaKey).
 			Msg("No candidates found for kind - skipping relationship field")
 		return
-
-	case 1:
-		// Single candidate - generate relationship field normally
-		target := &candidates[0]
-		b.addRelationshipField(schema, schemaKey, propName, baseKind, target)
-
-	default:
-		// Multiple candidates - enforce disambiguation in the *Ref field itself
-		b.enforceDisambiguationInRefField(schema, schemaKey, propName, baseKind, candidates)
 	}
+
+	// Generate relationship field using the best resource
+	b.addRelationshipField(schema, schemaKey, propName, baseKind, bestResource)
+}
+
+// findBestResourceForKind finds the best resource for a kind using kubectl-style priority resolution
+func (b *SchemaBuilder) findBestResourceForKind(kindName string) *ResourceInfo {
+	candidates := b.findAllCandidatesForKind(kindName)
+
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	if len(candidates) == 1 {
+		return &candidates[0]
+	}
+
+	// Multiple candidates - use kubectl-style priority resolution
+	best := b.selectByKubectlPriority(candidates)
+
+	// Log warning about the conflict for observability
+	groups := b.formatCandidateGroups(candidates)
+	b.log.Warn().
+		Str("kind", kindName).
+		Str("selectedGroup", b.formatGroupVersion(best)).
+		Strs("availableGroups", groups).
+		Msg("Multiple API groups provide this kind - selected first by priority (kubectl-style)")
+
+	return &best
 }
 
 // findAllCandidatesForKind finds all resources that match the given kind name
@@ -467,6 +471,60 @@ func (b *SchemaBuilder) findAllCandidatesForKind(kindName string) []ResourceInfo
 	}
 
 	return candidates
+}
+
+// selectByKubectlPriority selects the best resource using kubectl's priority rules
+func (sb *SchemaBuilder) selectByKubectlPriority(candidates []ResourceInfo) ResourceInfo {
+	// Sort candidates by kubectl priority:
+	// 1. Preferred versions first
+	// 2. Core groups (empty group) over extensions
+	// 3. Alphabetical by group name
+	// 4. Alphabetical by version (newer versions typically sort later)
+	slices.SortFunc(candidates, func(a, b ResourceInfo) int {
+		// 1. Check preferred versions first
+		aPreferred := sb.isPreferredVersion(a)
+		bPreferred := sb.isPreferredVersion(b)
+		if aPreferred && !bPreferred {
+			return -1 // a wins
+		}
+		if !aPreferred && bPreferred {
+			return 1 // b wins
+		}
+
+		// 2. Core groups (empty group) beat extension groups
+		aCoreGroup := (a.Group == "")
+		bCoreGroup := (b.Group == "")
+		if aCoreGroup && !bCoreGroup {
+			return -1 // a wins (core group)
+		}
+		if !aCoreGroup && bCoreGroup {
+			return 1 // b wins (core group)
+		}
+
+		// 3. Alphabetical by group name
+		if cmp := strings.Compare(a.Group, b.Group); cmp != 0 {
+			return cmp
+		}
+
+		// 4. Alphabetical by version (this gives deterministic results)
+		return strings.Compare(a.Version, b.Version)
+	})
+
+	return candidates[0] // Return the first (highest priority) candidate
+}
+
+// isPreferredVersion checks if this resource version is marked as preferred
+func (b *SchemaBuilder) isPreferredVersion(resource ResourceInfo) bool {
+	key := fmt.Sprintf("%s/%s", resource.Group, resource.Kind)
+	return b.preferredVersions[key] == resource.Version
+}
+
+// formatGroupVersion formats a resource for display
+func (b *SchemaBuilder) formatGroupVersion(resource ResourceInfo) string {
+	if resource.Group == "" {
+		return fmt.Sprintf("core/%s", resource.Version)
+	}
+	return fmt.Sprintf("%s/%s", resource.Group, resource.Version)
 }
 
 // addRelationshipField adds a relationship field for unambiguous references
@@ -494,69 +552,6 @@ func (b *SchemaBuilder) addRelationshipField(schema *spec.Schema, schemaKey, pro
 		Str("refPath", refPath).
 		Str("sourceSchema", schemaKey).
 		Msg("Added relationship field")
-}
-
-// enforceDisambiguationInRefField modifies the *Ref field schema to require disambiguation
-func (b *SchemaBuilder) enforceDisambiguationInRefField(schema *spec.Schema, schemaKey, propName, baseKind string, candidates []ResourceInfo) {
-	// Check if the *Ref field exists
-	if _, exists := schema.Properties[propName]; !exists {
-		return
-	}
-
-	// Modify the *Ref field to require apiGroup and kind for disambiguation
-	refFieldSchema := &spec.Schema{
-		SchemaProps: spec.SchemaProps{
-			Type: spec.StringOrArray{"object"},
-			Properties: map[string]spec.Schema{
-				"name": {
-					SchemaProps: spec.SchemaProps{
-						Type:        spec.StringOrArray{"string"},
-						Description: "Name of the referenced resource",
-					},
-				},
-				"namespace": {
-					SchemaProps: spec.SchemaProps{
-						Type:        spec.StringOrArray{"string"},
-						Description: "Namespace of the referenced resource (if namespaced)",
-					},
-				},
-				"apiGroup": {
-					SchemaProps: spec.SchemaProps{
-						Type:        spec.StringOrArray{"string"},
-						Description: fmt.Sprintf("API group of the referenced %s (required due to multiple groups providing this kind)", baseKind),
-					},
-				},
-				"kind": {
-					SchemaProps: spec.SchemaProps{
-						Type:        spec.StringOrArray{"string"},
-						Description: fmt.Sprintf("Kind of the referenced resource (required due to multiple groups providing %s)", baseKind),
-					},
-				},
-			},
-			Required: []string{"name", "apiGroup", "kind"}, // Enforce disambiguation
-			Description: fmt.Sprintf("Reference to %s resource. Multiple API groups provide this kind: %s. "+
-				"apiGroup and kind fields are required for disambiguation.",
-				baseKind, b.formatCandidateGroups(candidates)),
-		},
-	}
-
-	// Update the schema
-	schema.Properties[propName] = *refFieldSchema
-
-	// Log the enforcement
-	groups := b.formatCandidateGroups(candidates)
-	b.log.Warn().
-		Str("kind", baseKind).
-		Str("sourceField", propName).
-		Str("sourceSchema", schemaKey).
-		Strs("conflictingGroups", groups).
-		Msg("SCHEMA ENFORCEMENT: Modified *Ref field to require apiGroup/kind due to conflicts")
-
-	// Do NOT add automatic relationship field - user must be explicit
-	b.log.Info().
-		Str("kind", baseKind).
-		Str("sourceField", propName).
-		Msg("Skipped automatic relationship field generation - user must specify explicit references")
 }
 
 // formatCandidateGroups formats candidate groups for error messages

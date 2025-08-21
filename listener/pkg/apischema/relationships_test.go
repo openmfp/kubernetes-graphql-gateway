@@ -54,12 +54,12 @@ func Test_with_relationships_adds_single_target_field(t *testing.T) {
 	assert.Contains(t, added.Ref.String(), "#/definitions/g.v1.Role")
 }
 
-func Test_schema_enforcement_prevents_conflicting_relationship_fields(t *testing.T) {
+func Test_kubectl_style_priority_resolution_for_conflicts(t *testing.T) {
 	mock := apimocks.NewMockClient(t)
 	mock.EXPECT().Paths().Return(map[string]openapi.GroupVersion{}, nil)
 	b := apischema.NewSchemaBuilder(mock, nil, testlogger.New().Logger)
 
-	// Two schemas with same Kind different groups - should trigger schema enforcement
+	// Two schemas with same Kind different groups - should use kubectl-style priority
 	first := schemaWithGVK("a.example", "v1", "Thing")
 	second := schemaWithGVK("b.example", "v1", "Thing")
 	b.SetSchemas(map[string]*spec.Schema{
@@ -70,7 +70,7 @@ func Test_schema_enforcement_prevents_conflicting_relationship_fields(t *testing
 
 	b.WithRelationships() // indirectly builds the registry
 
-	// Add a schema that references thingRef - should trigger conflict enforcement
+	// Add a schema that references thingRef - should use priority resolution
 	sRef := &spec.Schema{SchemaProps: spec.SchemaProps{Properties: map[string]spec.Schema{
 		"thingRef": {SchemaProps: spec.SchemaProps{Type: spec.StringOrArray{"object"}}},
 	}}}
@@ -78,18 +78,17 @@ func Test_schema_enforcement_prevents_conflicting_relationship_fields(t *testing
 
 	b.WithRelationships()
 
-	// Schema enforcement should PREVENT automatic relationship field generation due to conflicts
+	// Kubectl-style resolution should GENERATE automatic relationship field using priority
 	_, hasAutoField := b.GetSchemas()["x.v1.HasThing"].Properties["thing"]
-	assert.False(t, hasAutoField, "automatic relationship field should NOT be generated due to conflicts")
+	assert.True(t, hasAutoField, "automatic relationship field should be generated using kubectl-style priority")
 
-	// Schema enforcement should modify the *Ref field to require disambiguation
+	// The *Ref field should remain unchanged (backward compatible)
 	thingRefField := b.GetSchemas()["x.v1.HasThing"].Properties["thingRef"]
-	assert.Contains(t, thingRefField.Required, "apiGroup", "apiGroup should be required due to conflicts")
-	assert.Contains(t, thingRefField.Required, "kind", "kind should be required due to conflicts")
-	assert.Contains(t, thingRefField.Description, "Multiple API groups", "description should mention conflicts")
+	assert.NotContains(t, thingRefField.Required, "apiGroup", "apiGroup should NOT be required - backward compatible")
+	assert.NotContains(t, thingRefField.Required, "kind", "kind should NOT be required - backward compatible")
 }
 
-func Test_schema_enforcement_with_preferred_versions_still_requires_disambiguation(t *testing.T) {
+func Test_kubectl_style_priority_respects_preferred_versions(t *testing.T) {
 	mock := apimocks.NewMockClient(t)
 	mock.EXPECT().Paths().Return(map[string]openapi.GroupVersion{}, nil)
 	b := apischema.NewSchemaBuilder(mock, nil, testlogger.New().Logger)
@@ -125,14 +124,14 @@ func Test_schema_enforcement_with_preferred_versions_still_requires_disambiguati
 
 	b.WithRelationships()
 
-	// Even with preferred versions, strict mode should prevent automatic field generation with conflicts
+	// Kubectl-style resolution should use preferred version to generate relationship field
 	_, hasAutoField := b.GetSchemas()["x.v1.Parent"].Properties["child"]
-	assert.False(t, hasAutoField, "automatic relationship field should NOT be generated even with preferred versions when conflicts exist")
+	assert.True(t, hasAutoField, "automatic relationship field should be generated using preferred version priority")
 
-	// Schema enforcement should modify the *Ref field to require disambiguation
+	// The *Ref field should remain unchanged (backward compatible)
 	childRefField := b.GetSchemas()["x.v1.Parent"].Properties["childRef"]
-	assert.Contains(t, childRefField.Required, "apiGroup", "apiGroup should be required due to conflicts")
-	assert.Contains(t, childRefField.Required, "kind", "kind should be required due to conflicts")
+	assert.NotContains(t, childRefField.Required, "apiGroup", "apiGroup should NOT be required - backward compatible")
+	assert.NotContains(t, childRefField.Required, "kind", "kind should NOT be required - backward compatible")
 }
 
 func Test_depth_control_prevents_deep_nesting(t *testing.T) {
@@ -302,20 +301,14 @@ func Test_same_kind_different_groups_with_explicit_disambiguation(t *testing.T) 
 
 	schemas := b.GetSchemas()
 
-	// Verify schema enforcement was applied
+	// Verify kubectl-style resolution was applied
 	_, hasAutoField := schemas["apps.example.com.v1.Application"].Properties["database"]
-	assert.False(t, hasAutoField, "automatic relationship field should NOT be generated due to kind conflicts")
+	assert.True(t, hasAutoField, "automatic relationship field should be generated using kubectl-style priority")
 
-	// Verify the databaseRef field was modified to require disambiguation
+	// Verify the databaseRef field remains unchanged (backward compatible)
 	dbRefField := schemas["apps.example.com.v1.Application"].Properties["databaseRef"]
-	assert.NotEmpty(t, dbRefField.Required, "databaseRef should have required fields")
-	assert.Contains(t, dbRefField.Required, "apiGroup", "apiGroup should be required to choose between mysql.example.com and postgres.example.com")
-	assert.Contains(t, dbRefField.Required, "kind", "kind should be required for disambiguation")
-
-	// Verify the description explains the conflict
-	assert.Contains(t, dbRefField.Description, "mysql.example.com", "description should mention mysql group")
-	assert.Contains(t, dbRefField.Description, "postgres.example.com", "description should mention postgres group")
-	assert.Contains(t, dbRefField.Description, "Multiple API groups", "description should explain the conflict")
+	assert.NotContains(t, dbRefField.Required, "apiGroup", "apiGroup should NOT be required - backward compatible")
+	assert.NotContains(t, dbRefField.Required, "kind", "kind should NOT be required - backward compatible")
 }
 
 func Test_same_kind_different_groups_kubernetes_core_vs_custom(t *testing.T) {
@@ -345,17 +338,12 @@ func Test_same_kind_different_groups_kubernetes_core_vs_custom(t *testing.T) {
 
 	// Even with core vs custom, should still require disambiguation
 	_, hasAutoField := schemas["example.com.v1.Parent"].Properties["service"]
-	assert.False(t, hasAutoField, "automatic relationship field should NOT be generated even for core vs custom conflicts")
+	assert.True(t, hasAutoField, "automatic relationship field should be generated using kubectl-style priority (core wins)")
 
-	// Schema should enforce disambiguation
+	// The serviceRef field should remain unchanged (backward compatible)
 	serviceRefField := schemas["example.com.v1.Parent"].Properties["serviceRef"]
-	assert.Contains(t, serviceRefField.Required, "apiGroup", "apiGroup should be required to distinguish core vs custom Service")
-	assert.Contains(t, serviceRefField.Required, "kind", "kind should be required")
-
-	// Description should mention both core and custom groups
-	description := serviceRefField.Description
-	assert.Contains(t, description, "core/v1", "description should mention core group")
-	assert.Contains(t, description, "custom.example.com/v1", "description should mention custom group")
+	assert.NotContains(t, serviceRefField.Required, "apiGroup", "apiGroup should NOT be required - backward compatible")
+	assert.NotContains(t, serviceRefField.Required, "kind", "kind should NOT be required - backward compatible")
 }
 
 func Test_same_kind_different_groups_with_preferred_version_still_conflicts(t *testing.T) {
@@ -393,11 +381,11 @@ func Test_same_kind_different_groups_with_preferred_version_still_conflicts(t *t
 
 	schemas := b.GetSchemas()
 
-	// Even with preferred version, strict mode should still prevent automatic generation
+	// Kubectl-style resolution should use preferred version and generate relationship field
 	_, hasAutoField := schemas["apps.example.com.v1.BackupApp"].Properties["storage"]
-	assert.False(t, hasAutoField, "automatic relationship field should NOT be generated even with preferred version when multiple groups provide the same kind")
+	assert.True(t, hasAutoField, "automatic relationship field should be generated using preferred version priority")
 
-	// Should still require explicit disambiguation
+	// The storageRef field should remain unchanged (backward compatible)
 	storageRefField := schemas["apps.example.com.v1.BackupApp"].Properties["storageRef"]
-	assert.Contains(t, storageRefField.Required, "apiGroup", "apiGroup should be required even with preferred version to avoid ambiguity")
+	assert.NotContains(t, storageRefField.Required, "apiGroup", "apiGroup should NOT be required - backward compatible")
 }
