@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/graphql-go/graphql"
+	pkgErrors "github.com/pkg/errors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -93,9 +94,9 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind, scope v1.ResourceScope)
 			log = r.log
 		}
 
-		// Create a list of unstructured objects to hold the results
+		// Create an unstructured list to hold the results
 		list := &unstructured.UnstructuredList{}
-		list.SetGroupVersionKind(schema.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind + "List"})
+		list.SetGroupVersionKind(gvk)
 
 		var opts []client.ListOption
 
@@ -120,8 +121,8 @@ func (r *Service) ListItems(gvk schema.GroupVersionKind, scope v1.ResourceScope)
 		}
 
 		if err = r.runtimeClient.List(ctx, list, opts...); err != nil {
-			log.Error().Err(err).Str("scope", string(scope)).Msg("Unable to list objects")
-			return nil, err
+			log.Error().Err(err).Msg("Unable to list objects")
+			return nil, pkgErrors.Wrap(err, "unable to list objects")
 		}
 
 		sortBy, err := getStringArg(p.Args, SortByArg, false)
