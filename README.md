@@ -1,3 +1,6 @@
+> [!WARNING]
+> This repository has been moved to https://github.com/platform-mesh/kubernetes-graphql-gateway
+
 # kubernetes-graphql-gateway
 
 ![Build Status](https://github.com/openmfp/kubernetes-graphql-gateway/actions/workflows/pipeline.yml/badge.svg)
